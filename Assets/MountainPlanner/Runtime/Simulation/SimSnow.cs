@@ -127,6 +127,13 @@ namespace MountainPlanner.Simulation
             return change;
         }
 
+        /// <summary>Task 4.08: the tiles over 8 m cells x0..x1, y0..y1 (inclusive) worked out again and sent (a paint).</summary>
+        internal void Refresh(int x0, int y0, int x1, int y1)
+        {
+            for (int ty = y0 / TileCells; ty <= y1 / TileCells; ty++)
+                for (int tx = x0 / TileCells; tx <= x1 / TileCells; tx++) { int t = ty * TilesX + tx; Refresh(t); MarkDue(t); }
+        }
+
         /// <summary>A tile's landed planes and both hashes worked out again from the snow (a seed, a load, the switch to live).</summary>
         internal void Refresh(int t)
         {

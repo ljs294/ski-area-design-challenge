@@ -323,6 +323,9 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.SetTrailMowing:   // task 4.29
                     if (!ApplyMowing(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
                     break;
+                case SimCommandKind.PaintSnow:   // task 4.08
+                    if (!ApplyPaintSnow(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:
                     if (!ApplyLiftCommand(c)) return;

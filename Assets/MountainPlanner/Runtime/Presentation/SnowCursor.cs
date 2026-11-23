@@ -26,6 +26,18 @@ namespace MountainPlanner.Presentation
             if (states == null || !states.LiftOn) return 0;
             var field = states.Snow;
             float d = Smooth(states.Lift, field.Width, field.Height, field.CellMetres, ring, x, z);
+            if (float.IsNaN(d)) return 0;
+            // Task 4.08 PR A: the fine trail snow over the 8 m curve, as Snow.hlsl blends them.
+            return states.Fine.LiftAt(x, z, d * states.LiftScale, states.LiftScale);
+        }
+
+        /// <summary>Task 4.08 PR A: the 8 m curve alone (as drawn before the fine trail snow came to the screen; the review's
+        /// before picture and its log).</summary>
+        public static float LiftAt8(SurfaceStates states, Rect ring, float x, float z)
+        {
+            if (states == null || !states.LiftOn) return 0;
+            var field = states.Snow;
+            float d = Smooth(states.Lift, field.Width, field.Height, field.CellMetres, ring, x, z);
             return float.IsNaN(d) ? 0 : d * states.LiftScale;
         }
 

@@ -85,6 +85,9 @@ namespace MountainPlanner.Simulation
         /// each built run's mowing, applied at once; a view-sequence command (resent after every load and every mowing edit:
         /// the setting is the design's, the grass is the worker's).</summary>
         SetTrailMowing = 40,
+        /// <summary>Task 4.08 (SN-27 v2; number cleared by 0.0 2026-11-23): Payload = a <see cref="SimSnowPaint"/>, new machine
+        /// made snow on the fine trail cells under it (the style tile's whales, <c>-paintwhale</c>, tests).</summary>
+        PaintSnow = 41,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

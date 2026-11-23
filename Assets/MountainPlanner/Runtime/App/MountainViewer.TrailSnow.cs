@@ -18,6 +18,8 @@ namespace MountainPlanner.App
         bool _trailSnowDirty;
         Task<TrailSnowLayout> _trailSnowJob;
         TrailSnowLayout _trailSnowReady;
+        /// <summary>Task 4.08 PR A: the layout last sent, for the fine atlas (bound when its tiles come in).</summary>
+        TrailSnowLayout _trailSnowSent;
         ulong _trailSnowSentHash;
 
         /// <summary>The design just sent to the worker (with its network): the layout follows it.</summary>
@@ -97,6 +99,7 @@ namespace MountainPlanner.App
                     Debug.Log($"[TrailSnow] {_trailSnowReady.Trails} trails, {_trailSnowReady.Blocks} snow squares at {_trailSnowReady.FineMetres} m " +
                               $"({_trailSnowReady.FineCells} fine cells) to the worker (hash {hash:X16})");
                     _trailSnowSentHash = hash;
+                    _trailSnowSent = _trailSnowReady;
                     _trailSnowReady = null;
                 }
                 return;

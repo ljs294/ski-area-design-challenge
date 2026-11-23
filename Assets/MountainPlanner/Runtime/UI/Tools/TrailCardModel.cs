@@ -88,7 +88,7 @@ namespace MountainPlanner.UI.Tools
         static readonly string[] TypeWords =
         {
             "", "Powder", "Packed powder", "Machine groomed", "Hard pack", "Ice", "Corn", "Frozen granular", "Loose granular",
-            "Wet granular", "Wet powder",
+            "Wet granular", "Wet powder", "Machine made",
         };
 
         /// <summary>

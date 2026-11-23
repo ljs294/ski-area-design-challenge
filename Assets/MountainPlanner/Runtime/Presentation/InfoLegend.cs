@@ -86,13 +86,14 @@ namespace MountainPlanner.Presentation
             new Color(0.929f, 0.631f, 0.000f),   // loose granular
             new Color(0.769f, 0.498f, 0.000f),   // wet granular
             new Color(0.173f, 0.455f, 0.776f),   // wet powder
+            new Color(0.549f, 0.769f, 0.941f),   // machine made (task 4.08, SN-13 v2: the fresh family's lightest step)
         };
 
         /// <summary>The snow types' names, as the readout says them (indexed as <see cref="SnowTypeColours"/>).</summary>
         public static readonly string[] SnowTypeNames =
         {
             "Bare", "Powder", "Packed powder", "Machine groomed", "Hard packed", "Icy", "Corn", "Frozen granular", "Loose granular",
-            "Wet granular", "Wet powder",
+            "Wet granular", "Wet powder", "Machine made",
         };
 
         /// <summary>
@@ -111,9 +112,10 @@ namespace MountainPlanner.Presentation
         public static readonly Entry[] SnowConditions =
         {
             new Entry(SnowTypeColours[1], "Powder", "Fresh"),
+            new Entry(SnowTypeColours[11], "Machine made", ""),
             new Entry(SnowTypeColours[10], "Wet powder", ""),
-            new Entry(SnowTypeColours[3], "Machine groomed", "Packed"),
-            new Entry(SnowTypeColours[2], "Packed powder", ""),
+            new Entry(SnowTypeColours[2], "Packed powder", "Packed"),
+            new Entry(SnowTypeColours[3], "Machine groomed", ""),
             new Entry(SnowTypeColours[4], "Hard packed", "Hard"),
             new Entry(SnowTypeColours[7], "Frozen granular", ""),
             new Entry(SnowTypeColours[5], "Icy", ""),

@@ -47,6 +47,13 @@ namespace MountainPlanner.Presentation.Guests
         NativeArray<byte> _drawRiders;
         NativeArray<int> _lineCount;
         NativeArray<float> _snow;
+        // Task 4.08 PR A: the fine trail snow's lift, slot by slot as the atlas has it, and its page table.
+        NativeArray<float> _fineLift;
+        NativeArray<int> _finePage;
+        int[] _fineSeen = System.Array.Empty<int>();
+        ulong _fineLayout;
+        int _fineT, _fineTilesX, _fineTilesY;
+        float _fineMetres;
         NativeArray<float3> _noSlots;
         NativeArray<float2> _noFacing;
         NativeArray<int2> _noLiftSlots;
@@ -114,6 +121,8 @@ namespace MountainPlanner.Presentation.Guests
             _buffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, _cap, 16);
             Lifts(1);
             _snow = new NativeArray<float>(1, Allocator.Persistent);
+            _fineLift = new NativeArray<float>(1, Allocator.Persistent);
+            _finePage = new NativeArray<int>(1, Allocator.Persistent);
             _noSlots = new NativeArray<float3>(1, Allocator.Persistent);
             _noFacing = new NativeArray<float2>(1, Allocator.Persistent);
             _noLiftSlots = new NativeArray<int2>(1, Allocator.Persistent);
@@ -276,6 +285,36 @@ namespace MountainPlanner.Presentation.Guests
             _snowW = width; _snowH = height; _snowOrigin = new float2(origin.x, origin.y); _snowCell = cell;
         }
 
+        /// <summary>
+        /// Task 4.08 PR A: the fine trail snow the ground is drawn lifted by: the atlas's layout (a new one lays the copy out
+        /// again), then each slot that has gone up since the last call (4 KB a 2 m slot). Called where <see cref="SetSnow"/> is.
+        /// </summary>
+        public void SetFine(FineSnowAtlas atlas)
+        {
+            var tiles = atlas?.Tiles;
+            if (tiles == null || tiles.Count == 0) { _fineT = 0; _fineLayout = 0; return; }
+            int T = tiles.TileFine;
+            if (_fineLayout != atlas.LayoutHash)
+            {
+                _fineLayout = atlas.LayoutHash;
+                if (_fineLift.IsCreated) _fineLift.Dispose();
+                if (_finePage.IsCreated) _finePage.Dispose();
+                _fineLift = new NativeArray<float>(tiles.Count * T * T, Allocator.Persistent);
+                _finePage = new NativeArray<int>(tiles.TilesX * tiles.TilesY, Allocator.Persistent);
+                for (int k = 0; k < _fineLift.Length; k++) _fineLift[k] = -1;
+                for (int k = 0; k < _finePage.Length; k++) _finePage[k] = tiles.Slot[k];
+                _fineSeen = new int[tiles.Count];
+                _fineT = T; _fineTilesX = tiles.TilesX; _fineTilesY = tiles.TilesY; _fineMetres = atlas.FineMetres;
+            }
+            for (int s = 0; s < tiles.Count; s++)
+            {
+                int v = atlas.SlotVersion(s);
+                if (v == _fineSeen[s]) continue;
+                _fineSeen[s] = v;
+                atlas.CopySlotLift(s, _fineLift, s * T * T);
+            }
+        }
+
         /// <summary>Per lift index (the design's order): its rope travel drawn now, whether riders show, its line now, and
         /// (task 4.22) whether it is a carpet, whose figures stand on the belt rather than the ground; (task 4.24 PR B, RD-2)
         /// how many stand in its top line.</summary>
@@ -327,6 +366,7 @@ namespace MountainPlanner.Presentation.Guests
                 TopSlotsAt = lines != null && lines.TopSlotsAt >= 0 ? lines.TopSlotsAt : int.MaxValue / 2,
                 RopeNow = _ropeNow, DrawRiders = _drawRiders, LineCount = _lineCount,
                 Snow = _snow, SnowScale = SnowScale, SnowOrigin = _snowOrigin, SnowCell = _snowCell, SnowW = _snowW, SnowH = _snowH,
+                FineLift = _fineLift, FinePage = _finePage, FineT = _fineT, FineTilesX = _fineTilesX, FineTilesY = _fineTilesY, FineMetres = _fineMetres,
                 // Picking wants the plain projection (no GPU flip): screen points in the Input System's pixels.
                 ViewProjection = camera.projectionMatrix * camera.worldToCameraMatrix,
                 ScreenSize = _screenSize = new float2(camera.pixelWidth, camera.pixelHeight),
@@ -536,6 +576,8 @@ namespace MountainPlanner.Presentation.Guests
             if (_drawRiders.IsCreated) _drawRiders.Dispose();
             if (_lineCount.IsCreated) _lineCount.Dispose();
             if (_snow.IsCreated) _snow.Dispose();
+            if (_fineLift.IsCreated) _fineLift.Dispose();
+            if (_finePage.IsCreated) _finePage.Dispose();
             if (_noSlots.IsCreated) _noSlots.Dispose();
             if (_noFacing.IsCreated) _noFacing.Dispose();
             if (_noLiftSlots.IsCreated) _noLiftSlots.Dispose();

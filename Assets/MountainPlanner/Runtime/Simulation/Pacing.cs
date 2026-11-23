@@ -14,7 +14,7 @@ namespace MountainPlanner.Simulation
     public sealed class Pacing
     {
         /// <summary>The table's layout version: a new or renamed entry bumps it.</summary>
-        public const int Version = 16;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
+        public const int Version = 17;   // 3: task 4.12's guests (GU-03…GU-18); MaxLine retired for the slot-linked line
                                         // 4: task 4.13's confidence speed (GU-10 v2)
                                         // 5: task 4.05's weather (WX-17 v2, WX-28 v2, WX-29, WX-34 v2, WX-35, WX-36 v2, WX-39)
                                         // 6: task 4.05 PR B2's weather over the map (WX-35, WX-39) and PR C's forecast (WX-05 v3, WX-41)
@@ -26,6 +26,7 @@ namespace MountainPlanner.Simulation
                                         // 12: task 4.15's snowmaking solve (HY-07 PipeClass, HY-08 SolveLatencyTicks and MaxResolves); 0.0: the first of 4.15 and 4.07 B1 to merge takes 12, the other renumbers
                                         // 13: task 4.07 B1 part 2a's trail snow and 2b's readiness (SN-03 v3, SN-14 v3, SN-16 v3, SN-17, SN-20 v3, SN-23 v3, SN-24 v3, SN-30 v2, GU-07 v2; 0.0 2026-11-19: 4.15 merged first and took 12)
                                         // 14: task 4.25's grooming operations (GO-01…GO-12, SN-22 v4, SM-05, SN-27 v2's GreenPushQuality; number cleared by 0.0 2026-11-20; 4.16 may race: the second to merge renumbers)
+                                        // 17: task 4.08's machine made snow (SN-13 v2, QualityBase's eleventh) and the groomed finish (SN-14 v4, GroomsToMachine); provisional after 4.29 PR A's 16 (0.0 2026-11-23)
                                         // 15: task 4.25 PR B's transit and report at opening (GO-15, GO-16 v2, GroomTransitKmh, GroomPassMm, GroomWinchSharePermille, SkipLandsBeforeOpenMinutes 0, GO-03 v2's equal shifts with GroomSwingEndHour retired; cleared by 0.0 2026-11-21)
                                         // 16: task 4.29's trail grass and mowing (SN-35, SN-36, SN-37; CoverNaturalMm became CoverNaturalBaseMm + GrassCoverMm)
 
@@ -374,6 +375,8 @@ namespace MountainPlanner.Simulation
         /// harden it. (4.07's nightly hour went with task 4.25: the shifts say when.)</summary>
         public readonly int GroomReachMm, GroomBlend, GroomedDensity, GroomPack, GroomMinDepthMm, GroomMinWidthMm, GroomMaxDepthMm,
                             GroomsToHard;
+        /// <summary>SN-14 v4 (task 4.08): from this grooming in a row the snow is machine groomed (before it, packed powder).</summary>
+        public readonly int GroomsToMachine;
         /// <summary>SN-23 v4: a light pass's reach (mm) and blend (‰); it packs as a heavy one does (task 4.25's strengths).</summary>
         public readonly int GroomLightReachMm, GroomLightBlend;
         // ---- Task 4.25: grooming operations (GO-01…GO-12, SN-22 v4, SM-05) ----
@@ -408,6 +411,8 @@ namespace MountainPlanner.Simulation
         public readonly int GroomNewSnowUm, GroomPowderKeepUm, GroomPowderGrade, GroomPowderWarnNights;
         /// <summary>SM-05: a pile this far above the trail's mean depth (mm) is a whale; a whale cures in this many hours.</summary>
         public readonly int WhaleRiseMm, GroomCureHours;
+        /// <summary>SN-27 v2's WhaleMax (task 4.08): the deepest pile a paint or a gun builds on a fine cell, mm (26 ft).</summary>
+        public readonly int WhaleMaxMm;
         /// <summary>GO-06: an operator's pay ($ an hour) and the shifts' rates (swing, night, day; ‰).</summary>
         public readonly int GroomPayUsdHour;
         public readonly int[] GroomShiftPayPermille;
@@ -670,7 +675,7 @@ namespace MountainPlanner.Simulation
             CornCycles = Int(map, nameof(CornCycles), 1, 3);
             CornWindowDays = Int(map, nameof(CornWindowDays), 1, 60);
             QualityBase = Ints(map, nameof(QualityBase), 0, 1000);
-            if (QualityBase.Length != 10) throw new FormatException("QualityBase needs ten types.");
+            if (QualityBase.Length != 11) throw new FormatException("QualityBase needs eleven types.");
             QualityAgePerHour = Int(map, nameof(QualityAgePerHour), 0, 1000);
             QualityAgeFloor = Int(map, nameof(QualityAgeFloor), 0, 1000);
             SeedDensity = Int(map, nameof(SeedDensity), 50, 917);
@@ -709,6 +714,7 @@ namespace MountainPlanner.Simulation
             GroomLightReachMm = Int(map, nameof(GroomLightReachMm), 1000, 1_000_000);
             GroomLightBlend = Int(map, nameof(GroomLightBlend), 0, 1000);
             GroomsToHard = Int(map, nameof(GroomsToHard), 1, 7);
+            GroomsToMachine = Int(map, nameof(GroomsToMachine), 1, 7);
             GroomSweepMinutes = Int(map, nameof(GroomSweepMinutes), 0, 240);
             GroomNightEndsBeforeOpenMinutes = Int(map, nameof(GroomNightEndsBeforeOpenMinutes), 0, 240);
             GroomDayStartHour = Int(map, nameof(GroomDayStartHour), 0, 23);
@@ -737,6 +743,7 @@ namespace MountainPlanner.Simulation
             GroomPowderGrade = Int(map, nameof(GroomPowderGrade), 0, 1000);
             GroomPowderWarnNights = Int(map, nameof(GroomPowderWarnNights), 1, 30);
             WhaleRiseMm = Int(map, nameof(WhaleRiseMm), 1, 100_000);
+            WhaleMaxMm = Int(map, nameof(WhaleMaxMm), 1, 30_000);
             GroomCureHours = Int(map, nameof(GroomCureHours), 0, 255);
             GroomPayUsdHour = Int(map, nameof(GroomPayUsdHour), 0, 10_000);
             GroomShiftPayPermille = Ints(map, nameof(GroomShiftPayPermille), 0, 10_000);
@@ -1001,7 +1008,7 @@ namespace MountainPlanner.Simulation
             E(nameof(SnowRefreezeHours), "2"),
             E(nameof(CornCycles), "3"),
             E(nameof(CornWindowDays), "5"),
-            E(nameof(QualityBase), "960, 900, 940, 680, 160, 840, 420, 640, 500, 780"),
+            E(nameof(QualityBase), "960, 900, 940, 680, 160, 840, 420, 640, 500, 780, 880"),
             E(nameof(QualityAgePerHour), "4"),
             E(nameof(QualityAgeFloor), "600"),
             E(nameof(SeedDensity), "300"),
@@ -1038,6 +1045,7 @@ namespace MountainPlanner.Simulation
             E(nameof(GroomLightReachMm), "4572"),
             E(nameof(GroomLightBlend), "300"),
             E(nameof(GroomsToHard), "5"),
+            E(nameof(GroomsToMachine), "3"),
             E(nameof(GroomSweepMinutes), "0"),
             E(nameof(GroomNightEndsBeforeOpenMinutes), "0"),
             E(nameof(GroomDayStartHour), "8"),
@@ -1063,6 +1071,7 @@ namespace MountainPlanner.Simulation
             E(nameof(GroomPowderGrade), "35"),
             E(nameof(GroomPowderWarnNights), "3"),
             E(nameof(WhaleRiseMm), "914"),
+            E(nameof(WhaleMaxMm), "7925"),
             E(nameof(GroomCureHours), "24"),
             E(nameof(GroomPayUsdHour), "32"),
             E(nameof(GroomShiftPayPermille), "1100,1200,1000"),

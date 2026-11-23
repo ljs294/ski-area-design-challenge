@@ -460,6 +460,24 @@ namespace MountainPlanner.App
             _simTilesShown += to - from;
         }
 
+        /// <summary>Task 4.08 PR A: the fine trail snow's staged tiles into the atlas (bound to the layout last sent the first
+        /// time one of its tiles arrives), then their slots back to the worker.</summary>
+        void DrainFineTiles(SimSnapshot s)
+        {
+            var ring = _sim.FineStaging;
+            long from = ring.Released, to = s.FineStagedTiles;
+            if (to <= from) return;
+            var atlas = _resort?.States?.Fine;
+            for (long n = from; n < to; n++)
+            {
+                ring.Read(n, out int listed, out int size, out ulong layout, out int offset, out ushort[] depth, out byte[] state);
+                if (atlas == null) continue;
+                if (atlas.LayoutHash != layout && _trailSnowSent != null && _trailSnowSent.Hash() == layout) atlas.Bind(_trailSnowSent);
+                atlas.Take(listed, size, layout, depth, state, offset);
+            }
+            ring.Release(to);
+        }
+
         void SendDesign(DesignSnapshot snapshot)
         {
             if (_sim == null || snapshot.Document == null) return;
@@ -518,6 +536,7 @@ namespace MountainPlanner.App
             if (s == null) return;
             _simNow = s;
             DrainSnowTiles(s);
+            DrainFineTiles(s);
             ShowLakes(s);   // task 4.09 PR B: before the paused return, so a reopened save shows its ice while paused
             ShowPondLevels(s);   // task 4.14 PR B: the same, for the water a pond or reservoir holds
             EaseSiteSnow();
@@ -557,6 +576,7 @@ namespace MountainPlanner.App
             SendGrooming();   // task 4.25: the fleet and the runs' grooming
             SendMowing();     // task 4.29: the runs' mowing
             SayTrailSnowBack(s);
+            SendPaintWhale(s);   // task 4.08 PR A: -paintwhale, once the trails' fine snow is live
             // Released with the inputs, or without one whose build ended with none (it failed): then the area plays B1's height
             // rule, has no lakes or keeps the static snow, and the clock is never left stuck.
             if (!_simHoldReleased && !SimInputsMissing) _simHoldReleased = _sim.Send(SimCommandKind.Release);

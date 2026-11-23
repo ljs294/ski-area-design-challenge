@@ -436,6 +436,10 @@ echo   4.28 ground grass: wet hollows, dry ridges and the season (rebuilds the g
 echo     154 The moisture and season tests, then the game four times in mid-July on your Jackson NH map (or the
 echo        demo mountain), a scratch copy: the old plain grass, the new grass, early October (gold), and the
 echo        moisture map (blue wet, cream dry). Close each window to open the next.
+echo   4.08 snow look PR A: the trails' fine snow on screen, machine made snow, a whale by command
+echo     119 The fine snow and paint tests (.NET, then Unity's EditMode; close Unity first), then the drawn resort
+echo        on January 15 with a 26 ft machine made whale painted on a run, the view on it from the side. Rebuilds
+echo        the game.
 echo   4.26 bug bash PR E: trail hover and a groomer's path (builds the game if there is none)
 echo     145 The hover and map tests, then the drawn resort on January 15 with two groomers: hover trails, then
 echo        Analysis, Grooming, Equipment and a groomer's card (only its path lit).
@@ -654,6 +658,7 @@ if /i "%CHOICE%"=="147" goto pads426
 if /i "%CHOICE%"=="161" goto lines426
 if /i "%CHOICE%"=="149" goto garbage426
 if /i "%CHOICE%"=="154" goto grass428
+if /i "%CHOICE%"=="119" goto snowlook408a
 if /i "%CHOICE%"=="155" goto grass429
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
@@ -1378,6 +1383,38 @@ pause
 echo   4 of 4, the moisture map with the trees hidden: blue wet (streams, draws, valley floors, ponds), cream dry.
 pause
 "%GAME%" -data "%GR428%" -notitle -offline %GR428ARG% -season summer -moisturemap -noforest <nul
+goto menu
+
+:snowlook408a
+rem 4.08 PR A: the fine trail snow reaches the screen (atlas and page table), Machine Made, PaintSnow whales.
+chcp 65001 >nul
+echo.
+echo   Part 1 (.NET, about a minute): the fine tiles reach the screen's ring as the field holds them; a paint builds a
+echo   machine made whale up to 26 ft and keeps the water; grooming fresh snow leaves packed powder until the third
+echo   night; machine made snow thaws to wet powder; the frozen saves still open.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~SnowLookSimTests|FullyQualifiedName~SimSaveTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"[paint]" /c:"[ring]" /c:"[SN-14 v4]" /c:"Passed" /c:"Failed" /c:"error"
+echo.
+echo   Part 2 (Unity's EditMode, a few minutes; close Unity first): the shader's lift against its CPU twin over the
+echo   whale, the page table, and the skiers standing on the same surface.
+"%UNITY%" -batchmode -projectPath "%~dp0." -runTests -testPlatform EditMode -testFilter "FineSnowAtlasTests|SnowLiftTests" -testResults "%~dp0test-results\snowlook408a.xml" -logFile "%~dp0test-results\snowlook408a.log"
+findstr /r /c:"testcasecount=.* result=" "%~dp0test-results\snowlook408a.xml"
+findstr /l /c:"[fine lift]" /c:"[skiers]" "%~dp0test-results\snowlook408a.log"
+echo.
+echo   Part 3: the game (rebuilding it first, a few minutes).
+call :buildplayer
+if not exist "%GAME%" goto done
+set "SL408=%LOCALAPPDATA%\SkiAreaDesignChallenge-snowlook408"
+if exist "%SL408%" rmdir /s /q "%SL408%"
+echo.
+echo   The drawn resort on January 15 in a scratch folder (your saves aren't touched), with a 26 ft whale of machine
+echo   made snow painted on a run; the view opens on it from the side. Try:
+echo     - Fly round the whale: it stands its full height on the run (it drew as a lower, broader mound before).
+echo     - The Snow conditions info layer: the whale is Machine made (light blue); a run groomed once or twice is
+echo       Packed powder with corduroy, Machine groomed only after the third night in a row.
+echo     - Skiers and groomers on the run stand on the snow they're drawn on, the whale's slopes too.
+pause
+start "" "%GAME%" -data "%SL408%" -notitle -offline -drawnresort -simto 01-15 -paintwhale 26 -whaleview
+pause
 goto menu
 
 :tests426

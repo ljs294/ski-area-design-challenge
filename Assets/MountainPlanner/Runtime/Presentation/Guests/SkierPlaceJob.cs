@@ -66,6 +66,12 @@ namespace MountainPlanner.Presentation.Guests
         public float2 SnowOrigin;
         public float SnowCell;
         public int SnowW, SnowH;
+        /// <summary>Task 4.08 PR A: the fine trail snow (FineSnowAtlas's slots, the skiers' copy): per slot FineT × FineT cells'
+        /// lift (metres; −1 where no block holds the cell), and per 64 m tile of the grid its slot or −1. FineT 0: none.</summary>
+        [ReadOnly] public NativeArray<float> FineLift;
+        [ReadOnly] public NativeArray<int> FinePage;
+        public int FineT, FineTilesX, FineTilesY;
+        public float FineMetres;
 
         public float4x4 ViewProjection;
         public float2 ScreenSize;
@@ -193,7 +199,7 @@ namespace MountainPlanner.Presentation.Guests
                 else Prev[slot] = p;
             }
 
-            if (onSnow && SnowScale > 0) p.y += SnowAt(p.x, p.z) * SnowScale;
+            if (onSnow && SnowScale > 0) p.y += GroundLift(p.x, p.z) * SnowScale;
             int flags = (r.Serial == Selected && Selected != 0 ? 1 : 0) | (r.Serial == Hovered && Hovered != 0 ? 2 : 0);
             Dots[i] = new float4(p, r.Band + 4 * cls + 64 * flags + 256 * r.Satisfaction);
             Facing[i] = facing;
@@ -425,6 +431,38 @@ namespace MountainPlanner.Presentation.Guests
                 sum += b[dy] * r;
             }
             return math.isnan(sum) ? 0 : math.max(0, sum);
+        }
+
+        /// <summary>Task 4.08 PR A: the 8 m lift blended into the fine trail snow's, as Snow.hlsl's SnowLiftAt: L8 × (1 − G) + R
+        /// over the fine cells' B-spline (R the lift where a block holds the cell, G its presence).</summary>
+        internal float GroundLift(float x, float z)
+        {
+            float l8 = SnowAt(x, z);
+            if (FineT <= 0 || !FineLift.IsCreated || !FinePage.IsCreated) return l8;
+            float s = (x - SnowOrigin.x) / FineMetres - 0.5f, t = (z - SnowOrigin.y) / FineMetres - 0.5f;
+            int i = (int)math.floor(s), j = (int)math.floor(t);
+            float4 a = Spline(s - i), b = Spline(t - j);
+            float r = 0, g = 0;
+            for (int dy = 0; dy < 4; dy++)
+                for (int dx = 0; dx < 4; dx++)
+                {
+                    float lift = FineCell(i - 1 + dx, j - 1 + dy);
+                    if (lift < 0) continue;
+                    float w = a[dx] * b[dy];
+                    r += w * lift; g += w;
+                }
+            if (g <= 0) return l8;
+            return math.max(0, l8 * (1 - math.saturate(g)) + r);
+        }
+
+        float FineCell(int x, int y)
+        {
+            if (x < 0 || y < 0) return -1;
+            int tx = x / FineT, ty = y / FineT;
+            if (tx >= FineTilesX || ty >= FineTilesY) return -1;
+            int slot = FinePage[ty * FineTilesX + tx];
+            if (slot < 0) return -1;
+            return FineLift[slot * FineT * FineT + (y - ty * FineT) * FineT + (x - tx * FineT)];
         }
 
         static float4 Spline(float f)

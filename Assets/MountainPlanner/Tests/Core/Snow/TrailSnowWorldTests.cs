@@ -15,8 +15,8 @@ namespace MountainPlanner.Tests
     /// </summary>
     public sealed class TrailSnowWorldTests
     {
-        const int W = 128, D = 128;
-        const long Origin = -W / 2 * 8000L;
+        internal const int W = 128, D = 128;
+        internal const long Origin = -W / 2 * 8000L;
 
         static void Say(string line) { TestContext.Progress.WriteLine(line); TestContext.Out.WriteLine(line); }
 
@@ -24,7 +24,7 @@ namespace MountainPlanner.Tests
         static SnowFieldTests.Mountain Small => _small ??= SnowFieldTests.Build(Pacing.Default, W, D);
 
         /// <summary>A straight run down the mountain's east flank, 30 m wide, one segment on edge 0.</summary>
-        static TrailSnowInput Run(ulong id, int x, bool neverGroom, int width = 30_000, int dx = 0)
+        internal static TrailSnowInput Run(ulong id, int x, bool neverGroom, int width = 30_000, int dx = 0)
         {
             var stroke = new Stroke(width, false, new[] { new PointMm(x - dx, 380_000), new PointMm(x + dx, -380_000) });
             int row0 = int.MaxValue, rowEnd = int.MinValue;
@@ -38,7 +38,7 @@ namespace MountainPlanner.Tests
             };
         }
 
-        static TrailSnowLayout Layout(params TrailSnowInput[] trails) =>
+        internal static TrailSnowLayout Layout(params TrailSnowInput[] trails) =>
             TrailSnowLayout.Build(W, D, Origin, Origin, trails, Pacing.Default.FineCellCap);
 
         /// <summary>
@@ -78,7 +78,7 @@ namespace MountainPlanner.Tests
             w.ApplyNow(SimCommand.Of(SimCommandKind.SetGrooming, 0, g));
         }
 
-        static void RunDays(SimWorld w, int days)
+        internal static void RunDays(SimWorld w, int days)
         {
             long end = w.FaceMs + days * SimWorld.DayMs;
             while (w.FaceMs < end) w.Step(Pacing.Default.IdleTickFactor);
@@ -86,7 +86,7 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>Every block's water is its 8 m cell's: <c>sum = bc × Swe8 + r</c>, <c>0 ≤ r &lt; bc</c>.</summary>
-        static int BlocksOff(SimWorld w)
+        internal static int BlocksOff(SimWorld w)
         {
             var fine = w.FineSnow;
             int off = 0, bc = fine.BlockCells;
@@ -196,7 +196,8 @@ namespace MountainPlanner.Tests
                 densityAfter += fine.Density[f];
                 // GO-16: the groomer works along the run as the night goes, so the cells groomed first are an hour or two older
                 bool once = ((fine.Flags[f] & FineSnow.GroomMask) >> FineSnow.GroomShift) == 1;
-                if (fine.Type[f] == (byte)SnowType.MG && (fine.Flags[f] & FineSnow.Packed) != 0 && once && fine.Age[f] <= hours.Length) groomed++;
+                // SN-14 v4 (task 4.08): the first grooming of the seed's packed snow leaves packed powder with the groomed finish
+                if (fine.Type[f] == (byte)SnowType.PP && (fine.Flags[f] & FineSnow.Packed) != 0 && once && fine.Age[f] <= hours.Length) groomed++;
             }
             Say($"[groom] hours {string.Join(",", hours)}; water {before} -> {after}; {groomed} of {onTrail} cells groomed; " +
                 $"density {densityBefore / onTrail / FineSnow.DensityOne} -> {densityAfter / onTrail / FineSnow.DensityOne} kg/m³");
@@ -869,7 +870,7 @@ namespace MountainPlanner.Tests
             Assert.That(fold, Is.EqualTo(TrailWeeksFold), "a behaviour change to the trail snow needs an approved re-pin");
         }
 
-        public const ulong TrailWeeksFold = 0x62197B8D9218ADBEUL;   // re-pinned at 4.29 PR A (Pacing v16 and the trails' grass in the hash, SN-35; new natural trails in December, so no trail's cover depth moved; owner OK 2026-11-23), over 0xD00925FABA993975; re-pinned at 4.25 PR B round 4 (GO-03 v2 equal 8 h shifts, GO-04 v2 winch share, late runs on the soonest lane; owner OK 2026-11-21), over 0x87B11B92A5CD715D; re-pinned at 4.25 PR B round 2 (was 0x1474E971F2922E36: GO-16 v2 full-length passes, carry-over and passes on the way, GroomPassMm; owner OK 2026-11-21); at 4.25 PR B (was 0xA17651701A2CAF90: GO-15 drives and GO-16 partial grooming from the nearer end, the report at the opening, Pacing v15; owner OK 2026-11-21); at 4.25 (was 0x58F8E603EB371FE1: two dev groomers work the shifts, Pacing v14; owner OK 2026-11-20)
+        public const ulong TrailWeeksFold = 0x7A453C659807B2C7UL;   // re-pinned at 4.08 PR A (SN-14 v4: fresh snow grooms to packed powder until the third night, moguls wait for the groomed finish to go; Pacing v17; owner OK 2026-11-23, on top of 4.29 PR A), over 0x62197B8D9218ADBE; re-pinned at 4.29 PR A (Pacing v16 and the trails' grass in the hash, SN-35; new natural trails in December, so no trail's cover depth moved; owner OK 2026-11-23), over 0xD00925FABA993975; re-pinned at 4.25 PR B round 4 (GO-03 v2 equal 8 h shifts, GO-04 v2 winch share, late runs on the soonest lane; owner OK 2026-11-21), over 0x87B11B92A5CD715D; re-pinned at 4.25 PR B round 2 (was 0x1474E971F2922E36: GO-16 v2 full-length passes, carry-over and passes on the way, GroomPassMm; owner OK 2026-11-21); at 4.25 PR B (was 0xA17651701A2CAF90: GO-15 drives and GO-16 partial grooming from the nearer end, the report at the opening, Pacing v15; owner OK 2026-11-21); at 4.25 (was 0x58F8E603EB371FE1: two dev groomers work the shifts, Pacing v14; owner OK 2026-11-20)
 
         /// <summary>Demo 113's chart data (not a check): a groomed run and its loose twin through an October thaw, hour by
         /// hour, and the run's depth across its lanes along its length before and after a night's grooming.</summary>

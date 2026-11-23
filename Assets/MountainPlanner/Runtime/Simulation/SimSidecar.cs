@@ -53,10 +53,14 @@ namespace MountainPlanner.Simulation
     /// v14 (task 4.25 PR B) keeps v13's bytes and widens what they hold: a piece with task -1 is a groomer's drive (its
     /// share packs the network nodes from and to, each +1), a trail's share done is negative when its groomer started at
     /// the foot, and a row may be NoRoute. A v13 sidecar reads as before (no drives, every share from the head).
+    /// v16 (task 4.08) keeps v15's bytes and widens what they hold: a snow cell's type may be 11, machine made (SN-13 v2).
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 15;
+        public const int Version = 16;
+        /// <summary>The first version whose snow may hold machine made (SnowType.MM, task 4.08; provisional after 4.29 PR A's 15,
+        /// 0.0 2026-11-23). The bytes are laid out as v15's.</summary>
+        public const int MachineMadeVersion = 16;
         /// <summary>The first version with GO-15's transit pieces (task -1), GO-16's signed share and the NoRoute row (task 4.25
         /// PR B; the number cleared by 0.0 2026-11-21). The bytes are laid out as v13's.</summary>
         public const int TransitVersion = 14;
