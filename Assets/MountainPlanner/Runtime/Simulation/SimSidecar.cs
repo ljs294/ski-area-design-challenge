@@ -56,10 +56,12 @@ namespace MountainPlanner.Simulation
     /// </summary>
     public static class SimSidecar
     {
-        public const int Version = 14;
+        public const int Version = 15;
         /// <summary>The first version with GO-15's transit pieces (task -1), GO-16's signed share and the NoRoute row (task 4.25
         /// PR B; the number cleared by 0.0 2026-11-21). The bytes are laid out as v13's.</summary>
         public const int TransitVersion = 14;
+        /// <summary>Task 4.29 (SN-35): each layout trail's grass, packed days and flags, by trail id.</summary>
+        public const int GrassVersion = 15;
         /// <summary>The first version with the grooming block (task 4.25; the number cleared by 0.0 2026-11-20).</summary>
         public const int GroomingVersion = 13;
         /// <summary>The first version with the trail snow block (task 4.07 B1 part 2c; the number confirmed with 0.0).</summary>

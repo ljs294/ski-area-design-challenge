@@ -118,6 +118,7 @@ namespace MountainPlanner.Simulation
                 if (live && k < _trailSurfNet.Length) b |= _trailSurfNet[k];
                 s.TrailSnow[k] = (byte)b;
             }
+            WriteTrailGrass(s, trails);   // task 4.29
             s.TrailSnowStamp = _trailCardStamp;
         }
         // a row across a trail, and the reached and current stretches (lateral mm, lo and hi cell centres)
@@ -187,10 +188,11 @@ namespace MountainPlanner.Simulation
         {
             RateEdges();
             for (int t = 0; t < _trailLayout.Trails; t++) RateTrail(t);
+            GrassPackedHour();   // task 4.29 (SN-35): a trail open or groomed this hour is packed today
             Array.Clear(_trailGroomedNow, 0, _trailGroomedNow.Length);
         }
 
-        long CoverUm(int t) => (long)(_trailLayout.TrailGraded[t] ? Pacing.CoverGradedMm : Pacing.CoverNaturalMm) * 1000;
+        long CoverUm(int t) => (long)CoverMm(t) * 1000;
 
         bool CoveredCell(int f, long coverUm) => _fine.Swe[f] > 0 && _fine.DepthUm(f) >= coverUm;
 

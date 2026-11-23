@@ -13,13 +13,13 @@ namespace MountainPlanner.Persistence.Saves
     public sealed class SaveFile
     {
         /// <summary>The frozen save format. A change bumps this, adds a step and a TestData/formats fixture.</summary>
-        public const int CurrentVersion = 17;
+        public const int CurrentVersion = 18;
         public const string FileName = "save.json";
         public const string BackupName = "save.json.bak";
         /// <summary>The edge of a terrain or clearing tile, in metres of the 1 m core grid (GR-09).</summary>
         public const int TileMetres = 64;
 
-        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve, UpToThirteen, UpToFourteen, UpToFifteen, UpToSixteen, UpToSeventeen);
+        public static readonly VersionedJson Migrations = new VersionedJson("save", "Version", CurrentVersion, UpToTwo, UpToThree, UpToFour, UpToFive, UpToSix, UpToSeven, UpToEight, UpToNine, UpToTen, UpToEleven, UpToTwelve, UpToThirteen, UpToFourteen, UpToFifteen, UpToSixteen, UpToSeventeen, UpToEighteen);
 
         /// <summary>
         /// v1 → v2 (task P3-09): the design's shape 1 → 2, where each lift gains its terminal levels (SK14). A v1 lift's
@@ -292,6 +292,20 @@ namespace MountainPlanner.Persistence.Saves
                 ["Groomers"] = groomers,
                 ["Crews"] = new JObject { ["Swing"] = -1, ["Night"] = -1, ["Day"] = -1 },
             };
+        }
+
+        /// <summary>
+        /// v17 → v18 (task 4.29, SN-37): the design's shape 17 → 18, where each trail and shaped trail carries its mowing.
+        /// Before v18 nothing was mown, so every one opens on Off.
+        /// </summary>
+        static void UpToEighteen(JObject o)
+        {
+            if (!(o["Design"] is JObject design)) return;
+            design["Shape"] = 18;
+            foreach (string list in new[] { "Trails", "TrailLines" })
+                if (design[list] is JArray items)
+                    foreach (var item in items)
+                        if (item is JObject x && x["Mowing"] == null) x["Mowing"] = "off";
         }
 
         /// <summary>

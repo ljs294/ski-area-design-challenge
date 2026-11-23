@@ -283,7 +283,7 @@ namespace MountainPlanner.Tests
         // Round 3: the base (0), a middle station (1) and the top (2). Run A (11) from the middle to the base, run B (12) from
         // the top to the middle, each 760 m; a chair from the base to the top. The depot is the base, so the way to B's foot
         // is up A.
-        static SimDesign TwoRunDesign(bool islandLift = false)
+        internal static SimDesign TwoRunDesign(bool islandLift = false)
         {
             var trails = new ulong[] { 11, 12 };
             var edges = new System.Collections.Generic.List<(int from, int to, int trail)> { (1, 0, 0), (2, 1, 1) };
