@@ -82,7 +82,8 @@ namespace MountainPlanner.App
                     long key = ((long)Mathf.RoundToInt(pk.x / 0.5f) << 32) ^ (uint)Mathf.RoundToInt(pk.z / 0.5f);
                     if (cells.TryGetValue(key, out int j)) { close++; first ??= $"places {j} and {k}"; } else cells[key] = k;
                 }
-                lines.Add($"layout lift {lift}: {n} places, {close} within 0.5 m of another{(first != null ? " (first: " + first + ")" : "")}");
+                string front = n > 0 && _skiers.Lines.PlaceOf(lift, 0, out var p0) ? $", front at ({p0.x:F0}, {p0.z:F0})" : "";
+                lines.Add($"layout lift {lift}: {n} places, {close} within 0.5 m of another{(first != null ? " (first: " + first + ")" : "")}{front}");
             }
             lines.AddRange(near);
             foreach (var kv in worst) lines.Add(kv.Value);
