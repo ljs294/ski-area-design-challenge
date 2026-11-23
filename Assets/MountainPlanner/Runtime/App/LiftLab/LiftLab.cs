@@ -158,6 +158,17 @@ namespace MountainPlanner.App
 
         void Start()
         {
+            // Task 4.26 BB23: an unattended run (batch mode, a GPU lane's job) whose start throws quits with an error code
+            // instead of waiting forever; played by hand, the exception goes to the log as before.
+            try { StartLab(); }
+            catch (Exception e) when (MountainPlanner.App.Diagnostics.UnattendedRun.Active)
+            {
+                MountainPlanner.App.Diagnostics.UnattendedRun.FailSetup("Lift Lab's start threw", e);
+            }
+        }
+
+        void StartLab()
+        {
             Application.targetFrameRate = -1;
             DynamicGI.UpdateEnvironment();   // ambient light from the sky: the scene is built in code, nothing is baked
             SkyReflection();

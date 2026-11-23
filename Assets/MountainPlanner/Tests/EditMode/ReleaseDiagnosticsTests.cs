@@ -148,4 +148,32 @@ namespace MountainPlanner.Tests
             Assert.IsFalse(PrefsMigration.ReadValue(New, PrefsMigration.Marker, out _, out _));
         }
     }
+
+    /// <summary>
+    /// Task 4.26 BB23: a run nobody watches (a player in batch mode, or a GPU lane's job) quits with an error code when its
+    /// setup fails; a bad -opensave held the render lane for 2 hours. The game played by hand, and the editor, keep the
+    /// error on screen.
+    /// </summary>
+    public sealed class UnattendedRunTests
+    {
+        [Test]
+        public void BatchModeAndGpuLaneJobsAreUnattendedThePlayedGameAndTheEditorAreNot()
+        {
+            Assert.IsTrue(UnattendedRun.IsUnattended(editor: false, batchMode: true, lane: null), "a player in batch mode");
+            Assert.IsTrue(UnattendedRun.IsUnattended(editor: false, batchMode: false, lane: "render"), "a render lane's job");
+            Assert.IsTrue(UnattendedRun.IsUnattended(editor: false, batchMode: false, lane: "measure"), "a measure lane's job");
+            Assert.IsFalse(UnattendedRun.IsUnattended(editor: false, batchMode: false, lane: null), "the game played by hand");
+            Assert.IsFalse(UnattendedRun.IsUnattended(editor: false, batchMode: false, lane: " "), "a blank lane is no lane");
+            Assert.IsFalse(UnattendedRun.IsUnattended(editor: true, batchMode: true, lane: "render"), "the editor never quits");
+            Assert.AreEqual("MP_GPU_LANE", UnattendedRun.LaneVariable, "the variable tools/gpu/gpu.ps1 sets");
+            Assert.AreNotEqual(0, UnattendedRun.SetupFailedExitCode);
+        }
+
+        [Test]
+        public void InTheEditorAFailedSetupIsLoggedButNeverQuits()
+        {
+            LogAssert.Expect(LogType.Exception, "InvalidOperationException: no such save");
+            Assert.IsFalse(UnattendedRun.FailSetup("a test", new InvalidOperationException("no such save")));
+        }
+    }
 }
