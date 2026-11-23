@@ -81,6 +81,9 @@ namespace MountainPlanner.Simulation
         /// worker's state is what it did); A = 1, Payload = a <see cref="SimGroomOrder"/>, the player's order for one trail
         /// tonight (till, push or skip), a player command.</summary>
         SetGrooming = 36,
+        /// <summary>Task 4.08 (SN-27 v2; number cleared by 0.0 2026-11-23): Payload = a <see cref="SimSnowPaint"/>, new machine
+        /// made snow on the fine trail cells under it (the style tile's whales, <c>-paintwhale</c>, tests).</summary>
+        PaintSnow = 41,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

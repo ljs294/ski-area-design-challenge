@@ -388,6 +388,8 @@ namespace MountainPlanner.App
                           + $" (inputs sent {_simSnowTerrainSent}, seed sent {_simSnowSent}, first pass {_resort.States.FirstPassDone}, lift {_resort.States.LiftScale});"
                           + $" depth at the target {SnowCursor.LiftAt(_resort.States, _resort.Ring, target.x, target.z):F2} m");
             }
+            // Task 4.08 PR A: a -paintwhale capture waits (up to 120 s) for the paint to be sent and its tiles drawn.
+            for (float t = 0; !PaintWhaleSettled && t < 120; t += Time.unscaledDeltaTime) yield return null;
             for (int i = 0; i < 90; i++) yield return null; // let LOD and shadows settle
         }
 

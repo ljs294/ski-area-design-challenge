@@ -44,7 +44,8 @@ namespace MountainPlanner.Simulation
             }
         }
 
-        internal static SnowField Read(SidecarReader r, SimSnow shape, int width, int height)
+        /// <summary>The field; a type past <paramref name="maxType"/> is refused (machine made from sidecar v16, task 4.08).</summary>
+        internal static SnowField Read(SidecarReader r, SimSnow shape, int width, int height, SnowType maxType = SnowType.WP)
         {
             var f = new SnowField(width, height);
             int tilesX = (width + SimSnow.TileCells - 1) / SimSnow.TileCells, tilesY = (height + SimSnow.TileCells - 1) / SimSnow.TileCells;
@@ -61,7 +62,7 @@ namespace MountainPlanner.Simulation
                         for (int x = x0; x < x1; x++)
                         {
                             long v = prev + r.Var();
-                            Set(f, y * width + x, plane, v);
+                            Set(f, y * width + x, plane, v, maxType);
                             prev = v;
                         }
                 }
@@ -91,7 +92,7 @@ namespace MountainPlanner.Simulation
             }
         }
 
-        static void Set(SnowField f, int c, int plane, long v)
+        static void Set(SnowField f, int c, int plane, long v, SnowType maxType)
         {
             ref var p = ref f.Pack[c];
             switch (plane)
@@ -103,7 +104,7 @@ namespace MountainPlanner.Simulation
                 case 4: p.DeepTemp = Int(v, -1_000_000, 0, "the deep temperature"); break;
                 case 5: p.Albedo = Int(v, 0, 1_000_000, "brightness"); break;
                 case 6: p.Density = Int(v, 0, 1_000_000, "density"); break;
-                case 7: f.Type[c] = (byte)Int(v, 0, (int)SnowType.WP, "type"); break;
+                case 7: f.Type[c] = (byte)Int(v, 0, (int)maxType, "type"); break;
                 case 8: f.Age[c] = (byte)Int(v, 0, 255, "age"); break;
                 case 9: f.Flags[c] = (byte)Int(v, 0, 31, "flags"); break;
                 case 10: f.CycleDay[c] = (byte)Int(v, 0, 255, "the cycle's day"); break;
@@ -188,7 +189,7 @@ namespace MountainPlanner.Simulation
                 next = new ulong[tiles];
                 for (int t = 0; t < tiles; t++) next[t] = r.U64();
             }
-            var field = SnowCodec.Read(r, Snow, width, height);
+            var field = SnowCodec.Read(r, Snow, width, height, version >= SimSidecar.MachineMadeVersion ? SnowType.MM : SnowType.WP);
             Snow.LoadLive(width, height, new SnowRules(Pacing), field, landed, next);
             _snowRunning = false;
             RebuildFine(keep: false);   // 2a: the fine field isn't saved; it reseeds from the 8 m snow (2c saves it)

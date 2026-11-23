@@ -86,6 +86,7 @@ namespace MountainPlanner.Simulation
             if (layout == null || !Snow.Live || layout.GridWidth != Snow.Width || layout.GridHeight != Snow.Height)
             {
                 _fine = null;
+                FineAllDue();
                 return;
             }
             var fine = new FineSnow(layout);
@@ -100,6 +101,7 @@ namespace MountainPlanner.Simulation
                 for (int ob = 0; ob < old.Layout.Blocks; ob++)
                     if (layout.BlockOf(old.Layout.BlockCell[ob]) < 0) _trailFoldRemainder += old.Fold(ob, Snow.Field);
             _fine = fine;
+            FineAllDue();   // task 4.08: the screen's atlas takes the new field
             int bc = fine.BlockCells;
             if (_trailWeights.Length < bc) _trailWeights = new int[bc];
             _blockTouched = new bool[layout.Blocks];
@@ -168,13 +170,18 @@ namespace MountainPlanner.Simulation
             }
             _trailDepthMm = n == 0 ? 0 : (int)(depth / n / 1000);
             _trailPackedPermille = n == 0 ? 0 : (int)(packed * 1000 / n);
-            int mg = 0, powder = 0;
-            foreach (int c in _trailLayout.BlockCell)
+            int mg = 0, powder = 0, bc = fine.BlockCells;
+            for (int b = 0; b < _trailLayout.Blocks; b++)
             {
+                int c = _trailLayout.BlockCell[b];
                 if (Snow.Field.Pack[c].Swe <= 0) continue;
                 var t = (SnowType)Snow.Field.Type[c];
-                if (t == SnowType.MG) mg++;
-                else if (t == SnowType.P || t == SnowType.WP) powder++;
+                // SN-14 v4: a groomed block is one whose snow carries the groomed finish (PP or MG since a grooming).
+                bool groomed = false;
+                if (t == SnowType.MG || t == SnowType.PP)
+                    for (int f = b * bc; f < b * bc + bc && !groomed; f++) groomed = fine.Swe[f] > 0 && (fine.Flags[f] & FineSnow.GroomMask) != 0;
+                if (groomed) mg++;
+                else if (t == SnowType.P || t == SnowType.WP || t == SnowType.MM) powder++;
             }
             _trailBlocksGroomed = mg;
             _trailBlocksPowder = powder;
@@ -236,11 +243,13 @@ namespace MountainPlanner.Simulation
                 long factor = Math.Max(Pacing.WearFactorMin, Math.Min(Pacing.WearFactorMax, (long)grade * 1000 / Pacing.WearGradeRef));
                 long worn = Math.Min(fine.Swe[f], (long)n * Pacing.WearPerPassUm * factor / 1000);
                 fine.Swe[f] -= (int)worn;
-                if (grade >= Pacing.MogulGrade && (SnowType)fine.Type[f] != SnowType.MG)
+                // SN-17: moguls grow where the groomed finish has gone (SN-14 v4: a groomed cell is PP or MG until skied hard).
+                bool groomedFinish = (fine.Flags[f] & FineSnow.GroomMask) != 0 && (SnowType)fine.Type[f] != SnowType.HP;
+                if (grade >= Pacing.MogulGrade && !groomedFinish)
                     fine.Moguls[f] = (byte)Math.Min(255, (long)fine.Passes[f] * Pacing.MogulsPerKPasses / 1000);
                 var type = (SnowType)fine.Type[f];
                 int count = fine.Passes[f];
-                if (type == SnowType.P && count >= Pacing.PackedPasses) type = SnowType.PP;
+                if ((type == SnowType.P || type == SnowType.MM) && count >= Pacing.PackedPasses) type = SnowType.PP;
                 else if ((type == SnowType.PP || type == SnowType.MG) && count >= Pacing.HardPasses) type = SnowType.HP;
                 else if ((type == SnowType.FG || type == SnowType.IS) && count >= Pacing.CrustPasses) type = SnowType.LG;
                 fine.Type[f] = (byte)type;
@@ -354,8 +363,13 @@ namespace MountainPlanner.Simulation
                     if (d < want) fine.Density[f] = (ushort)(d + (want - d) * strength.Pack / 1000);
                     var type = (SnowType)fine.Type[f];
                     int grooms = Math.Min(7, ((fine.Flags[f] & FineSnow.GroomMask) >> FineSnow.GroomShift) + 1);
+                    // SN-14 v4 (owner 2026-11-23): fresh and packed snow grooms to packed powder, its finish the corduroy;
+                    // the third grooming in a row with no new snow, or old granular snow worked, is machine groomed.
                     if (type == SnowType.IS || type == SnowType.FG) type = SnowType.LG;
-                    else type = grooms >= Pacing.GroomsToHard ? SnowType.HP : SnowType.MG;
+                    else if (grooms >= Pacing.GroomsToHard) type = SnowType.HP;
+                    else if (grooms >= Pacing.GroomsToMachine) type = SnowType.MG;
+                    else if (type == SnowType.P || type == SnowType.WP || type == SnowType.MM || type == SnowType.PP) type = SnowType.PP;
+                    else type = SnowType.MG;
                     fine.Type[f] = (byte)type;
                     fine.Flags[f] = (byte)((fine.Flags[f] & ~(FineSnow.GroomMask | FineSnow.RainWet | FineSnow.PushedGreen)) | FineSnow.Packed | (grooms << FineSnow.GroomShift));
                     fine.Age[f] = 0; fine.Passes[f] = 0; fine.Moguls[f] = 0;

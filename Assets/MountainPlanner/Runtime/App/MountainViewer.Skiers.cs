@@ -360,6 +360,7 @@ namespace MountainPlanner.App
             _skierSnowShown = states.LiftVersion;
             var field = states.Snow;
             layer.SetSnow(field.Width, field.Height, new Vector2(_resort.Ring.xMin, _resort.Ring.yMin), field.CellMetres, states.Lift);
+            layer.SetFine(states.Fine);   // task 4.08 PR A: the trails' fine snow too
         }
 
         // ---------- hover and click ----------

@@ -319,6 +319,9 @@ namespace MountainPlanner.Simulation
                 case SimCommandKind.SetGrooming:   // task 4.25
                     if (!ApplyGrooming(c)) { Reject(c, SimRefusal.Unknown); return; }
                     break;
+                case SimCommandKind.PaintSnow:   // task 4.08
+                    if (!ApplyPaintSnow(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
                 case SimCommandKind.SetGust:
                 case SimCommandKind.FeedLine:
                     if (!ApplyLiftCommand(c)) return;

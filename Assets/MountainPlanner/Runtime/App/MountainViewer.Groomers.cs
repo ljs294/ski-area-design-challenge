@@ -262,14 +262,7 @@ namespace MountainPlanner.App
             float h = _resort.Surface != null ? _resort.Surface.HeightAt(p.x, p.y) : 0;
             if (float.IsNaN(h)) h = 0;
             var states = _resort.States;
-            if (states != null && states.Lift != null)
-            {
-                var field = states.Snow;
-                float cell = field.CellMetres;
-                int i = Mathf.FloorToInt((p.x - _resort.Ring.xMin) / cell), j = Mathf.FloorToInt((p.y - _resort.Ring.yMin) / cell);
-                if (i >= 0 && j >= 0 && i < field.Width && j < field.Height && j * field.Width + i < states.Lift.Length)
-                    h += states.Lift[j * field.Width + i] * states.LiftScale;
-            }
+            if (states != null && states.Lift != null) h += states.LiftAt(p.x, p.y);   // task 4.08: the drawn surface, fine snow and all
             return new Vector3(p.x, h, p.y);
         }
 

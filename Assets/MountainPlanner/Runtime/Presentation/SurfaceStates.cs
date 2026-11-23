@@ -52,6 +52,8 @@ namespace MountainPlanner.Presentation
         /// <summary>Task 4.07 PR A3: the share of a cell's depth that lifts the ground: 0 on lakes and ponds (streams keep their
         /// snow), round lift stations and at the ring's edge, else 1 (fading in over <see cref="EdgeFadeMetres"/>).</summary>
         public readonly float[] Keep;
+        /// <summary>Task 4.08 PR A: the fine trail snow's atlas and page table (bound to the layout sent to the worker).</summary>
+        public readonly FineSnowAtlas Fine;
         readonly float[] _edgeKeep;
         readonly bool[] _lakeCell, _stationCell;
         readonly Texture2D _depth, _surface, _lift;
@@ -136,6 +138,7 @@ namespace MountainPlanner.Presentation
                 _scratchLift = new float[Tile * Tile * TilesPerFrame];
                 _scratchSurface = new byte[Tile * Tile * TilesPerFrame * 4];
             }
+            Fine = new FineSnowAtlas(ring, Keep, width, depth);
             Shader.SetGlobalTexture(MapId, _depth);
             Shader.SetGlobalTexture(SurfaceId, _surface);
             Shader.SetGlobalTexture(LiftMapId, _lift);
@@ -192,9 +195,10 @@ namespace MountainPlanner.Presentation
 
         void UploadTiles()
         {
-            if (_tiles.Count == 0) return;
+            if (_tiles.Count == 0 && Fine.SlotsWaiting == 0) return;
             UploadWatch.Restart();
-            UploadTilesNow();
+            if (_tiles.Count > 0) UploadTilesNow();
+            if (Fine.SlotsWaiting > 0) { Fine.Upload(); LiftVersion++; }   // task 4.08: the fine snow, in the same budget
             LastUploadMs = UploadWatch.Elapsed.TotalMilliseconds;
             if (LastUploadMs > MaxUploadMs) MaxUploadMs = LastUploadMs;
             if (FirstUploadMs < 0) { FirstUploadMs = LastUploadMs; return; }
@@ -244,7 +248,7 @@ namespace MountainPlanner.Presentation
                     {
                         float lift = cells[row + i] * Keep[row + i];
                         _scratchLift[to + i] = Lift[row + i] = lift;
-                        if (lift > LiftCeiling) LiftCeiling = lift;
+                        if (lift > _liftCeiling) _liftCeiling = lift;
                     }
                     System.Array.Copy(cells, (r.y + j) * fw + r.x, _scratchDepth, at + j * Tile, r.width);
                     System.Buffer.BlockCopy(Surface, ((r.y + j) * fw + r.x) * 4, _scratchSurface, (at + j * Tile) * 4, r.width * 4);
@@ -394,7 +398,7 @@ namespace MountainPlanner.Presentation
                 {
                     float lift = cells[row + i] * Keep[row + i];
                     Lift[row + i] = lift;
-                    if (lift > LiftCeiling) LiftCeiling = lift;
+                    if (lift > _liftCeiling) _liftCeiling = lift;
                 }
                 NativeArray<float>.Copy(Lift, row + x, pixels, row + x, w);
             }
@@ -408,7 +412,8 @@ namespace MountainPlanner.Presentation
         /// at least this (finding A3-6, <see cref="World.TerrainTiles.PadShellBounds"/>). The shader's lift blends cells, so
         /// it never stands higher.
         /// </summary>
-        public float LiftCeiling { get; private set; }
+        public float LiftCeiling { get => Mathf.Max(_liftCeiling, Fine?.LiftCeiling ?? 0); private set => _liftCeiling = value; }
+        float _liftCeiling;
 
         /// <summary>Moves on whenever the lift the GPU has changes (its cells or its switch): the skiers' copy follows it.</summary>
         public int LiftVersion { get; private set; }
@@ -419,6 +424,7 @@ namespace MountainPlanner.Presentation
         void RebuildKeep()
         {
             for (int c = 0; c < Keep.Length; c++) Keep[c] = _lakeCell[c] || _stationCell[c] ? 0 : _edgeKeep[c];
+            Fine?.KeepChanged();
             _liftMirrorStale = true;
             PushLift(0, 0, Snow.Width, Snow.Height);
         }
@@ -567,6 +573,7 @@ namespace MountainPlanner.Presentation
             DestroyTexture(_moisture);
             _moisture = null;
             MoistureView = false;
+            Fine.Dispose();
             DestroyTexture(_depth);
             DestroyTexture(_surface);
             DestroyTexture(_lift);

@@ -9,9 +9,10 @@ namespace MountainPlanner.Simulation
         None = 0,
         /// <summary>Powder.</summary>
         P = 1,
-        /// <summary>Packed powder (traffic, PR B).</summary>
+        /// <summary>Packed powder: traffic on powder, or a first and second grooming (SN-14 v4, task 4.08).</summary>
         PP = 2,
-        /// <summary>Machine groomed (PR B).</summary>
+        /// <summary>Machine groomed: snow reworked again and again, a bit stale (SN-14 v4: the third grooming in a row, or
+        /// any grooming of old granular snow).</summary>
         MG = 3,
         /// <summary>Hard packed (PR B).</summary>
         HP = 4,
@@ -27,6 +28,9 @@ namespace MountainPlanner.Simulation
         WG = 9,
         /// <summary>Wet powder: new snow near freezing, or powder's first thaw.</summary>
         WP = 10,
+        /// <summary>Machine made (SN-13 v2, task 4.08): new snow from the guns or a paint, between wet powder and powder; it
+        /// packs, grooms and thaws as powder does.</summary>
+        MM = 11,
     }
 
     /// <summary>

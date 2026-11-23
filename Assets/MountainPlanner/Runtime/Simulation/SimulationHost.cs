@@ -34,6 +34,8 @@ namespace MountainPlanner.Simulation
         readonly Wake _wake = new Wake();
         /// <summary>SI-17: where the worker's snow tiles wait for the screen (the reader's, allocated once).</summary>
         public readonly TileStagingRing Staging = new TileStagingRing();
+        /// <summary>Task 4.08 PR A: where the fine trail snow's tiles wait for the screen's atlas.</summary>
+        public readonly FineStagingRing FineStaging = new FineStagingRing();
         readonly Thread _thread;
         volatile bool _stop;
 
@@ -153,11 +155,13 @@ namespace MountainPlanner.Simulation
             UpdateSustained(now);
             // SI-17: the snow's due tiles to the screen, after the steps (and while paused, so an edit's snow still shows).
             if (_world.StageSnow(Staging, _paused || _held || _skip != SkipKind.None) > 0) _dirty = true;
+            if (_world.StageFine(FineStaging) > 0) _dirty = true;
             // Task 4.15 (HY-08): a snowmaking solve asked for while paused lands now, not after ticks that never come.
             if ((_paused || _held) && _world.SolveSnowNow()) _dirty = true;
             if (_dirty) PublishNow();
-            // Tiles still due (the ring is full, or a tile staged a moment ago): come back soon rather than sleep.
-            if (_world.Snow.TilesDue > 0 && (wait < 0 || wait > 10)) wait = 10;
+            // Tiles still due (the ring is full, or a tile staged a moment ago): come back soon rather than sleep. Task 4.08: the
+            // fine trail tiles too, or a paint while paused waits for the next command to reach the screen (finding PA-1).
+            if ((_world.Snow.TilesDue > 0 || _world.FineTilesDue > 0) && (wait < 0 || wait > 10)) wait = 10;
             return wait;
         }
 
@@ -321,6 +325,7 @@ namespace MountainPlanner.Simulation
             s.SkipPermille = _skip == SkipKind.None || span <= 0 ? 0 : (int)Math.Min(1000, (_world.FaceMs - _skipFrom) * 1000 / span);
             s.TicksRun = _ticksRun;
             s.StagedTiles = Staging.Written;
+            s.FineStagedTiles = FineStaging.Written;
             Timings(out s.TickMeanMicros, out s.TickP99Micros);
             _buffers.Publish();
             _dirty = false;

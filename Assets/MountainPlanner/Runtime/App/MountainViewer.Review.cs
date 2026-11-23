@@ -234,7 +234,9 @@ namespace MountainPlanner.App
             // Task 4.07 PR A3, -liftab: the snow's lift flips on and off in blocks of LiftAbBlock frames along the same laps
             // (interleaved, so drift and run-to-run noise fall on both alike), dropping the first frames after each flip; the
             // per-leg median GPU time with and without goes to <out>_liftab.json. Off by default: the laps are today's.
-            bool liftAb = Array.IndexOf(args, "-liftab") >= 0 && _resort.States != null;
+            // Task 4.08 PR A, -fineab: the same, flipping only the trails' fine snow (the 8 m lift stays on).
+            bool fineAb = Array.IndexOf(args, "-fineab") >= 0 && _resort.States?.Fine != null;
+            bool liftAb = (fineAb || Array.IndexOf(args, "-liftab") >= 0) && _resort.States != null;
             var abGpu = liftAb ? new float[path.LegCount * 2][] : null;
             var abCount = liftAb ? new int[path.LegCount * 2] : null;
             if (liftAb) for (int i = 0; i < abGpu.Length; i++) abGpu[i] = new float[1 << 15];
@@ -248,7 +250,11 @@ namespace MountainPlanner.App
             {
                 AllocTraceFrame(allocTrace, frame);
                 bool liftOn = (frame / LiftAbBlock) % 2 == 0;
-                if (liftAb && frame % LiftAbBlock == 0) _resort.States.LiftOn = liftOn;
+                if (liftAb && frame % LiftAbBlock == 0)
+                {
+                    if (fineAb) _resort.States.Fine.SetDrawn(liftOn);
+                    else _resort.States.LiftOn = liftOn;
+                }
                 int leg = PlaceOnPath(path, t);
                 yield return null;
                 float gpu = FrameStats.SampleGpuMs();
@@ -263,7 +269,8 @@ namespace MountainPlanner.App
                 frame++;
             }
             total.Stop();
-            if (liftAb) WriteLiftAb(prefix + "_liftab.json", path, abGpu, abCount);
+            if (fineAb) _resort.States.Fine.SetDrawn(true);
+            if (liftAb) WriteLiftAb(prefix + (fineAb ? "_fineab.json" : "_liftab.json"), path, abGpu, abCount);
 
             var report = BuildReport(path, laps, total, legs);
             total.Dispose();

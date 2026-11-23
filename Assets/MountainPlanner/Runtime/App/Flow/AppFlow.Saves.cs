@@ -156,6 +156,7 @@ namespace MountainPlanner.App.Flow
             "-groomdots",    // task 4.25, GO-13
             "-groomtab",     // task 4.25 PR B
             "-linecheck",    // task 4.26 BB4
+            "-paintwhale",   // task 4.08 PR A
         };
 
         void UpdateSaves(Keyboard keys)

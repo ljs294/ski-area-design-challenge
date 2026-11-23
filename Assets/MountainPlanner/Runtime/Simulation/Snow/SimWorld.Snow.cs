@@ -137,6 +137,7 @@ namespace MountainPlanner.Simulation
             if (_snowLandAt < 0) return;
             JoinSnow();
             Snow.Land();
+            FineAllDue();   // task 4.08: the hour's fine snow (job, wear, grooming) to the screen
             CollectRunoff();   // WS-04 (task 4.14 PR B): the landed hour's runoff into the sources
             RollSnowLedger((int)(_snowHour / 24));
             _snowToday.Add(_snowPending);

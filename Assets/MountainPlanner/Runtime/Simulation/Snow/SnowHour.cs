@@ -739,7 +739,7 @@ namespace MountainPlanner.Simulation
             else if (thaw)
             {
                 // 4. A thaw or rain: wet granular (powder's first: wet powder). Rain marks the wet for the ice test.
-                type = type == (byte)SnowType.P || type == (byte)SnowType.PP ? (byte)SnowType.WP : (byte)SnowType.WG;
+                type = type == (byte)SnowType.P || type == (byte)SnowType.PP || type == (byte)SnowType.MM ? (byte)SnowType.WP : (byte)SnowType.WG;
                 if (rain > 0) rainWet = true;
                 newSince = 0;
             }

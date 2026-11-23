@@ -210,6 +210,8 @@ namespace MountainPlanner.Simulation
 
         // SI-17: the staging ring's slots written so far (read them up to here), and whether the field has snow yet.
         public long StagedTiles;
+        /// <summary>Task 4.08 PR A: the fine staging ring's slots written so far (<see cref="FineStagingRing"/>).</summary>
+        public long FineStagedTiles;
         public bool SnowSet;
         /// <summary>Task 4.07 PR A2: the snow is simulated; an hour of it is in flight; the day's ledger so far and the last day's.</summary>
         public bool SnowLive, SnowInFlight;
