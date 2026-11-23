@@ -27,8 +27,8 @@ namespace MountainPlanner.App
             _scriptedRun = true;
             SendSim(SimCommandKind.SetSpeed, 4);
             var lines = new List<string>();
-            var at = new Dictionary<long, (int Rank, int Lift)>();
-            int settled = 0, moving = 0;
+            var at = new Dictionary<long, (int Rank, int Lift, int Record)>();
+            int settled = 0, moving = 0, sameLane = 0, otherLane = 0, pastEnd = 0;
             var near = new List<string>();
             float until = Time.unscaledTime + 240;
             int samples = 0, samplesWithPairs = 0;
@@ -56,9 +56,26 @@ namespace MountainPlanner.App
                         bool onA = _skiers.Lines.PlaceOf(rec.Index, _skiers.LinePlaceAt(i), out var pa) && Vector3.Distance(new Vector3(dot.x, dot.y, dot.z), pa) < 0.15f;
                         bool onB = _skiers.Lines.PlaceOf(rec.Index, other.Rank, out var pb);
                         if (onA) settled++; else moving++;
+                        int seats = Math.Max(1, _skiers.Lines.SeatsOf(rec.Index));
+                        if (other.Rank % seats == _skiers.LinePlaceAt(i) % seats) sameLane++; else otherLane++;
+                        int cap = _skiers.Lines.Capacity(rec.Index);
+                        if (_skiers.LinePlaceAt(i) >= cap || other.Rank >= cap) pastEnd++;
+                        if (near.Count < 40 && other.Rank % seats != _skiers.LinePlaceAt(i) % seats)
+                        {
+                            string Who(int j)
+                            {
+                                _skiers.RecordAt(j, out var rj); _skiers.Describe(j, out var dj, out _);
+                                int pl = _skiers.LinePlaceAt(j), sh = _skiers.ShownAt(j);
+                                _skiers.Lines.PlaceOf(rj.Index, pl, out var pp);
+                                _skiers.Lines.PlaceOf(rj.Index, Math.Max(0, sh), out var ps);
+                                _skiers.Lines.PlaceOf(rj.Index, pl + seats, out var pq);
+                                return $"place {pl} lane {pl % seats} walking to {sh}: dot ({dj.x:F2},{dj.z:F2}) place ({pp.x:F2},{pp.z:F2}) one back ({pq.x:F2},{pq.z:F2})";
+                            }
+                            near.Add($"lift {rec.Index} two lanes: [{Who(other.Record)}] and [{Who(i)}]");
+                        }
                         if (near.Count < 12) near.Add($"lift {rec.Index} places {other.Rank}/{_skiers.LinePlaceAt(i)}: dot {(onA ? "on its place" : "off its place by " + Vector3.Distance(new Vector3(dot.x, dot.y, dot.z), pa).ToString("F1") + " m")}, places {Vector3.Distance(pa, pb):F2} m apart");
                     }
-                    else at[key] = (_skiers.LinePlaceAt(i), rec.Index);   // its place (4.26 BB4: row and column), not its rank
+                    else at[key] = (_skiers.LinePlaceAt(i), rec.Index, i);   // its place (4.26 BB4: row and column), not its rank
                 }
                 if (pairs.Count > 0) samplesWithPairs++;
                 foreach (var kv in pairs)
@@ -71,6 +88,7 @@ namespace MountainPlanner.App
                 }
             }
             lines.Add($"{samples} samples, {samplesWithPairs} with two guests in one place; of the pairs, {settled} on their own place, {moving} off it (walking up)");
+            lines.Add($"pairs in one lane {sameLane}, in two lanes {otherLane}, a place past the line's end {pastEnd}; lanes given anew to skiers already in line {_skiers.ColumnResets}");
             // the layout itself: any two places of one line closer than 0.5 m
             for (int lift = 0; _skiers.Lines != null && lift < 12; lift++)   // the first dozen lines (Capacity is 0 past the last)
             {

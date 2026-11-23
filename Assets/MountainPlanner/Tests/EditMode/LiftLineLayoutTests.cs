@@ -96,6 +96,20 @@ namespace MountainPlanner.Tests
             }
             Assert.Greater(beyond, 300, "it folds again in the field beyond");
             AssertNoSharedGround(layout, 1);
+            // Task 4.26 BB4: the stretches cover every place, front first: rows at the terminal, single file through the
+            // gap, rows again in the field (a skier keeps its lane only within rows, and follows the one ahead in a file).
+            int rows = 0, files = 0, rowStretches = 0;
+            for (int k = 0; k < layout.SectionCount(0); k++)
+            {
+                layout.Section(0, k, out int n, out bool file);
+                rows += n;
+                if (file) files++; else rowStretches++;
+            }
+            Assert.That(rows * 4, Is.EqualTo(layout.Capacity(0)), "every place is in one stretch");
+            layout.Section(0, 0, out _, out bool firstFile);
+            Assert.IsFalse(firstFile, "rows at the terminal");
+            Assert.GreaterOrEqual(files, 1, "single file through the gap");
+            Assert.GreaterOrEqual(rowStretches, 2, "rows again beyond");
         }
 
         [Test]

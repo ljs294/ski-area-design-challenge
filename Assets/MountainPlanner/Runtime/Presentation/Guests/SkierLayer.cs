@@ -118,15 +118,18 @@ namespace MountainPlanner.Presentation.Guests
             _noFacing = new NativeArray<float2>(1, Allocator.Persistent);
             _noLiftSlots = new NativeArray<int2>(1, Allocator.Persistent);
             _linePlace = new NativeArray<int>(_cap, Allocator.Persistent);
-            _colOf = new int[_cap]; _colLine = new int[_cap]; _colStamp = new int[_cap]; _colSerial = new uint[_cap];
-            _order = new int[_cap];
+            _shown = new NativeArray<int>(_cap, Allocator.Persistent);
+            _lineSeats = new NativeArray<int>(8, Allocator.Persistent);
+            _colOf = new int[_cap]; _colLine = new int[_cap]; _colStamp = new int[_cap]; _colSerial = new uint[_cap]; _colSection = new int[_cap];
+            _order = new int[_cap]; _keys = new long[_cap];
         }
 
         // ---- task 4.26 BB4: each queued skier's place in its line ----
-        NativeArray<int> _linePlace;
-        int[] _colOf, _colLine, _colStamp, _order;
+        NativeArray<int> _linePlace, _shown, _lineSeats;
+        int[] _colOf, _colLine, _colStamp, _colSection, _order;
         uint[] _colSerial;
-        int[] _lineLen = new int[16], _lineStart = new int[17], _nextCol = new int[16];
+        long[] _keys;
+        int[] _nextCol = new int[16];
         readonly int[] _colDepth = new int[64];
         int _stamp;
         long _placedTick = long.MinValue, _placedRevision = long.MinValue;
@@ -135,13 +138,19 @@ namespace MountainPlanner.Presentation.Guests
         /// <summary>Task 4.26 BB4: record <paramref name="i"/>'s place in its line this frame (row · seats + column), or its rank.</summary>
         public int LinePlaceAt(int i) => i >= 0 && i < _count ? _linePlace[i] : 0;
 
+        /// <summary>Task 4.26 BB4 probe: how many times a skier already in a line was given a new column (it lost its own).</summary>
+        public long ColumnResets { get; private set; }
+
+        /// <summary>Task 4.26 BB4 probe: the place record <paramref name="i"/> is walking to now (-1 for none).</summary>
+        public int ShownAt(int i) => i >= 0 && i < _count && _records[i].Slot < _shown.Length ? _shown[_records[i].Slot] - 1 : -1;
+
         /// <summary>
         /// Task 4.26 BB4 (owner 2026-11-23, option A "fill from behind"): which place each queued skier stands on. A skier
-        /// keeps the column it joined in (the next one round, so a run of the line always fills a row across), and stands
-        /// as many rows from the front as there are skiers ahead of it in that column. When a chair takes part of the front
-        /// row, only the skiers behind those gaps step forward, each straight along its own lane; nobody crosses a
-        /// neighbour. The simulation's order is untouched: the first <c>seats</c> in line are always the front row.
-        /// Once a column (never per frame without a new one), with no allocation.
+        /// keeps the column it joined in for as long as it stays in that line (a newcomer takes the column with fewest,
+        /// the next one round on a tie), and stands as many rows from the front as there are skiers ahead of it in that
+        /// column. When a chair takes part of the front row, only the skiers behind those gaps step forward, each along
+        /// its own lane; nobody crosses a neighbour. The simulation's order is untouched. Once a column (never per frame
+        /// without a new one), with no allocation: every queued skier is sorted by line and rank (ties too).
         /// </summary>
         void AssignPlaces()
         {
@@ -151,48 +160,80 @@ namespace MountainPlanner.Presentation.Guests
             _stamp++;
             int nLines = lines != null && lines.LiftSlots.IsCreated ? lines.LiftSlots.Length : 0;
             int top = lines != null && lines.TopSlotsAt >= 0 ? lines.TopSlotsAt : int.MaxValue / 2;
-            if (_lineLen.Length < nLines) { _lineLen = new int[nLines * 2]; _lineStart = new int[nLines * 2 + 1]; _nextCol = new int[nLines * 2]; }
-            Array.Clear(_lineLen, 0, nLines);
+            if (_nextCol.Length < nLines) _nextCol = new int[nLines * 2];
+            int n = 0;
             for (int i = 0; i < _count; i++)
             {
                 var r = _records[i];
                 _linePlace[i] = r.Rank;
                 int line = LineOf(r, top);
                 if (line < 0 || line >= nLines) continue;
-                if (r.Rank + 1 > _lineLen[line]) _lineLen[line] = r.Rank + 1;
+                _keys[n] = ((long)line << 32) | ((long)r.Rank << 12) | (uint)(i & 0xFFF);
+                _order[n++] = i;
             }
-            _lineStart[0] = 0;
-            for (int l = 0; l < nLines; l++) _lineStart[l + 1] = _lineStart[l] + _lineLen[l];
-            int total = Math.Min(_lineStart[nLines], _order.Length);
-            for (int k = 0; k < total; k++) _order[k] = -1;
-            for (int i = 0; i < _count; i++)
+            if (n > 1) Array.Sort<long, int>(_keys, _order, 0, n);
+            if (_lineSeats.Length < nLines) { _lineSeats.Dispose(); _lineSeats = new NativeArray<int>(nLines * 2, Allocator.Persistent); }
+            // Per line, stretch by stretch from the front (LineLayout.Section): rows across fill lane by lane, a single
+            // file in the order of the line. A skier keeps its column within a stretch of rows; walking on into the next
+            // stretch it merges, the way a real queue does where it narrows or widens.
+            int seats = 1, current = -1, section = 0, sections = 0, rows = 0, start = 0, inSection = 0;
+            bool file = false;
+            for (int k = 0; k < n; k++)
             {
+                int i = _order[k];
                 var r = _records[i];
-                int line = LineOf(r, top);
-                if (line < 0 || line >= nLines) continue;
-                int at = _lineStart[line] + r.Rank;
-                if (at < total && _order[at] < 0) _order[at] = i;
-            }
-            for (int line = 0; line < nLines; line++)
-            {
-                int seats = Math.Max(1, Math.Min(_colDepth.Length, lines.SeatsOf(line)));
-                Array.Clear(_colDepth, 0, seats);
-                for (int at = _lineStart[line]; at < Math.Min(_lineStart[line + 1], total); at++)
+                int line = (int)(_keys[k] >> 32);
+                if (line != current)
                 {
-                    int i = _order[at];
-                    if (i < 0) continue;
-                    var r = _records[i];
-                    int slot = r.Slot;
-                    if (slot >= _colOf.Length) continue;
-                    int col;
-                    if (_colSerial[slot] == r.Serial && _colLine[slot] == line + 1 && _colStamp[slot] >= _stamp - 1) col = _colOf[slot] % seats;
-                    else col = _nextCol[line]++ % seats;
-                    if (_nextCol[line] >= seats) _nextCol[line] %= seats;
-                    _colOf[slot] = col; _colSerial[slot] = r.Serial; _colLine[slot] = line + 1; _colStamp[slot] = _stamp;
-                    _linePlace[i] = _colDepth[col]++ * seats + col;
+                    current = line;
+                    seats = Math.Max(1, Math.Min(_colDepth.Length, lines.SeatsOf(line)));
+                    _lineSeats[line] = seats;
+                    sections = lines.SectionCount(line);
+                    section = -1; start = 0; rows = 0; inSection = 0; file = false;
                 }
+                // On to the next stretch once this one is full.
+                while (inSection >= rows * seats && section < sections)
+                {
+                    start += rows * seats;
+                    section++;
+                    inSection = 0;
+                    Array.Clear(_colDepth, 0, seats);
+                    if (section < sections) lines.Section(line, section, out rows, out file);
+                    else { rows = int.MaxValue / (4 * seats); file = true; }   // past the places laid: in order, at the tail
+                }
+                int slot = r.Slot;
+                if (slot >= _colOf.Length) continue;
+                bool mine = _colSerial[slot] == r.Serial && _colLine[slot] == line + 1;
+                int col = -1;
+                if (file) _linePlace[i] = start + inSection;
+                else
+                {
+                    // Its own column while it stays in this stretch (a pass or two unseen doesn't lose it: a snapshot can show
+                    // two skiers on one rank for a moment).
+                    if (mine && _colSection[slot] == section && _colOf[slot] >= 0 && _colStamp[slot] >= _stamp - StaleColumnPasses
+                        && _colDepth[_colOf[slot] % seats] < rows)
+                        col = _colOf[slot] % seats;
+                    else
+                    {
+                        if (mine && _colSection[slot] == section && _colOf[slot] >= 0 && _colStamp[slot] >= _stamp - 2 * StaleColumnPasses) ColumnResets++;
+                        int from = _nextCol[line] % seats;
+                        col = -1;
+                        for (int c = 0; c < seats; c++)
+                        {
+                            int cc = (from + c) % seats;
+                            if (_colDepth[cc] < rows && (col < 0 || _colDepth[cc] < _colDepth[col])) col = cc;
+                        }
+                        _nextCol[line] = (col + 1) % seats;
+                    }
+                    _linePlace[i] = start + _colDepth[col]++ * seats + col;
+                }
+                inSection++;
+                _colOf[slot] = col; _colSerial[slot] = r.Serial; _colLine[slot] = line + 1; _colStamp[slot] = _stamp; _colSection[slot] = section;
             }
         }
+
+        /// <summary>How many passes a skier may go unseen in its line and keep its column.</summary>
+        const int StaleColumnPasses = 30;
 
         static int LineOf(SkierRender r, int top) =>
             r.State == (byte)GuestState.Queued ? r.Index : r.State == (byte)GuestState.QueuedDown ? top + r.Index : -1;
@@ -291,7 +332,7 @@ namespace MountainPlanner.Presentation.Guests
                 ScreenSize = _screenSize = new float2(camera.pixelWidth, camera.pixelHeight),
                 CameraPosition = camera.transform.position,
                 Prev = _prev, PrevSerial = _prevSerial,
-                LinePlace = _linePlace,
+                LinePlace = _linePlace, LineSeats = _lineSeats, Shown = _shown,
                 Dots = _dots, Screen = _screen, Facing = _facing, Figures = Figures,
             };
             job.Schedule(_count, 256).Complete();
@@ -489,6 +530,8 @@ namespace MountainPlanner.Presentation.Guests
             if (_prev.IsCreated) _prev.Dispose();
             if (_prevSerial.IsCreated) _prevSerial.Dispose();
             if (_linePlace.IsCreated) _linePlace.Dispose();
+            if (_shown.IsCreated) _shown.Dispose();
+            if (_lineSeats.IsCreated) _lineSeats.Dispose();
             if (_ropeNow.IsCreated) _ropeNow.Dispose();
             if (_drawRiders.IsCreated) _drawRiders.Dispose();
             if (_lineCount.IsCreated) _lineCount.Dispose();

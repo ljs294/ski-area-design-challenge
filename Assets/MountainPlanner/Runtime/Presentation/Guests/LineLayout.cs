@@ -100,6 +100,16 @@ namespace MountainPlanner.Presentation.Guests
         }
 
         /// <summary>Task 4.26 BB4: how many columns line <paramref name="line"/> stands in (place d·seats + c is row d, column c).</summary>
+        /// <summary>Task 4.26 BB4: how many stretches line <paramref name="line"/> has (rows across, then single file, ...).</summary>
+        public int SectionCount(int line) => _snakes != null && line >= 0 && line < _snakes.Length && _snakes[line] != null ? _snakes[line].SectionRows.Count : 0;
+
+        /// <summary>Task 4.26 BB4: stretch <paramref name="k"/> of line <paramref name="line"/>: its rows, and whether it is single file.</summary>
+        public void Section(int line, int k, out int rows, out bool file)
+        {
+            var s = _snakes[line];
+            rows = s.SectionRows[k]; file = s.SectionFile[k];
+        }
+
         public int SeatsOf(int line) => _snakes != null && line >= 0 && line < _snakes.Length && _snakes[line] != null ? _snakes[line].Seats : 1;
 
         public int Capacity(int lift) => LiftSlots.IsCreated && lift >= 0 && lift < LiftSlots.Length ? LiftSlots[lift].y : 0;
@@ -185,6 +195,10 @@ namespace MountainPlanner.Presentation.Guests
             /// <summary>How many rows of <see cref="Out"/> have been laid (or passed over), lane place by lane place.</summary>
             public int Depth;
             public readonly List<Vector2> OutFaces = new List<Vector2>();
+            /// <summary>Task 4.26 BB4: the line's stretches, front first: how many rows each holds, and whether it is single
+            /// file (a walkway, where the lanes take turns along one centre) or rows across.</summary>
+            public readonly List<int> SectionRows = new List<int>();
+            public readonly List<bool> SectionFile = new List<bool>();
 
             public float V => Pass * (Width + AisleMetres) + Width * 0.5f;
             public Vector2 Point(float u, float v) => Origin + Along * u + Across * v;
@@ -456,6 +470,9 @@ namespace MountainPlanner.Presentation.Guests
         }
 
         /// <summary>The widest a corner of the line's centre is rounded: the U-turn round a pass's end is a half circle.</summary>
+        /// <summary>The nearest a lane's next place stands to its last in a straight line, metres (round a tight loop).</summary>
+        const float MinLaneGapMetres = 0.8f;
+
         static float CornerRadius(Snake s) => (s.Width + AisleMetres) * 0.5f;
 
         /// <summary>How far short of the line's end its places are final, metres (at most).</summary>
@@ -472,7 +489,21 @@ namespace MountainPlanner.Presentation.Guests
         readonly List<byte> _sampleKind = new List<byte>();
         readonly List<float> _gapEnds = new List<float>(), _gapStarts = new List<float>(), _lone = new List<float>();
         /// <summary>The half-metre cells every line's places stand on (no two places share one).</summary>
-        readonly HashSet<long> _taken = new HashSet<long>();
+        readonly Dictionary<long, Vector2> _taken = new Dictionary<long, Vector2>();
+
+        /// <summary>The nearest two places stand, metres (more than a cell's diagonal, so a cell holds at most one).</summary>
+        const float MinPlaceMetres = 0.75f;
+
+        /// <summary>No place of any line stands nearer than <see cref="MinPlaceMetres"/> to <paramref name="p"/>.</summary>
+        bool Free(Vector2 p)
+        {
+            int ci = Mathf.FloorToInt(p.x / CellMetres), cj = Mathf.FloorToInt(p.y / CellMetres);
+            for (int di = -2; di <= 2; di++)
+                for (int dj = -2; dj <= 2; dj++)
+                    if (_taken.TryGetValue(((long)(ci + di) << 32) ^ (uint)(cj + dj), out var q) && (q - p).sqrMagnitude < MinPlaceMetres * MinPlaceMetres)
+                        return false;
+            return true;
+        }
         static long CellKey(Vector2 p) => ((long)Mathf.FloorToInt(p.x / CellMetres) << 32) ^ (uint)Mathf.FloorToInt(p.y / CellMetres);
         const byte KindRow = 0, KindNarrow = 1, KindGap = 2;
 
@@ -590,21 +621,24 @@ namespace MountainPlanner.Presentation.Guests
             const float Tolerance = 1e-3f;
             var lanes = new List<Vector2>[seats];
             var faces = new List<Vector2>[seats];
+            var single = new List<bool>[seats];   // the place is in a single file
             var placed = new Vector2[seats];
-            var prevDist = new float[seats];
-            for (int c = 0; c < seats; c++) { lanes[c] = new List<Vector2>(); faces[c] = new List<Vector2>(); }
+            var prevDist = new float[seats];   // walked along the lane since its last place, metres
+            var walkedFrom = new Vector2[seats];
+            for (int c = 0; c < seats; c++) { lanes[c] = new List<Vector2>(); faces[c] = new List<Vector2>(); single[c] = new List<bool>(); }
             // A skier faces the one ahead in its lane when that one stands close (round a tight bend too), else the way
             // the line runs back to its front.
-            void Put(int c, Vector2 p, Vector2 tangent)
+            void Put(int c, Vector2 p, Vector2 tangent, bool file = false)
             {
+                single[c].Add(file);
                 var face = -tangent;
                 if (lanes[c].Count > 0)
                 {
                     var toward = lanes[c][lanes[c].Count - 1] - p;
                     float gap = toward.magnitude;
-                    if (gap >= 0.5f * RowMetres && gap <= 1.5f * RowMetres) face = toward / gap;
+                    if (gap >= 0.9f * MinLaneGapMetres && gap <= 1.5f * RowMetres) face = toward / gap;
                 }
-                lanes[c].Add(p); faces[c].Add(face); placed[c] = p; prevDist[c] = 0;
+                lanes[c].Add(p); faces[c].Add(face); placed[c] = p; walkedFrom[c] = p; prevDist[c] = 0;
             }
             void Square(float x, bool after, Vector2 rowDir = default)
             {
@@ -643,9 +677,9 @@ namespace MountainPlanner.Presentation.Guests
                     {
                         int least = 0;
                         for (int c = 1; c < seats; c++) if (lanes[c].Count < lanes[least].Count) least = c;
-                        Put(least, cp, tan);
+                        Put(least, cp, tan, true);
                         fileLast = cp;
-                        for (int c = 0; c < seats; c++) { placed[c] = cp; prevDist[c] = 0; }
+                        for (int c = 0; c < seats; c++) { placed[c] = cp; walkedFrom[c] = cp; prevDist[c] = 0; }
                     }
                     jumped = false;
                     continue;
@@ -662,22 +696,28 @@ namespace MountainPlanner.Presentation.Guests
                     jumped = false;
                     continue;
                 }
+                // A row's length walked along the lane, so a skier stepping up to the next place follows the lane round a bend
+                // (a straight row's length on a tight U-turn's inner lane spanned the whole turn, and the step cut across
+                // the other lanes). Never nearer its last place than MinLaneGapMetres in a straight line, so a lane
+                // that loops round a tight corner doesn't crowd itself.
                 for (int c = 0; c < seats; c++)
                 {
                     Point(c, k, out var p, out _);
-                    float d = (p - placed[c]).magnitude;
-                    if (d >= RowMetres - Tolerance)
-                    {
-                        float frac = d - prevDist[c] < 1e-6f ? 1f : Mathf.Clamp01((RowMetres - prevDist[c]) / (d - prevDist[c]));
-                        Point(c, k - 1 + frac, out var q, out var tq);
-                        Put(c, q, tq);
-                    }
-                    else prevDist[c] = d;
+                    float before = prevDist[c];
+                    float walked = before + (p - walkedFrom[c]).magnitude;
+                    walkedFrom[c] = p;
+                    prevDist[c] = walked;
+                    if (walked < RowMetres - Tolerance) continue;
+                    float frac = before >= RowMetres - Tolerance || walked - before < 1e-6f ? 1f : Mathf.Clamp01((RowMetres - before) / (walked - before));
+                    Point(c, k - 1 + frac, out var q, out var tq);
+                    if ((q - placed[c]).magnitude < MinLaneGapMetres) { Point(c, k, out q, out tq); if ((q - placed[c]).magnitude < MinLaneGapMetres) continue; }
+                    Put(c, q, tq);
+                    if (frac < 1f) { prevDist[c] = (p - q).magnitude; walkedFrom[c] = p; }
                 }
             }
 
             // Rows of places: row d is every lane's d-th place. Those not laid before are added, unless one of them stands
-            // on ground another place already stands on (half-metre cells, every line's): that row is passed over.
+            // nearer than MinPlaceMetres to another place, any line's: that row is passed over.
             int depth = int.MaxValue;
             for (int c = 0; c < seats; c++) depth = Math.Min(depth, lanes[c].Count);
             for (int d = s.Depth; d < depth && s.Out.Count + seats <= MaxSlots; d++)
@@ -686,18 +726,22 @@ namespace MountainPlanner.Presentation.Guests
                 bool clear = true;
                 for (int c = 0; c < seats && clear; c++)
                 {
-                    long key = CellKey(lanes[c][d]);
-                    clear = !_taken.Contains(key);
-                    for (int e = 0; e < c && clear; e++) clear = CellKey(lanes[e][d]) != key;
+                    clear = Free(lanes[c][d]);
+                    for (int e = 0; e < c && clear; e++) clear = (lanes[e][d] - lanes[c][d]).sqrMagnitude >= MinPlaceMetres * MinPlaceMetres;
                 }
                 if (!clear) continue;
+                bool file = false;
                 for (int c = 0; c < seats; c++)
                 {
                     var p = lanes[c][d];
                     s.Out.Add(new Vector3(p.x, Height(p), p.y));
                     s.OutFaces.Add(faces[c][d]);   // toward the front of the line, along its lane
-                    _taken.Add(CellKey(lanes[c][d]));
+                    _taken[CellKey(p)] = p;
+                    file |= single[c][d];
                 }
+                int last = s.SectionRows.Count - 1;
+                if (last >= 0 && s.SectionFile[last] == file) s.SectionRows[last]++;
+                else { s.SectionRows.Add(1); s.SectionFile.Add(file); }
             }
         }
 
