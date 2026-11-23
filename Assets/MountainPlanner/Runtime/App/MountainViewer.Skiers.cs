@@ -318,8 +318,12 @@ namespace MountainPlanner.App
             watch.Restart();
             var layout = LineLayout.Build(design.Revision, liftInputs, runs, ground, CoverBlocks(), topSlotsAt: liftCount);
             _skierLinesMs = watch.Elapsed.TotalMilliseconds;
-            layer.SetPaths(paths);
-            layer.SetLines(layout);
+            if (layer == null) { _probeLines?.Dispose(); _probeLines = layout; }   // the -linelayout probe (no dots under -nographics)
+            else
+            {
+                layer.SetPaths(paths);
+                layer.SetLines(layout);
+            }
             Debug.Log($"[Skiers] paths for revision {design.Revision}: {edges.Count} edges, {liftLines.Count} lifts in {_skierPathsMs:F1} ms; " +
                       $"lines in {_skierLinesMs:F1} ms" + (layout.Diagnosis.Length > 0 ? " · " + layout.Diagnosis : ""));
         }
@@ -328,7 +332,10 @@ namespace MountainPlanner.App
 
         /// <summary>
         /// The ground a line can't stand on that the layout can't see from the design: forest that hasn't been cleared
-        /// (the cover the ground is planted from, not the planted trees, so it's the same with or without Burst).
+        /// (the cover the ground is planted from), and, task 4.26 BB4, ground within
+        /// <see cref="LineLayout.TreeClearanceMetres"/> of a planted tree's trunk (owner 2026-11-23, a still of guests standing
+        /// among the trees behind a terminal: the cover alone left sparse trees out). The trees come from the terrain cache
+        /// (the same bytes with or without Burst, on screen or not), a 64 m square at a time as the layout first looks there.
         /// </summary>
         Func<float, float, bool> CoverBlocks()
         {
@@ -339,12 +346,43 @@ namespace MountainPlanner.App
             var edits = pipeline.Current;
             var lattice = pipeline.Lattice;
             double ox = site.Value.OriginX, oy = site.Value.OriginY;
+            const float clear = LineLayout.TreeClearanceMetres, cell = 0.5f;
+            var squares = new HashSet<long>();          // the 64 m squares read so far
+            var near = new HashSet<long>();             // the half-metre cells (as the layout's) whose centre is that close to a trunk
+            var found = new List<(double X, double Y)>();
+            static long Key(int a, int b) => ((long)a << 32) ^ (uint)b;
+            static int Down(int a, int b) => a >= 0 ? a / b : -((-a + b - 1) / b);
+            void Read(int sc, int sr)
+            {
+                if (!squares.Add(Key(sc, sr))) return;
+                found.Clear();
+                pipeline.StandingTrees(sc, sr, edits, found);
+                foreach (var (tx, ty) in found)
+                {
+                    float x = (float)(tx - ox), z = (float)(ty - oy);
+                    int i0 = Mathf.FloorToInt((x - clear) / cell), i1 = Mathf.FloorToInt((x + clear) / cell);
+                    int j0 = Mathf.FloorToInt((z - clear) / cell), j1 = Mathf.FloorToInt((z + clear) / cell);
+                    for (int j = j0; j <= j1; j++)
+                        for (int i = i0; i <= i1; i++)
+                        {
+                            float dx = (i + 0.5f) * cell - x, dz = (j + 0.5f) * cell - z;
+                            if (dx * dx + dz * dz <= clear * clear) near.Add(Key(i, j));
+                        }
+                }
+            }
             return (x, z) =>
             {
                 double lx = x + ox, ly = z + oy;
                 lattice.CellAt(lx, ly, out int c, out int r);
                 if (edits != null && edits.IsClearedAt(c, r)) return false;
-                return trees.TreeShare(lx, ly) > 0.3;
+                if (trees.TreeShare(lx, ly) > 0.3) return true;
+                // Every square a trunk this close could stand in.
+                lattice.CellAt(lx - clear, ly + clear, out int c0, out int r0);
+                lattice.CellAt(lx + clear, ly - clear, out int c1, out int r1);
+                for (int sr = Down(Math.Min(r0, r1), 64); sr <= Down(Math.Max(r0, r1), 64); sr++)
+                    for (int sc = Down(Math.Min(c0, c1), 64); sc <= Down(Math.Max(c0, c1), 64); sc++)
+                        Read(sc, sr);
+                return near.Contains(Key(Mathf.FloorToInt(x / cell), Mathf.FloorToInt(z / cell)));
             };
         }
 

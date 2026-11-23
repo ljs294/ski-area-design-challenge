@@ -42,6 +42,13 @@ namespace MountainPlanner.Presentation.Guests
         /// <summary>Task 4.22: per place, the way its skier faces (LineLayout.Facing).</summary>
         [ReadOnly] public NativeArray<float2> SlotFacing;
         [ReadOnly] public NativeArray<int2> LiftSlots;
+        /// <summary>Task 4.26 BB4: per record, its place in its line (row · seats + column; SkierLayer.AssignPlaces).</summary>
+        [ReadOnly] public NativeArray<int> LinePlace;
+        /// <summary>Task 4.26 BB4: per line (as <see cref="LiftSlots"/>), how many columns it stands in.</summary>
+        [ReadOnly] public NativeArray<int> LineSeats;
+        /// <summary>Task 4.26 BB4: per slot, the place (+1; 0 for none) a queued skier is walking to now: the next one in its
+        /// lane, so a skier several rows back walks up its own lane, round its bends, never straight across the others.</summary>
+        [NativeDisableParallelForRestriction] public NativeArray<int> Shown;
         /// <summary>
         /// Task 4.24 PR B (RD-2): where the top lines' places start in <see cref="LiftSlots"/>: lift i's top line is entry
         /// <c>TopSlotsAt + i</c> (the layout's mirrored inputs). Zero entries past the end: the line stands round the top.
@@ -95,7 +102,8 @@ namespace MountainPlanner.Presentation.Guests
             var r = Records[i];
             float3 p;
             int cls;
-            bool ease = false, onSnow = true;   // task 4.07 PR A3: stands on the snow (all but a carpet's and a chair's riders)
+            bool ease = false, onSnow = true;
+            float walkScale = 1f;   // task 4.07 PR A3: stands on the snow (all but a carpet's and a chair's riders)
             var st = (GuestState)r.State;
             float4 facing = new float4(0, 0, -1, 0);
             if (st == GuestState.Skiing || (st == GuestState.Walking && !r.OnALift))
@@ -119,12 +127,15 @@ namespace MountainPlanner.Presentation.Guests
                 // RD-2: the top line has its own places, laid like a bottom line at the top station's down side.
                 int at = st == GuestState.QueuedDown ? TopSlotsAt + lift : lift;
                 int2 s = at < LiftSlots.Length ? LiftSlots[at] : int2.zero;
+                // Task 4.26 BB4: its place (row and column), not its rank, so a part-full chair moves only the columns it took from.
+                int place = i < LinePlace.Length ? LinePlace[i] : r.Rank;
                 if (s.y <= 0) { p = r.Node < Nodes.Length ? Ring(Nodes[r.Node], r.Serial) : float3.zero; cls = ClassOverflow; }
                 // Lines grow as long as they need (owner, 2026-11-10): a skier past the end only waits a frame for the
                 // layout to lay more places, standing at the tail meanwhile, never in a pile round it.
-                else { p = Slots[s.x + math.min((int)r.Rank, s.y - 1)]; cls = ClassQueued; }
-                // Facing the front of the line along its pass (task 4.22: not at the neighbour in the row).
-                int rank = math.min((int)r.Rank, s.y - 1);
+                else { p = Slots[s.x + math.min(place, s.y - 1)]; cls = ClassQueued; }
+                int rank = math.min(place, s.y - 1);
+                if (s.y > 0) rank = Walking(r, s, at, rank, ref p, ref walkScale);
+                // Facing the front of the line along its lane (task 4.22: not at the neighbour in the row).
                 float3 ahead = s.y > 0 && s.x + rank < SlotFacing.Length ? new float3(SlotFacing[s.x + rank].x, 0, SlotFacing[s.x + rank].y)
                     : st == GuestState.QueuedDown ? -LiftDirection(lift) : LiftDirection(lift);
                 facing = new float4(Flat(ahead), -1, 0);
@@ -175,7 +186,7 @@ namespace MountainPlanner.Presentation.Guests
                     float len = math.length(d);
                     // A row forward is a walk; joining a tail far off closes in about 1.5 s whatever the distance
                     // (finding 2, 2026-11-10: at walking pace a far tail drew its newcomers as a loose stream).
-                    float step = math.max(WalkStep, len * CatchUp);
+                    float step = math.max(WalkStep * walkScale, len * CatchUp);
                     if (len > step && len < 400f) p = Prev[slot] + d * (step / len);
                     Prev[slot] = p;
                 }
@@ -236,6 +247,26 @@ namespace MountainPlanner.Presentation.Guests
         /// <summary>Task 4.22: one guest in four rides a snowboard, keyed on its serial (the figures' choice too).</summary>
         public static bool IsBoarder(uint serial) => ((serial * 0x9E3779B1u) >> 24) < 64u;
 
+
+        /// <summary>
+        /// Task 4.26 BB4: the place a queued skier walks to now. Its own place when it stands a row or less from it (or is
+        /// new to the line, or to the lane); otherwise the next place up its lane from the one it last reached, so it
+        /// follows the lane round its bends. The further behind, the quicker it walks, so a busy line never lags.
+        /// </summary>
+        int Walking(SkierRender r, int2 s, int at, int target, ref float3 p, ref float walkScale)
+        {
+            int slot = r.Slot;
+            if (slot >= Shown.Length || slot >= Prev.Length || slot >= PrevSerial.Length) return target;
+            int seats = at < LineSeats.Length ? math.max(1, LineSeats[at]) : 1;
+            int shown = Shown[slot] - 1;
+            if (PrevSerial[slot] != r.Serial || shown < target || shown >= s.y || (shown - target) % seats != 0 || shown - target > 64 * seats)
+                shown = target;
+            while (shown > target && math.distancesq(Prev[slot], Slots[s.x + shown]) < 0.35f * 0.35f) shown -= seats;
+            Shown[slot] = shown + 1;
+            walkScale = 1f + 0.5f * ((shown - target) / seats);
+            p = Slots[s.x + shown];
+            return shown;
+        }
         void Hide(int i)
         {
             Dots[i] = new float4(0, 0, 0, Hidden);

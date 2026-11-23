@@ -96,15 +96,114 @@ namespace MountainPlanner.Tests
             }
             Assert.Greater(beyond, 300, "it folds again in the field beyond");
             AssertNoSharedGround(layout, 1);
+            // Task 4.26 BB4: the stretches cover every place, front first: rows at the terminal, single file through the
+            // gap, rows again in the field (a skier keeps its lane only within rows, and follows the one ahead in a file).
+            int rows = 0, files = 0, rowStretches = 0;
+            for (int k = 0; k < layout.SectionCount(0); k++)
+            {
+                layout.Section(0, k, out int n, out bool file);
+                rows += n;
+                if (file) files++; else rowStretches++;
+            }
+            Assert.That(rows * 4, Is.EqualTo(layout.Capacity(0)), "every place is in one stretch");
+            layout.Section(0, 0, out _, out bool firstFile);
+            Assert.IsFalse(firstFile, "rows at the terminal");
+            Assert.GreaterOrEqual(files, 1, "single file through the gap");
+            Assert.GreaterOrEqual(rowStretches, 2, "rows again beyond");
+        }
+
+        // Task 4.26 BB4 (owner, 2026-11-23, lift 0 at the drawn resort): behind the terminal the line stood in a gap between
+        // trees, too narrow for two passes side by side, and folded there in 3-row zigzags (clumps of rows with gaps). In a
+        // corridor it runs straight on, rows across, and folds where the ground opens out.
+        [Test]
+        public void ACorridorBetweenTreesRunsStraightDownItNotInShortFolds()
+        {
+            bool Corridor(float x, float z) => x > -4 && x < 4 && z > -40 && z < 2;
+            bool Field(float x, float z) => z <= -40 && z > -200 && x > -100 && x < 100;
+            bool Trees(float x, float z) => !(Corridor(x, z) || Field(x, z));
+            using var layout = LineLayout.Build(1, new[] { Lift(Vector2.zero, new Vector2(0, 800), 4) }, null, (x, z) => 0f, Trees);
+            GrowTo(layout, 0, 400);
+            var s = layout.LiftSlots[0];
+            int inCorridor = 0, inField = 0;
+            for (int k = 0; k < s.y; k++)
+            {
+                var p = layout.Slots[s.x + k];
+                if (Field(p.x, p.z)) inField++;
+                if (!Corridor(p.x, p.z) || p.z < -36) continue;
+                inCorridor++;
+                Assert.That(layout.Facing[s.x + k].y, Is.GreaterThan(0.95f), $"place {k} at {p} faces up the corridor");
+            }
+            Assert.That(inCorridor, Is.GreaterThanOrEqualTo(4 * 15), "the line runs the corridor's length, four across");
+            Assert.That(inField, Is.GreaterThan(200), "and folds in the field beyond");
+            AssertNoSharedGround(layout, 1);
+        }
+
+        // Task 4.26 BB4 (owner, 2026-11-23, lift 0 at the drawn resort): the line jumped from its throat to a fold 4 m away,
+        // an empty gap at its front. Its first heading was one whose first row didn't fit (it laid nothing, scored 0), chosen
+        // over headings that lay rows but scored below 0 for their short folds.
+        [Test]
+        public void AFirstHeadingThatLaysNothingNeverBeatsOneThatLaysRows()
+        {
+            Assert.IsTrue(LineLayout.Better(true, -3, false, 0), "rows in short folds beat nothing");
+            Assert.IsFalse(LineLayout.Better(false, 0, true, -3), "nothing never beats rows");
+            Assert.IsTrue(LineLayout.Better(true, 5, true, 3), "more rows win");
+            Assert.IsFalse(LineLayout.Better(true, 3, true, 3), "ties keep the earlier heading");
+            Assert.IsTrue(LineLayout.Better(false, 0, false, int.MinValue), "with nothing laid anywhere, the first heading stands");
+        }
+
+        // Task 4.26 BB4: the drawn resort ran out of memory laying a line whose centre doubled straight back (its corner
+        // came out kilometres away). Corridors of many widths, lengths and angles, and patchy forests: every line grows long,
+        // its centre never doubles back, and every place stands in reach.
+        [Test]
+        public void NoLineDoublesStraightBackInCorridorsOrPatchyForest()
+        {
+            var cases = new List<(string Name, Func<float, float, bool> Trees)>();
+            foreach (float width in new[] { 5f, 7f, 8.5f, 10f, 12f })
+                foreach (float length in new[] { 15f, 40f, 70f })
+                    foreach (float angle in new[] { 0f, 30f, 75f })
+                    {
+                        float c = Mathf.Cos(angle * Mathf.Deg2Rad), sn = Mathf.Sin(angle * Mathf.Deg2Rad);
+                        float w = width, len = length;
+                        bool Open(float x, float z)
+                        {
+                            // The corridor runs back from the lift at the angle, then a field opens out.
+                            float along = -(x * sn + z * c), across = x * c - z * sn;
+                            if (along > -2 && along < len && Mathf.Abs(across) < w * 0.5f) return true;
+                            return along >= len && along < len + 120 && Mathf.Abs(across) < 60;
+                        }
+                        cases.Add(($"corridor {width} m x {length} m at {angle}°", (x, z) => !Open(x, z)));
+                    }
+            foreach (int seed in new[] { 1, 2, 3, 4, 5, 6 })
+            {
+                int sd = seed;
+                bool Patchy(float x, float z)
+                {
+                    if (x > -3 && x < 3 && z > -6 && z < 2) return false;   // the load lane
+                    uint h = (uint)(Mathf.FloorToInt(x / 7f) * 73856093) ^ (uint)(Mathf.FloorToInt(z / 7f) * 19349663) ^ (uint)(sd * 83492791);
+                    h ^= h >> 13; h *= 0x5bd1e995; h ^= h >> 15;
+                    return h % 100 < 38;
+                }
+                cases.Add(($"patchy forest {seed}", Patchy));
+            }
+            foreach (var (name, trees) in cases)
+            {
+                using var layout = LineLayout.Build(1, new[] { Lift(Vector2.zero, new Vector2(0, 800), 4) }, null, (x, z) => 0f, (x, z) => trees(x, z));
+                GrowTo(layout, 0, 1500);
+                Assert.AreEqual(0, layout.Reversals, $"{name}: the line's centre doubled straight back: {layout.FirstReversal}");
+                foreach (var p in SlotsOf(layout, 0))
+                    Assert.IsTrue(float.IsFinite(p.x) && float.IsFinite(p.z) && new Vector2(p.x, p.z).magnitude <= LineLayout.MaxReachMetres + 10,
+                                  $"{name}: a place at {p}");
+            }
         }
 
         [Test]
         public void BoxedInByForestTheLineFoldsOverTheTreesButNeverOnARun()
         {
-            // A small clearing, forest all round, and a run across the forest 40 m south: nowhere open in reach.
+            // A small clearing, forest all round, and a run across the forest 40 m south (past the line's reach either
+            // way, as the test below assumes): nowhere open in reach.
             bool Clearing(float x, float z) => x > -6 && x < 6 && z > -20 && z < 2;
             bool Trees(float x, float z) => !Clearing(x, z);
-            var runs = new[] { new LineLayout.RunInput { Line = new[] { new Vector2(-300, -40), new Vector2(0, -40), new Vector2(300, -40) }, HalfWidth = 10 } };
+            var runs = new[] { new LineLayout.RunInput { Line = new[] { new Vector2(-600, -40), new Vector2(0, -40), new Vector2(600, -40) }, HalfWidth = 10 } };
             using var layout = LineLayout.Build(1, new[] { Lift(Vector2.zero, new Vector2(0, 800), 4) }, runs, (x, z) => 0f, Trees);
             GrowTo(layout, 0, 300);
             Assert.GreaterOrEqual(layout.Capacity(0), 300, layout.Describe(0));
