@@ -425,8 +425,9 @@ echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5:
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
 echo   4.26 bug bash PR N: lift lines that bend and fill from behind (builds the game if there is none)
-echo     161 The drawn resort on January 15, busy: the lift lines curve round their folds, and when a chair
-echo        takes fewer than a row the guests behind step straight forward in their own lane.
+echo     161 The drawn resort on January 15, busy: the lift lines run straight back from the terminal, curve
+echo        round their folds and stand clear of the trees; when a chair takes fewer than a row the guests behind
+echo        step straight forward in their own lane.
 echo   4.29 trail grass PR A: grass grows on a trail, a skied winter kills it, mowing keeps it short (.NET only)
 echo     155 The grass and save tests, then two label years on the test mountain from bare ground (a few
 echo        minutes): two natural twins, the first mown every autumn; each one's grass every October 1 and April,
@@ -1305,8 +1306,9 @@ set "PD=%LOCALAPPDATA%\SkiAreaDesignChallenge-lines426"
 if exist "%PD%" rmdir /s /q "%PD%"
 echo.
 echo   The drawn resort on January 15 in a scratch folder (your saves aren't touched). Let the clock run to about
-echo   10:00, then fly low over a lift's bottom terminal: its line folds back and forth in smooth bends, each guest
-echo   facing the one ahead. Watch a chair load with fewer than a row: the others step straight up their lane.
+echo   10:00, then fly low over a lift's bottom terminal: its line runs straight back, then folds back and forth in
+echo   smooth bends clear of the trees, each guest facing the one ahead. Watch a chair load with fewer than a row:
+echo   the others step straight up their lane.
 pause
 start "" "%GAME%" -data "%PD%" -notitle -offline -drawnresort -simto 01-15
 pause
