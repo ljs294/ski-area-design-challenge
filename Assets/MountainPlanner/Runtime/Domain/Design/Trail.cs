@@ -22,6 +22,12 @@ namespace MountainPlanner.Domain.Design
     /// </summary>
     public enum TrailSwitch : byte { Auto = 0, Open = 1, Closed = 2 }
 
+    /// <summary>
+    /// SN-37 (task 4.29, shape 18): a trail's mowing. Off leaves the grass to grow; Every autumn has a contractor mow it
+    /// once a year from mid-September, so it needs less snow to open (SN-36). Values are saved: never renumber.
+    /// </summary>
+    public enum TrailMowing : byte { Off = 0, EveryAutumn = 1 }
+
     /// <summary>A trail's three settings (TR-06), held whole so freer forms come later without a format change.</summary>
     public readonly struct TrailSettings : System.IEquatable<TrailSettings>
     {
@@ -80,9 +86,13 @@ namespace MountainPlanner.Domain.Design
         /// <summary>SN-22 v4 (task 4.25, shape 17): the run's own trail's grooming setting and priority; a shaped trail has
         /// its own (<see cref="TrailLine.Grooming"/>). Not a setting either: it never regrades or redraws.</summary>
         public TrailGrooming Grooming { get; }
+        /// <summary>SN-37 (task 4.29, shape 18): the run's own trail's mowing; a shaped trail has its own
+        /// (<see cref="TrailLine.Mowing"/>). Not a setting either: it never regrades or redraws.</summary>
+        public TrailMowing Mowing { get; }
 
         public Trail(TrailId id, string name, WorkStage stage, TrailSettings settings, TrailShape shape, PointMm? head, PointMm? tail,
-                     SlopeBands.Band? posted = null, TrailSwitch @switch = TrailSwitch.Auto, TrailGrooming grooming = default)
+                     SlopeBands.Band? posted = null, TrailSwitch @switch = TrailSwitch.Auto, TrailGrooming grooming = default,
+                     TrailMowing mowing = TrailMowing.Off)
         {
             Id = id;
             Name = name;
@@ -94,17 +104,19 @@ namespace MountainPlanner.Domain.Design
             Posted = posted;
             Switch = @switch;
             Grooming = grooming;
+            Mowing = mowing;
         }
 
         public bool HasEnds => Head.HasValue && Tail.HasValue;
 
-        public Trail WithName(string name) => new Trail(Id, name, Stage, Settings, Shape, Head, Tail, Posted, Switch, Grooming);
-        public Trail WithStage(WorkStage stage) => new Trail(Id, Name, stage, Settings, Shape, Head, Tail, Posted, Switch, Grooming);
-        public Trail WithSettings(TrailSettings settings) => new Trail(Id, Name, Stage, settings, Shape, Head, Tail, Posted, Switch, Grooming);
-        public Trail WithShape(TrailShape shape) => new Trail(Id, Name, Stage, Settings, shape, Head, Tail, Posted, Switch, Grooming);
-        public Trail WithEnds(PointMm? head, PointMm? tail) => new Trail(Id, Name, Stage, Settings, Shape, head, tail, Posted, Switch, Grooming);
-        public Trail WithPosted(SlopeBands.Band? posted) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, posted, Switch, Grooming);
-        public Trail WithSwitch(TrailSwitch sw) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, Posted, sw, Grooming);
-        public Trail WithGrooming(TrailGrooming g) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, Posted, Switch, g);
+        public Trail WithName(string name) => new Trail(Id, name, Stage, Settings, Shape, Head, Tail, Posted, Switch, Grooming, Mowing);
+        public Trail WithStage(WorkStage stage) => new Trail(Id, Name, stage, Settings, Shape, Head, Tail, Posted, Switch, Grooming, Mowing);
+        public Trail WithSettings(TrailSettings settings) => new Trail(Id, Name, Stage, settings, Shape, Head, Tail, Posted, Switch, Grooming, Mowing);
+        public Trail WithShape(TrailShape shape) => new Trail(Id, Name, Stage, Settings, shape, Head, Tail, Posted, Switch, Grooming, Mowing);
+        public Trail WithEnds(PointMm? head, PointMm? tail) => new Trail(Id, Name, Stage, Settings, Shape, head, tail, Posted, Switch, Grooming, Mowing);
+        public Trail WithPosted(SlopeBands.Band? posted) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, posted, Switch, Grooming, Mowing);
+        public Trail WithSwitch(TrailSwitch sw) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, Posted, sw, Grooming, Mowing);
+        public Trail WithGrooming(TrailGrooming g) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, Posted, Switch, g, Mowing);
+        public Trail WithMowing(TrailMowing m) => new Trail(Id, Name, Stage, Settings, Shape, Head, Tail, Posted, Switch, Grooming, m);
     }
 }

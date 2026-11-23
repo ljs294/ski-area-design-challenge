@@ -424,6 +424,10 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
+echo   4.29 trail grass PR A: grass grows on a trail, a skied winter kills it, mowing keeps it short (.NET only)
+echo     155 The grass and save tests, then two label years on the test mountain from bare ground (a few
+echo        minutes): two natural twins, the first mown every autumn; each one's grass every October 1 and April,
+echo        and the first day each winter it is Covered. The mown one needs less snow and opens no later.
 echo   4.28 ground grass: wet hollows, dry ridges and the season (rebuilds the game; close the editor first)
 echo     154 The moisture and season tests, then the game four times in mid-July on your Jackson NH map (or the
 echo        demo mountain), a scratch copy: the old plain grass, the new grass, early October (gold), and the
@@ -645,6 +649,7 @@ if /i "%CHOICE%"=="146" goto tests426
 if /i "%CHOICE%"=="147" goto pads426
 if /i "%CHOICE%"=="149" goto garbage426
 if /i "%CHOICE%"=="154" goto grass428
+if /i "%CHOICE%"=="155" goto grass429
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -1300,6 +1305,17 @@ echo   and top terminals stand on clear ground, the snow rising again a few metr
 pause
 start "" "%GAME%" -data "%PD%" -notitle -offline -drawnresort -simto 02-01
 pause
+goto menu
+
+:grass429
+rem 4.29 PR A: trail grass (SN-35..SN-37). The rule only; PR B draws it.
+chcp 65001 >nul
+echo.
+echo   Part 1 (.NET, about a minute): new trails, growth, winter kill, cover depth, mowing, the save.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~GrassTests|FullyQualifiedName~SaveFileTests|FullyQualifiedName~TheVersionFifteenSidecar" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+echo.
+echo   Part 2 (.NET, a few minutes): two years, mown beside unmown.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "Name=SN37_TwoYearsMownBesideUnmown" --logger "console;verbosity=normal" <nul | findstr /l /c:"[two years]" /c:"Passed" /c:"Failed"
 goto menu
 
 :grass428

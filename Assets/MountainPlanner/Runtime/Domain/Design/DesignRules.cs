@@ -262,11 +262,13 @@ namespace MountainPlanner.Domain.Design
 
         /// <summary>SN-20 v4: Auto, Open or Closed.</summary>
         internal static string SwitchProblem(TrailSwitch sw) => sw <= TrailSwitch.Closed ? null : "A trail's switch is Auto, Open or Closed.";
+        /// <summary>SN-37 (task 4.29): Off or Every autumn.</summary>
+        public static string MowingProblem(TrailMowing m) => m <= TrailMowing.EveryAutumn ? null : "A trail's mowing is Off or Every autumn.";
 
         internal static string TrailProblem(Trail t, bool settingsMustBeAvailable)
         {
             if (t.Id.IsNone) return "A trail needs an ID.";
-            return NameProblem(t.Name) ?? StageProblem(t.Stage) ?? ShapeProblem(t.Shape) ?? EndsProblem(t.Head, t.Tail) ?? PostedProblem(t.Posted) ?? SwitchProblem(t.Switch)
+            return NameProblem(t.Name) ?? StageProblem(t.Stage) ?? ShapeProblem(t.Shape) ?? EndsProblem(t.Head, t.Tail) ?? PostedProblem(t.Posted) ?? SwitchProblem(t.Switch) ?? MowingProblem(t.Mowing)
                 ?? (settingsMustBeAvailable ? SettingsProblem(t.Settings) : (t.Settings.Defined ? null : "Unknown trail settings."));
         }
 
@@ -412,6 +414,7 @@ namespace MountainPlanner.Domain.Design
             if (NameProblem(line.Name) is string p) return p;
             if (PostedProblem(line.Posted) is string q) return q;
             if (SwitchProblem(line.Switch) is string w) return w;
+            if (MowingProblem(line.Mowing) is string m) return m;
             if (line.Spans.Count == 0) return "A trail holds at least one section.";
             if (line.Spans.Count > 4096) return "A trail holds too many sections.";
             foreach (var sp in line.Spans)
