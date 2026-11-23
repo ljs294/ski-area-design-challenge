@@ -215,6 +215,51 @@ namespace MountainPlanner.Domain.Design
         }
     }
 
+    /// <summary>
+    /// SN-37 (task 4.29): the mowing on runs' own trails and shaped trails, many in one undo step. A shaped trail's mowing
+    /// wins over its runs' (as the switch does).
+    /// </summary>
+    public sealed class SetTrailMowing : DesignCommand
+    {
+        public IReadOnlyList<TrailId> Runs { get; }
+        public IReadOnlyList<TrailLineId> Lines { get; }
+        public TrailMowing Mowing { get; }
+
+        public SetTrailMowing(long baseRevision, IReadOnlyList<TrailId> runs, IReadOnlyList<TrailLineId> lines, TrailMowing mowing) : base(baseRevision)
+        {
+            Runs = runs ?? Array.Empty<TrailId>();
+            Lines = lines ?? Array.Empty<TrailLineId>();
+            Mowing = mowing;
+        }
+
+        /// <summary>The mowing for one trail as the player sees it: its shaped trail's, else its run's own.</summary>
+        public static SetTrailMowing For(long baseRevision, ResolvedTrail trail, TrailMowing mowing) =>
+            trail.Line != null
+                ? new SetTrailMowing(baseRevision, null, new[] { trail.Line.Id }, mowing)
+                : new SetTrailMowing(baseRevision, new[] { trail.Segments[0].Piece }, null, mowing);
+
+        public override string Label => Mowing == TrailMowing.EveryAutumn ? "Mow every autumn" : "Stop mowing";
+
+        protected override CommandResult Run(DesignDocument doc)
+        {
+            if (DesignRules.MowingProblem(Mowing) is string p) return Invalid(doc, p);
+            var next = doc;
+            foreach (var id in Runs)
+            {
+                var t = next.FindTrail(id);
+                if (t == null) return Missing(doc, "That trail");
+                if (t.Mowing != Mowing) next = next.PutTrail(t.WithMowing(Mowing));
+            }
+            foreach (var id in Lines)
+            {
+                var l = next.FindLine(id);
+                if (l == null) return Missing(doc, "That trail");
+                if (l.Mowing != Mowing) next = next.PutLine(l.WithMowing(Mowing));
+            }
+            return CommandResult.Accept(next);
+        }
+    }
+
     public sealed class DeleteTrail : DesignCommand
     {
         public TrailId Trail { get; }
@@ -285,7 +330,7 @@ namespace MountainPlanner.Domain.Design
             var mint = new IdMint(doc);
             var lowerId = mint.Trail();
             var upper = t.WithShape(upperShape).WithEnds(t.Head, At);
-            var lower = new Trail(lowerId, lowerName, t.Stage, t.Settings, lowerShape, At, t.Tail, null, t.Switch, t.Grooming);   // SN-20 v4, SN-22 v4: the switch and the grooming come along
+            var lower = new Trail(lowerId, lowerName, t.Stage, t.Settings, lowerShape, At, t.Tail, null, t.Switch, t.Grooming, t.Mowing);   // SN-20 v4, SN-22 v4, SN-37: the switch, grooming and mowing come along
             return CommandResult.Accept(doc.WithOrdinal(mint.NextOrdinal).PutTrail(upper).PutTrail(lower), lowerId.Value);
         }
     }

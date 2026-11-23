@@ -622,7 +622,8 @@ density, so water and snow balance (SI-10).
     and zones never, closed trails included.*
 - **SN-20 v3, readiness from a skiable line (task 4.07 B1 part 2b; owner 2026-11-18 and 2026-11-19).** Replaces v2's
   covered shares. A **fine** trail cell (SN-03 v3) is *covered* when its depth is at least `Pacing.CoverGradedMm =
-  152` (6 in) on a graded trail or `Pacing.CoverNaturalMm = 305` (12 in) on a natural one. Every face hour, after
+  152` (6 in) on a graded trail or `Pacing.CoverNaturalMm = 305` (12 in) on a natural one (task 4.29: SN-36 adds the
+  trail's grass to both; a new trail needs the same). Every face hour, after
   the hour's snow, wear and grooming, the game walks each trail from top to bottom in rows one fine cell deep; a
   row's covered stretches count when at least `Pacing.LineWidthMm = 1219` (4 ft) wide (or the row's whole width, if
   narrower). A row is **reached** when one of its stretches overlaps a reached stretch of the row above (within one
@@ -744,6 +745,47 @@ density, so water and snow balance (SI-10).
   common type (rain on snow, a refreeze, a grooming) with its day, for the trail window's line ("Icy since the rain on
   Day 18 · two groomings to Machine groomed"). The recovery count reads SN-14 v3: icy and frozen granular need two
   groomings, LG one.
+
+- **SN-35, a trail's grass (task 4.29 PR A, owner 2026-11-23: "Once a trail opens, the tall grass is usually killed
+  over the winter beneath the snow. But obviously grass can be tall and grow all summer").** Each trail has one grass
+  height, 0–1000 ‰ (0 bare earth, 100 mown, 500 long grass, 1000 brush). Per layout trail, by trail id.
+  - **A new trail** starts at `Pacing.GrassNewNaturalPermille = 500` when natural (the meadow it was cut through) and
+    `GrassNewGradedPermille = 0` when graded (the earthwork stripped it and it was seeded). So does every trail of a
+    save older than sidecar v15.
+  - **It grows** `GrassGrowPermilleDay = 7` ‰ a face day from April 1 (`LabelCalendar.April1FaceDay`) to September 30,
+    on any day the trail is bare: under `GrassBareCoverPermille = 100` ‰ of it covered (SN-20 v3's cover share). Snow
+    keeps it from growing, so a late melt means a shorter summer. A summer adds about 450: mown grass (100) is long
+    again (about 530) by October; a new natural trail left unmown and unskied is at about 850 after a year and brush
+    after two.
+  - **A winter kills it.** Each face day the trail is *packed* (open on the board at the hour's flip, or groomed that
+    night) counts. At the first face day on or after April 1 the trail is bare, the winter just gone acts once: with at
+    least `GrassKillPackedDays = 5` packed days the grass drops to `GrassKilledPermille = 100` (packed snow killed it);
+    with fewer it keeps `GrassKeptPermille = 800` ‰ of its height (loose snow only flattened it); a kill never raises
+    it (a seeded trail stays at 0). The count then starts
+    again. Acting at the melt, not at the season's end, keeps the order right whether or not the player ever closed the
+    mountain (TM-11 v2's switch).
+  - **Saved** (sim sidecar v15): per layout trail by id, the height, the packed days this winter and whether this
+    year's winter has acted and its mowing is done. A layout change keeps each trail's state by id; a trail new to the
+    layout starts as a new trail.
+- **SN-36, grass raises the snow a trail needs (task 4.29 PR A, owner 2026-11-23).** SN-20 v3's cover depth becomes a
+  base plus the grass: graded `Pacing.CoverGradedMm = 152` (6 in), natural `CoverNaturalBaseMm = 229` (9 in; rougher
+  ground under it even mown), plus `GrassCoverMm = 152` (6 in) × height ÷ 1000. A new trail needs exactly what it did
+  before (graded 6 in, natural 9 + 3 = 12 in); a natural trail kept mown needs about 9.6 in, one left long and unskied
+  for a year about 15 in. Everything that reads the cover depth follows by itself: the Covered / Marginal / Bare label,
+  the skiable line, the cover share, the snow rating's uncovered cells, Auto's opening, grooming's *Too bare*. The
+  groomer's own floor (SN-23 v4, `GroomMinDepthMm`) does not change.
+- **SN-37, mowing (task 4.29 PR A, owner 2026-11-23: a setting, not a fleet).** Per trail and shaped line, *Mowing*:
+  *Off* (default; every older save opens on Off) or *Every autumn*. Saved in save.json (`"Mowing": "off" |
+  "every-autumn"`, save v18, design shape 18); one undoable command sets many trails and lines (`SetTrailMowing`); a
+  shaped line's setting wins over its run's, as the switch does; split, join and Edit sections keep it.
+  - From the first face day on or after September 15 (`Pacing.MowDay` days after October 1) until the trail is first
+    covered, an *Every autumn* trail not yet mown this label year is mown at that face day's start: its grass drops to
+    `GrassMownPermille = 100` (never up). It is mown once between one spring and the next, so a trail mown in late
+    September isn't mown again in October. Switching it on in a bare October mows it the next face day; a trail
+    already under snow waits for next year. A trail built after April 1 has no winter to come before its summer.
+  - **The cost** is a contractor's: `MowUsdPerAcre = $45` × the trail's area, once a year. An estimate until the economy
+    task (no bank), as GO-06's labour is.
+  - Mowing a trail in June isn't offered: the setting mows once, in autumn, when it counts for the opening.
 
 ### 4.6 Machine snow (the output of §8)
 

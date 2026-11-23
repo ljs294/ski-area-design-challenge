@@ -57,6 +57,7 @@ namespace MountainPlanner.Domain.Design
                 w.U8(PostedByte(line.Posted));   // shape 11 (TD-07)
                 w.U8((byte)line.Switch);         // shape 16 (SN-20 v4)
                 WriteGrooming(w, line.Grooming); // shape 17 (SN-22 v4)
+                w.U8((byte)line.Mowing);         // shape 18 (SN-37)
             }
             w.I32(doc.Cuts.Count);    // shape 7 (NT45): the points cut on runs
             foreach (var c in doc.Cuts)
@@ -139,7 +140,7 @@ namespace MountainPlanner.Domain.Design
                 }
                 var posted = ReadPosted(r);
                 var sw = ReadSwitch(r);
-                lines[i] = new TrailLine(id, name, spans, posted, sw, ReadGrooming(r));
+                lines[i] = new TrailLine(id, name, spans, posted, sw, ReadGrooming(r), ReadMowing(r));
             }
             var cuts = new TrailCut[r.Count(1 << 20)];
             for (int i = 0; i < cuts.Length; i++) cuts[i] = new TrailCut(new TrailId(r.U64()), r.Point());
@@ -273,6 +274,7 @@ namespace MountainPlanner.Domain.Design
             w.U8(PostedByte(t.Posted));   // shape 11 (TD-07)
             w.U8((byte)t.Switch);         // shape 16 (SN-20 v4)
             WriteGrooming(w, t.Grooming); // shape 17 (SN-22 v4)
+            w.U8((byte)t.Mowing);         // shape 18 (SN-37)
         }
 
         // TD-07: 0 not posted, else the band + 1.
@@ -291,6 +293,14 @@ namespace MountainPlanner.Domain.Design
             byte b = r.U8();
             if (b > (byte)TrailSwitch.Closed) throw new FormatException("A trail's Open / Closed / Auto switch isn't one this build knows.");
             return (TrailSwitch)b;
+        }
+
+        // Shape 18 (SN-37): Off 0, Every autumn 1.
+        static TrailMowing ReadMowing(Reader r)
+        {
+            var m = (TrailMowing)r.U8();
+            if (DesignRules.MowingProblem(m) != null) throw new FormatException("A trail's mowing isn't one this build knows.");
+            return m;
         }
 
         // Shape 17 (SN-22 v4): a trail's grooming setting, then its priority.
@@ -344,7 +354,7 @@ namespace MountainPlanner.Domain.Design
             }
             var posted = ReadPosted(r);
             var tsw = ReadSwitch(r);
-            return new Trail(id, name, stage, settings, TrailShape.FromRings(rings), head, tail, posted, tsw, ReadGrooming(r));
+            return new Trail(id, name, stage, settings, TrailShape.FromRings(rings), head, tail, posted, tsw, ReadGrooming(r), ReadMowing(r));
         }
 
         static void WriteLift(Writer w, Lift l)

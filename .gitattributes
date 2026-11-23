@@ -65,6 +65,7 @@ TestData/formats/v14-save/** -text
 TestData/formats/v15-save/** -text
 TestData/formats/v16-save/** -text
 TestData/formats/v17-save/** -text
+TestData/formats/v18-save/** -text
 TestData/formats/v1-sim/** -text
 TestData/formats/v2-sim/** -text
 TestData/formats/v4-sim/** -text
@@ -78,5 +79,6 @@ TestData/formats/v11-sim/** -text
 TestData/formats/v12-sim/** -text
 TestData/formats/v13-sim/** -text
 TestData/formats/v14-sim/** -text
+TestData/formats/v15-sim/** -text
 TestData/formats/v2-package/** -text
 TestData/formats/v3-package/** -text

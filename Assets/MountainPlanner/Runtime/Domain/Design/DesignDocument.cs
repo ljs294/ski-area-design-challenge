@@ -17,8 +17,9 @@ namespace MountainPlanner.Domain.Design
         /// the resort's hours, and each lift's schedule and own hours. 13 (task 4.11 PR B): each lift's plate. 14 (task 4.14, PD-08, WS-01): ponds, dams and lake sources.
         /// 15 (task 4.15, HY-01): the snowmaking network. 16 (task 4.07 B1 part 2c, SN-20 v4): each trail's and shaped trail's
         /// Open / Closed / Auto switch. 17 (task 4.25, SN-22 v4, GO-01): each trail's and shaped trail's grooming setting and
-        /// priority, and the resort's groomers and crew pins.</summary>
-        public const int ShapeVersion = 17;
+        /// priority, and the resort's groomers and crew pins. 18 (task 4.29, SN-37): each trail's and shaped trail's
+        /// mowing.</summary>
+        public const int ShapeVersion = 18;
 
         /// <summary>The design's key seed: every ID is a keyed hash of it (SH-04).</summary>
         public ulong Seed { get; }

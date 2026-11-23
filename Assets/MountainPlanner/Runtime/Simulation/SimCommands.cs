@@ -81,6 +81,10 @@ namespace MountainPlanner.Simulation
         /// worker's state is what it did); A = 1, Payload = a <see cref="SimGroomOrder"/>, the player's order for one trail
         /// tonight (till, push or skip), a player command.</summary>
         SetGrooming = 36,
+        /// <summary>Task 4.29 (SN-37; number granted by 0.0 2026-11-23, 39 is 4.16's): Payload = a <see cref="SimMowing"/>,
+        /// each built run's mowing, applied at once; a view-sequence command (resent after every load and every mowing edit:
+        /// the setting is the design's, the grass is the worker's).</summary>
+        SetTrailMowing = 40,
     }
 
     /// <summary>SI-03 v2: one command. <see cref="Tick"/> and <see cref="Seq"/> are the worker's stamp, set when it applies it.</summary>

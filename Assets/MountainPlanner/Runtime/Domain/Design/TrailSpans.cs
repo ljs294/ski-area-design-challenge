@@ -114,11 +114,14 @@ namespace MountainPlanner.Domain.Design
         public TrailSwitch Switch { get; }
         /// <summary>SN-22 v4 (task 4.25, shape 17): the shaped trail's grooming setting and priority (wins over its runs').</summary>
         public TrailGrooming Grooming { get; }
+        /// <summary>SN-37 (task 4.29, shape 18): the shaped trail's mowing (wins over its runs').</summary>
+        public TrailMowing Mowing { get; }
 
         readonly Span[] _spans;
 
         public TrailLine(TrailLineId id, string name, IReadOnlyList<Span> spans, SlopeBands.Band? posted = null,
-                         TrailSwitch @switch = TrailSwitch.Auto, TrailGrooming grooming = default)
+                         TrailSwitch @switch = TrailSwitch.Auto, TrailGrooming grooming = default,
+                         TrailMowing mowing = TrailMowing.Off)
         {
             Id = id;
             Name = name ?? "";
@@ -127,12 +130,14 @@ namespace MountainPlanner.Domain.Design
             Posted = posted;
             Switch = @switch;
             Grooming = grooming;
+            Mowing = mowing;
         }
 
-        public TrailLine WithName(string name) => new TrailLine(Id, name, _spans, Posted, Switch, Grooming);
-        public TrailLine WithSpans(IReadOnlyList<Span> spans) => new TrailLine(Id, Name, spans, Posted, Switch, Grooming);
-        public TrailLine WithPosted(SlopeBands.Band? posted) => new TrailLine(Id, Name, _spans, posted, Switch, Grooming);
-        public TrailLine WithSwitch(TrailSwitch sw) => new TrailLine(Id, Name, _spans, Posted, sw, Grooming);
-        public TrailLine WithGrooming(TrailGrooming g) => new TrailLine(Id, Name, _spans, Posted, Switch, g);
+        public TrailLine WithName(string name) => new TrailLine(Id, name, _spans, Posted, Switch, Grooming, Mowing);
+        public TrailLine WithSpans(IReadOnlyList<Span> spans) => new TrailLine(Id, Name, spans, Posted, Switch, Grooming, Mowing);
+        public TrailLine WithPosted(SlopeBands.Band? posted) => new TrailLine(Id, Name, _spans, posted, Switch, Grooming, Mowing);
+        public TrailLine WithSwitch(TrailSwitch sw) => new TrailLine(Id, Name, _spans, Posted, sw, Grooming, Mowing);
+        public TrailLine WithGrooming(TrailGrooming g) => new TrailLine(Id, Name, _spans, Posted, Switch, g, Mowing);
+        public TrailLine WithMowing(TrailMowing m) => new TrailLine(Id, Name, _spans, Posted, Switch, Grooming, m);
     }
 }
