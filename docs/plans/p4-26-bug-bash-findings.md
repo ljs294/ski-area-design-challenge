@@ -21,7 +21,7 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB1 | Candidate (backlog) | On the drawn resort, Big Meadow says "No way there" at night, but the daytime grooming preview plans it | Night grooming reaches every trail the daytime preview plans | | Explained in PR E: the drawn resort's network is split (no code change) |
 | BB2 | Candidate (backlog) | With a groomer's card open, trails off its path aren't dimmed | Trails off the groomer's path are dimmed while its card is open | | Fixed in PR E: only the path is lit |
 | BB3 | Candidate (backlog) | Hovering a trail allocates 12–33 MB: the highlight is draped on the package heights, which makes a hitch | Hovering a trail allocates nothing per frame and doesn't hitch | | Fixed in PR E: the casing copies the drawn line |
-| BB4 | Candidate (backlog) | In long lift lines two guests sometimes share one line place, so their skis cross | Every guest in a line has a place of their own | | Parked: measured; how a line moves on a part-full chair is the owner's call |
+| BB4 | Candidate (backlog) | In long lift lines two guests sometimes share one line place, so their skis cross | Every guest in a line has a place of their own | | Fixed in PR N: guests keep their lane and the gap fills from behind (owner, option A); lines bend round smoothly and fold cleanly round trees and corridors |
 | BB5 | Candidate (backlog) | The lift ride button's tooltip names an R key that doesn't exist (`MountainHud.Lifts.cs` ~249) | The tooltip names only keys that work | | Fixed in PR A+B: "Ride this lift" |
 | BB6 | Candidate (backlog) | The Weather tab still has its placeholder tooltip (`MountainHud.Panels.cs` ~50); 4.17 may own it | A real tooltip | | Fixed in PR A+B: player words |
 | BB7 | Candidate (backlog) | T-bar and J-bar log "TW-01 v2 SHORT": the chair-clearance check runs on surface lifts | The chair-clearance check runs only on aerial lifts | | Already fixed in 4.01 PR 2 (92da0416) |
@@ -40,6 +40,7 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB20 | Owner, 2026-11-21 | The game always starts with a crash-log popup, implying the game crashed on startup | Find out why the notice appears; a normal start shows no crash notice | | Fixed in PR A+B: one crash marker per session |
 | BB21 | Owner, 2026-11-21 | Deciduous trees seem way too big, and the owner isn't loving how they look in game | Audit the deciduous trees and report the findings as a plan to make them look more normal | | Audited: a plan for the owner (5 steps); the model rebuild goes to its own thread after the owner's OK |
 | BB22 | 4.26 thread, 2026-11-22 (demo 41 for PR L) | Every frame allocates 88 bytes on main (1.15 MB over the benchmark's High lap; the release heap grows 2.5 MB), where the Nov 17 baselines allocated nothing | The benchmark's garbage check passes: nothing allocates per frame | | Fixed in PR M: two per-frame methods made a lambda's closure at every call; demo 149 |
+| BB23 | 4.08 thread via 0.0, 2026-11-23 | A capture or screenshot run with a bad `-opensave` value (it was given the save's folder name) throws in `OpenSaveForCapture`, the rest of Start is skipped and the player never quits: it held the render lane for 2 hours, until gpu.ps1's limit | Any capture switch whose setup fails logs the error and quits with a nonzero exit code (every capture switch, not just `-opensave`) | | Fixed in PR O: an unattended run (batch mode, a GPU lane's job) whose start fails quits with exit code 1 |
 
 Each finding's cause, fix and evidence are recorded in its own section below as it is worked.
 
@@ -236,7 +237,7 @@ runs when no groomer is picked), so the rest are drawn as the grey line under a 
 
 ![Before and after: Groomer 1's card open](images/p4-26-bb2-groomer-path.jpg)
 
-## BB4: two guests in one lift-line place (parked: needs the owner)
+## BB4: two guests in one lift-line place
 
 Measured in the built game (`-linecheck <out.txt>` with `-drawnresort -guests 3000`: four minutes at 8×, twice a second,
 counting queued guests standing within 0.4 m of another on the same line; render lane, 2026-11-21):
@@ -260,6 +261,69 @@ row instead of stepping forward. That's the common case in a long line, and it l
 Question for the owner: how should a line move when a chair takes less than a full row? Options: rows step forward and
 the gap fills from behind; single file through the maze, rows only at the loading gate; or guests keep their column, and
 a row boards whoever is at its front. The probe stays (`-linecheck`) to measure whichever is chosen.
+
+Decision (owner, 2026-11-23): **A, fill from behind.** Also (owner, same day): "the lines should bend naturally when they
+need to change direction". Fixed in PR N, both in the presentation only (the simulation, goldens, saves and sidecar are
+unchanged):
+
+- Lanes (`SkierLayer.AssignPlaces`): a guest keeps the lane it joined in (taken in turn per line), and its place is
+  depth·seats + lane, where depth counts the guests ahead of it in its lane. When a chair takes fewer than a row, the
+  rest of each lane steps straight forward; nobody walks across another lane. The first `seats` guests are always the
+  front row, so boarding is unchanged.
+- Smooth lines (`LineLayout.Lay`): the planner still lays its rows (folds, U-turns, steering round trees and lifts), and
+  now also records the line's centre. Its corners are rounded (a U-turn round a long fold is a half circle, its ground
+  claimed on every lift's grid first; a short fold keeps a square turn), and each lane walks its own offset of that
+  centre, a row's length between places, so the outer lanes hold more round a bend. Walkways stay single file; rows
+  square up after a jump to a new fold. Places laid once never move as a line grows, and no two places, on any line,
+  stand closer than 0.75 m.
+- Stretches: the layout records the line's stretches, rows across or single file (a walkway). A guest keeps its lane
+  within a stretch of rows; in single file it takes the next place in line order.
+- Walking: a queued guest walks up its own lane to its next place, never straight across another lane, and walks faster
+  the further behind it is.
+- Each skier faces the one ahead in its lane when it stands close (round a tight bend too), else back along the line.
+
+Owner, 2026-11-23 (lift 0 at the drawn resort, a still with the rows behind the terminal ringed): "I'm still seeing
+weirdness". A new probe, `-linelayout <out.txt>` with `-nographics` (no GPU), lays the open design's lines as the game
+does, grows each to 1,500 places and writes them with the ground round them. It showed five planner faults, each fixed
+for every line:
+
+1. A walkway (the single-file search for open ground) threaded the metre-wide aisles between the line's own folds and
+   crossed them. A walkway now keeps half a metre off every line's ground, except where it steps off its own tail.
+2. A row at an angle claimed its ground at points every half metre, which missed cells in a lattice. Walkways and other
+   lines found the holes. Sampled finer, a row spilled into the aisle beside it and the line couldn't fold. Every row,
+   aisle and bend now takes exactly the cells whose centres it covers, at any angle.
+3. After a walkway, the planner steered afresh from the walkway's last step, often found no fold, and the next search
+   walked back. Walkways zigzagged on themselves, and a centre that doubled straight back had its rounded corner put
+   kilometres away (float π/2 is a hair past the true one), which ran the game out of memory. The fold the search found
+   is now the one laid, a centre that doubles back gets no rounded corner, and a piece longer than a line can reach is
+   passed over.
+4. A pass cut short by something across its way (a corridor running the other way) folded on in folds one or two rows
+   long: a staircase. When a fresh fold lays at least two rows more, the line steers to it. At a full pass's end with no
+   room to fold beside it, the line runs straight on and folds where the ground opens out.
+5. A walkway's corner was rounded like a row's (2.3 m) and cut into the trees beside a 2 m gap; it is now rounded at
+   0.5 m. And past 16,384 samples (a line 1.6 km round) the lanes read one sample past the centre's end.
+
+A still in the game after those fixes (the owner's view of lift 0) still showed the line's front in pieces among trees.
+Two more faults, each fixed for every line:
+
+6. The line's first heading was one whose first row didn't fit. Each heading off the throat is tried and scored by the
+   rows it lays, less a cost for each short fold. Headings that laid rows in short folds scored below 0, so a heading that
+   laid nothing (0) beat them, and the line jumped from its throat to wherever it steered: an empty gap 4 m long at its
+   front. A heading that lays nothing now never beats one that lays rows. Where the first fold turns off the throat, the
+   line bends round onto it when every lane's way there is open, instead of jumping.
+7. The planner saw trees only where the forest's cover is over 30%, so sparse trees stood among the guests. The ground
+   within 1.25 m of a planted tree's trunk now counts as trees too, read from the terrain cache a 64 m square at a time
+   (the same with the forest on screen or not), and trees a player cleared don't count.
+
+Lift 0 now runs straight back from the terminal, then folds in round U-turns with nobody standing in the trees (405
+places in trees before, 0 now). Lift 3 lost a 40 m walkway in the middle of its line. Building the resort's lines takes
+216 ms (184 before the trees).
+
+- Tests: `SkierFigureTests.ALineFacesItsFrontAndStandsUnderTheLoadedRope` checks that each place faces the one ahead in
+  its lane. `LiftLineLayoutTests` adds `ACorridorBetweenTreesRunsStraightDownItNotInShortFolds` and
+  `NoLineDoublesStraightBackInCorridorsOrPatchyForest` (corridors 5–12 m wide at three angles, and patchy forests), and
+  `AFirstHeadingThatLaysNothingNeverBeatsOneThatLaysRows`. The clearing test checks the stretches, and one lane-sharing
+  test got a longer run line to fit the rounder folds.
 
 ## BB15: snow covers the cleared lift terminals
 
@@ -411,3 +475,26 @@ Fix: each job starts in its own small static method (`BuildTrailSnow`, `CompileS
 arguments, so the object is made only when a job starts. The same pattern in `UpdateBuiltWork` is already safe (its
 captured locals are declared inside the block that starts the job); the other `Task.Run` calls in the viewer run on
 demand, not per frame.
+
+## BB23: a capture run whose setup fails never quits (4.08, via 0.0)
+
+The viewer's start opens the area and then sets up every capture switch in one `try`. `-opensave <name>` loads the save
+before the HUD wires up, and a bad name throws (`save.json is missing`). The `catch` put the error on screen, so none of
+the capture switches after it started, and nothing would ever quit the player. 4.08's capture held the render lane for 2
+hours, until gpu.ps1's limit. Seen: the v0.3.4+ player with `-batchmode -nographics -opensave no-such-save -crowdshot
+<folder>` was still running when `timeout 180` killed it.
+
+Fix (`App/Diagnostics/UnattendedRun.cs`): a run nobody watches quits with exit code 1 when its setup fails. The rule
+doesn't depend on the switch, so it holds for every capture switch, present and future. A run is unattended when it is a
+player in batch mode, or a job in a GPU lane (`tools/gpu/gpu.ps1` sets `MP_GPU_LANE` for every command it runs). The game
+played by hand keeps its error screen, and so does the editor (it can't quit, and tests check their own errors). It
+applies where a start can fail:
+
+- the viewer's open-and-setup `catch` (the opening, `-opensave`, `-view`, `-crowdviews` and every other switch's setup);
+- "No areas downloaded yet";
+- anything else the viewer's start throws;
+- Lift Lab's start.
+
+Evidence: the same run now quits with exit code 1 after 12 s and logs `[Unattended] setup failed (Couldn't open the
+area: save.json is missing.)`. `UnattendedRunTests` checks the rule (batch mode, either lane, a blank lane, the editor)
+and that the editor only logs. The lane path isn't run on the GPU; the rule test covers it.

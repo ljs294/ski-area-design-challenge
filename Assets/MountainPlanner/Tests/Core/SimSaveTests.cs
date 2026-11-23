@@ -667,7 +667,10 @@ namespace MountainPlanner.Tests
             Assert.That(w.GroomerCount, Is.EqualTo(2));
         }
 
-        /// <summary>v14 (task 4.25 PR B) still opens (task 4.08, v16): its fleet as saved, saved again as the newest version.</summary>
+        /// <summary>
+        /// v14 (task 4.25 PR B) still opens, its bytes untouched (task 4.29, v15): its two groomers as saved; it saves as
+        /// the newest version and reads back the same; with its layout its run starts as a new natural trail (SN-35).
+        /// </summary>
         [Test]
         public void TheVersionFourteenSidecarStillOpens()
         {
@@ -684,6 +687,33 @@ namespace MountainPlanner.Tests
             Assert.That(w.TrailSnowWaiting, Is.False);
             Assert.That(w.TrailBlocksReseeded, Is.Zero, "every saved block adds up");
             Assert.That(w.GroomerCount, Is.EqualTo(2));
+            Assert.That(w.GrassPermilleOf(0), Is.EqualTo(Pacing.Default.GrassNewNaturalPermille), "no grass block: a new trail's");
+        }
+
+        /// <summary>
+        /// The v15 layout is frozen (0.3 §5): the fixture (task 4.29: v14's groomed run, mown every autumn, its grass and
+        /// packed days after three groomed nights) read and written again before its layout arrives gives back its own
+        /// bytes, all but the header's Pacing hash and the closing state hash (SI-22); with its layout it keeps its grass.
+        /// </summary>
+        [Test]
+        public void TheVersionFifteenSidecarIsFrozen()
+        {
+            byte[] fixture = File.ReadAllBytes(FixtureFile(15));
+            var w = TrailSnowWorldTests.Reopen(fixture);
+            Assert.That(SimSidecar.ReadHeader(fixture).SidecarVersion, Is.EqualTo(15));
+            Assert.That(w.TrailSnowWaiting, Is.True, "trail snow waiting for its layout");
+            byte[] again = w.SaveState();
+            Assert.That(again.Length, Is.EqualTo(fixture.Length), "the sidecar v15 is frozen: a change bumps SimSidecar.Version (0.3 §5)");
+            // Task 4.08 (v16) keeps v15's layout: the same bytes under the newer version number.
+            Assert.That(SimSidecar.VersionOf(again), Is.EqualTo(SimSidecar.Version), "it saves as the newest version");
+            for (int i = 0; i < 8; i++) if (i != 4 && i != 5) Assert.That(again[i], Is.EqualTo(fixture[i]), "magic");
+            for (int i = 20; i < fixture.Length - 8; i++)
+                if (again[i] != fixture[i]) Assert.Fail($"the sidecar v15 is frozen: byte {i} changed on a round trip (0.3 §5)");
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetTrailSnow, 0, TrailSnowWorldTests.GroomedLayout(w)));
+            Assert.That(w.TrailBlocksReseeded, Is.Zero, "every saved block adds up");
+            Assert.That(w.GroomerCount, Is.EqualTo(2));
+            Assert.That(w.GrassMowsOf(0), Is.True, "mown every autumn, as saved");
+            Assert.That(w.GrassPackedDaysOf(0), Is.GreaterThan(0), "the groomed nights packed it");
         }
 
         /// <summary>
@@ -719,8 +749,8 @@ namespace MountainPlanner.Tests
         {
             byte[] bytes = File.ReadAllBytes(FixtureFile(16));
             Assert.That(SimSidecar.ReadHeader(bytes).SidecarVersion, Is.EqualTo(16));
-            // The same bytes claiming v14: type 11 didn't exist then, so the reader says so rather than load it.
-            bytes[4] = 14; bytes[5] = 0;
+            // The same bytes claiming v15 (the same layout): type 11 didn't exist then, so the reader says so rather than load it.
+            bytes[4] = 15; bytes[5] = 0;
             Assert.That(() => TrailSnowWorldTests.Reopen(bytes), Throws.Exception.With.Message.Contains("type"));
         }
 
@@ -795,6 +825,15 @@ namespace MountainPlanner.Tests
             Assert.That(Directory.Exists(folder), Is.False, "the v16 fixture is frozen");
             Directory.CreateDirectory(folder);
             File.WriteAllBytes(Path.Combine(folder, "golden.sim"), SnowLookSimTests.PaintSaveWorld().SaveState());
+        }
+
+        [Test, Explicit("Writes the frozen v15 sidecar fixture (task 4.29; once)")]
+        public void WriteTheVersionFifteenSidecarFixture()
+        {
+            string folder = Path.Combine(TestData.Folder("formats"), "v15-sim");
+            Assert.That(Directory.Exists(folder), Is.False, "the v15 fixture is frozen");
+            Directory.CreateDirectory(folder);
+            File.WriteAllBytes(Path.Combine(folder, "golden.sim"), GrassTests.GrassSaveWorld().SaveState());
         }
 
         [Test, Explicit("Regenerates the frozen v11 sidecar fixture (task 4.24 PR B; v9's stays as PR A2 recorded it)")]

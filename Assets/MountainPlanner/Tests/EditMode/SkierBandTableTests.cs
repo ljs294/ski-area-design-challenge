@@ -55,6 +55,7 @@ namespace MountainPlanner.Tests
             var ropes = new NativeArray<uint>(1, Allocator.TempJob);
             var riders = new NativeArray<byte>(1, Allocator.TempJob);
             var lines = new NativeArray<int>(1, Allocator.TempJob);
+            var shown = new NativeArray<int>(16, Allocator.TempJob);   // task 4.26 BB4: the line's places and walks
             var snow = new NativeArray<float>(1, Allocator.TempJob);
             var prev = new NativeArray<float3>(16, Allocator.TempJob);
             var prevSerial = new NativeArray<uint>(16, Allocator.TempJob);
@@ -68,7 +69,7 @@ namespace MountainPlanner.Tests
                     Records = rec, DrawTick = drawTick, WalkStep = 1,
                     Edges = paths.Edges, EdgeSize = paths.EdgeSize, Samples = paths.Samples, Side = paths.Side,
                     LaneY = paths.LaneY, Table = paths.Table, LiftPaths = paths.Lifts, Nodes = paths.Nodes,
-                    Slots = none3, SlotFacing = noFacing, LiftSlots = none2, RopeNow = ropes, DrawRiders = riders, LineCount = lines,
+                    Slots = none3, SlotFacing = noFacing, LiftSlots = none2, LinePlace = lines, LineSeats = lines, Shown = shown, RopeNow = ropes, DrawRiders = riders, LineCount = lines,
                     Snow = snow, SnowCell = 8,
                     ViewProjection = viewProjection, ScreenSize = new float2(1920, 1080), CameraPosition = camera,
                     Prev = prev, PrevSerial = prevSerial, Dots = dots, Screen = screen, Facing = facing,
@@ -78,7 +79,7 @@ namespace MountainPlanner.Tests
             }
             finally
             {
-                rec.Dispose(); none3.Dispose(); none2.Dispose(); noFacing.Dispose(); ropes.Dispose(); riders.Dispose(); lines.Dispose();
+                rec.Dispose(); none3.Dispose(); none2.Dispose(); noFacing.Dispose(); ropes.Dispose(); riders.Dispose(); lines.Dispose(); shown.Dispose();
                 snow.Dispose(); prev.Dispose(); prevSerial.Dispose(); dots.Dispose(); screen.Dispose(); facing.Dispose();
             }
         }

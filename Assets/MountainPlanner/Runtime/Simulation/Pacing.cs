@@ -28,6 +28,7 @@ namespace MountainPlanner.Simulation
                                         // 14: task 4.25's grooming operations (GO-01…GO-12, SN-22 v4, SM-05, SN-27 v2's GreenPushQuality; number cleared by 0.0 2026-11-20; 4.16 may race: the second to merge renumbers)
                                         // 17: task 4.08's machine made snow (SN-13 v2, QualityBase's eleventh) and the groomed finish (SN-14 v4, GroomsToMachine); provisional after 4.29 PR A's 16 (0.0 2026-11-23)
                                         // 15: task 4.25 PR B's transit and report at opening (GO-15, GO-16 v2, GroomTransitKmh, GroomPassMm, GroomWinchSharePermille, SkipLandsBeforeOpenMinutes 0, GO-03 v2's equal shifts with GroomSwingEndHour retired; cleared by 0.0 2026-11-21)
+                                        // 16: task 4.29's trail grass and mowing (SN-35, SN-36, SN-37; CoverNaturalMm became CoverNaturalBaseMm + GrassCoverMm)
 
         public static Pacing Default => _default ??= new Pacing(null);
         static Pacing _default;
@@ -417,9 +418,18 @@ namespace MountainPlanner.Simulation
         public readonly int[] GroomShiftPayPermille;
         /// <summary>SN-27 v2: a green push's snow rates this share (‰) until it is groomed again.</summary>
         public readonly int GreenPushQuality;
-        /// <summary>SN-20 v3 (task 4.07 B1 part 2b): a fine cell is covered at this depth (mm) on a graded trail and on a
-        /// natural one; a trail is Covered with a skiable line and this share (‰) of its cells covered.</summary>
-        public readonly int CoverGradedMm, CoverNaturalMm, ReadyCover;
+        /// <summary>SN-20 v3 (task 4.07 B1 part 2b) with SN-36 (task 4.29): a fine cell is covered at this depth (mm) on a
+        /// graded trail and on a natural one, plus <see cref="GrassCoverMm"/> × the trail's grass ÷ 1000; a trail is
+        /// Covered with a skiable line and this share (‰) of its cells covered.</summary>
+        public readonly int CoverGradedMm, CoverNaturalBaseMm, GrassCoverMm, ReadyCover;
+        /// <summary>SN-35 (task 4.29): a new trail's grass (‰ of brush: natural, graded); its growth a bare face day from
+        /// April 1; bare is under this cover share (‰); a winter with this many packed face days kills it to this height,
+        /// fewer keep this share (‰).</summary>
+        public readonly int GrassNewNaturalPermille, GrassNewGradedPermille, GrassGrowPermilleDay, GrassBareCoverPermille;
+        public readonly int GrassKillPackedDays, GrassKilledPermille, GrassKeptPermille;
+        /// <summary>SN-37 (task 4.29): mowing starts on this calendar day after October 1 (349, September 15), cuts to this
+        /// height (‰) and costs a contractor this ($ an acre, an estimate until the economy).</summary>
+        public readonly int MowDay, GrassMownPermille, MowUsdPerAcre;
         /// <summary>SN-20 v3: the skiable line's width (mm, 4 ft).</summary>
         public readonly int LineWidthMm;
         /// <summary>SN-20 v3, GU-07 v2 (owner 2026-11-18): the late season's walk tolerance L, feet, from the day it starts
@@ -740,7 +750,18 @@ namespace MountainPlanner.Simulation
             if (GroomShiftPayPermille.Length != 3) throw new FormatException("GroomShiftPayPermille needs swing, night and day.");
             GreenPushQuality = Int(map, nameof(GreenPushQuality), 0, 1000);
             CoverGradedMm = Int(map, nameof(CoverGradedMm), 1, 10_000);
-            CoverNaturalMm = Int(map, nameof(CoverNaturalMm), 1, 10_000);
+            CoverNaturalBaseMm = Int(map, nameof(CoverNaturalBaseMm), 1, 10_000);
+            GrassCoverMm = Int(map, nameof(GrassCoverMm), 0, 10_000);
+            GrassNewNaturalPermille = Int(map, nameof(GrassNewNaturalPermille), 0, 1000);
+            GrassNewGradedPermille = Int(map, nameof(GrassNewGradedPermille), 0, 1000);
+            GrassGrowPermilleDay = Int(map, nameof(GrassGrowPermilleDay), 0, 1000);
+            GrassBareCoverPermille = Int(map, nameof(GrassBareCoverPermille), 0, 1000);
+            GrassKillPackedDays = Int(map, nameof(GrassKillPackedDays), 0, 255);
+            GrassKilledPermille = Int(map, nameof(GrassKilledPermille), 0, 1000);
+            GrassKeptPermille = Int(map, nameof(GrassKeptPermille), 0, 1000);
+            MowDay = Int(map, nameof(MowDay), 0, 364);
+            GrassMownPermille = Int(map, nameof(GrassMownPermille), 0, 1000);
+            MowUsdPerAcre = Int(map, nameof(MowUsdPerAcre), 0, 100_000);
             ReadyCover = Int(map, nameof(ReadyCover), 0, 1000);
             LineWidthMm = Int(map, nameof(LineWidthMm), 100, 100_000);
             LateWalkStartFt = Int(map, nameof(LateWalkStartFt), 1, 100_000);
@@ -1056,7 +1077,18 @@ namespace MountainPlanner.Simulation
             E(nameof(GroomShiftPayPermille), "1100,1200,1000"),
             E(nameof(GreenPushQuality), "700"),
             E(nameof(CoverGradedMm), "152"),
-            E(nameof(CoverNaturalMm), "305"),
+            E(nameof(CoverNaturalBaseMm), "229"),
+            E(nameof(GrassCoverMm), "152"),
+            E(nameof(GrassNewNaturalPermille), "500"),
+            E(nameof(GrassNewGradedPermille), "0"),
+            E(nameof(GrassGrowPermilleDay), "7"),
+            E(nameof(GrassBareCoverPermille), "100"),
+            E(nameof(GrassKillPackedDays), "5"),
+            E(nameof(GrassKilledPermille), "100"),
+            E(nameof(GrassKeptPermille), "800"),
+            E(nameof(MowDay), "349"),
+            E(nameof(GrassMownPermille), "100"),
+            E(nameof(MowUsdPerAcre), "45"),
             E(nameof(ReadyCover), "900"),
             E(nameof(LineWidthMm), "1219"),
             E(nameof(LateWalkStartFt), "60"),

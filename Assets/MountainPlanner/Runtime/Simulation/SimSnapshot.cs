@@ -196,6 +196,10 @@ namespace MountainPlanner.Simulation
         public readonly byte[] TrailSnow;
         public long TrailSnowStamp;
         public const int TrailSnowOpen = 64;
+        /// <summary>Task 4.29 (SN-35), per network trail, copied with <see cref="TrailSnow"/>: its grass, % of brush (0 bare
+        /// earth, 10 mown, 50 long, 100 brush), or <see cref="NoGrass"/> before the trail snow knows it.</summary>
+        public readonly byte[] TrailGrass;
+        public const byte NoGrass = 255;
         public SnowType TrailMainTypeAt(int k) => (SnowType)(TrailSnow[k] & 15);
         public bool TrailMogulsAt(int k) => (TrailSnow[k] & 16) != 0;
         public bool TrailIceAt(int k) => (TrailSnow[k] & 32) != 0;
@@ -326,6 +330,7 @@ namespace MountainPlanner.Simulation
             TrailStatus = new LiftOpStatus[p.MaxTrails];
             TrailBoard = new ushort[p.MaxTrails]; TrailCoverPct = new byte[p.MaxTrails];
             TrailSnow = new byte[p.MaxTrails];
+            TrailGrass = new byte[p.MaxTrails];
             Grooming = new GroomView(p.MaxTrails);
             LastDayReport = new DayReport(p.MaxLifts);
             Events = new SimEvent[p.SnapshotEvents];

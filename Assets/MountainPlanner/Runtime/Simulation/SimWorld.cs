@@ -262,6 +262,7 @@ namespace MountainPlanner.Simulation
                           || c.Kind == SimCommandKind.SetSnowNetwork || c.Kind == SimCommandKind.CheckNetwork   // task 4.15
                           || c.Kind == SimCommandKind.SetTrailSnow
                           || (c.Kind == SimCommandKind.SetGrooming && c.A == 0)   // task 4.25: the design's grooming, resent after every load
+                          || c.Kind == SimCommandKind.SetTrailMowing   // task 4.29: the design's mowing, resent after every load
                 ? _viewSeq++ : _commandSeq++;
             // Task 4.07 PR A2: what an hour's snow in flight reads (the weather's tables and inputs, the lakes) waits for it.
             if (c.Kind == SimCommandKind.SetWeather || c.Kind == SimCommandKind.SetWeatherTerrain || c.Kind == SimCommandKind.SetWaterBodies) JoinSnow();
@@ -318,6 +319,9 @@ namespace MountainPlanner.Simulation
                     break;
                 case SimCommandKind.SetGrooming:   // task 4.25
                     if (!ApplyGrooming(c)) { Reject(c, SimRefusal.Unknown); return; }
+                    break;
+                case SimCommandKind.SetTrailMowing:   // task 4.29
+                    if (!ApplyMowing(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
                     break;
                 case SimCommandKind.PaintSnow:   // task 4.08
                     if (!ApplyPaintSnow(c.Payload)) { Reject(c, SimRefusal.Unknown); return; }
@@ -423,6 +427,7 @@ namespace MountainPlanner.Simulation
                 }
                 else if (j == Calendar.April1FaceDay && Phase == SeasonPhase.PreSeason) Phase = SeasonPhase.Summer;   // no season this year
                 Events.Add(Tick, SimEventType.FaceDayBegan, -1, faceDay);
+                GrassFaceDay(j);   // task 4.29 (SN-35, SN-37): the grass's day, by last night's cover
             }
             HoursFor(faceDay, out _todayOpen, out _todayLastChair, out _todayStop, out _todayTrimmed);
             _dayStartTick = Tick;
@@ -770,6 +775,7 @@ namespace MountainPlanner.Simulation
             HashLakes(ref h);
             HashSources(ref h);
             HashGrooming(ref h);   // task 4.25: only once a fleet came
+            HashGrass(ref h);      // task 4.29: only once a layout had trails
             return h.Value;
         }
     }

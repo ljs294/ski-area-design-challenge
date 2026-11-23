@@ -136,6 +136,18 @@ namespace MountainPlanner.App
 
         async void Start()
         {
+            // Task 4.26 BB23: an unattended run (batch mode, a GPU lane's job) whose start throws quits with an error
+            // code; it used to wait forever (a bad -opensave held the render lane for 2 hours). Played by hand, the
+            // exception goes to the log as before.
+            try { await StartViewer(); }
+            catch (Exception e) when (MountainPlanner.App.Diagnostics.UnattendedRun.Active && !(e is OperationCanceledException))
+            {
+                MountainPlanner.App.Diagnostics.UnattendedRun.FailSetup("the viewer's start threw", e);
+            }
+        }
+
+        async System.Threading.Tasks.Task StartViewer()
+        {
             Loading = new MountainPlanner.UI.Flow.LoadProgress();   // the loading box's stages (task P2-03.1)
             _overlay = gameObject.AddComponent<ViewerOverlay>();
             _overlay.Viewer = this;
@@ -165,6 +177,7 @@ namespace MountainPlanner.App
             if (folder == null)
             {
                 _error = "No areas downloaded yet.\nRun demo.bat and choose 12 (Jackson Hole, 5 km), then start the viewer again.";
+                MountainPlanner.App.Diagnostics.UnattendedRun.FailSetup("no area to open");   // task 4.26 BB23
                 return;
             }
             try
@@ -326,6 +339,9 @@ namespace MountainPlanner.App
                 _error = "Couldn't open the area: " + e.Message;
                 Loading.Fail();
                 Debug.LogException(e);
+                // Task 4.26 BB23: the opening or a capture switch's setup failed (-opensave, -view, -crowdviews...), so no
+                // capture will run: an unattended run quits with an error code.
+                MountainPlanner.App.Diagnostics.UnattendedRun.FailSetup(_error);
             }
         }
 

@@ -66,6 +66,9 @@ namespace MountainPlanner.App
                 // Task 4.24 PR B: the proof for a still's caption: who sits on the carriers (up and down) and who waits at
                 // each top, so a picture is described only by what the game says was there.
                 Debug.Log($"[CrowdShots] riders: {_riders?.Describe()} |{RideDownCounts()}");
+                int dump = Array.IndexOf(Environment.GetCommandLineArgs(), "-linedump");   // task 4.26 BB4: the lines at this still
+                if (dump >= 0 && dump + 1 < Environment.GetCommandLineArgs().Length)
+                    DumpLines(Path.GetFullPath(Environment.GetCommandLineArgs()[dump + 1]) + $".{n}.txt", _skiers?.Lines, guests: true, ground: false);
             }
             Application.Quit(0);
         }

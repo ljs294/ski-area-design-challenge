@@ -250,6 +250,30 @@ namespace MountainPlanner.Presentation.Edits
             return squares;
         }
 
+        /// <summary>
+        /// Task 4.26 BB4: the trees standing in one 64 m square of the lattice (<paramref name="squareColumn"/>,
+        /// <paramref name="squareRow"/>: a cell's column and row over 64, the square its trunk's cell sorts it to), not cleared
+        /// by <paramref name="clearing"/> nor cut for a lift's chair lane, as lattice positions in metres. Read from the terrain
+        /// cache, so the same with the forest planted on screen or not (-nographics); none outside the core. The guests' lift
+        /// lines stand clear of them.
+        /// </summary>
+        public void StandingTrees(int squareColumn, int squareRow, ICellClearing clearing, List<(double X, double Y)> into)
+        {
+            int tc = FloorDiv(squareColumn, 16), tr = FloorDiv(squareRow, 16);
+            if (!_cacheTiles.TryGetValue((tc, tr), out var tile) || !tile.Core || tile.Resolution != TerrainTiles.Resolution) return;
+            var squares = TreeSquares((tc, tr), tile);
+            var b = _grid.Bounds(new TileKey(tc, tr));
+            double tileMetres = _cache.TileMetres;
+            int sq = (squareRow - tr * 16) * 16 + (squareColumn - tc * 16);
+            for (int k = squares.Start[sq]; k < squares.Start[sq + 1]; k++)
+            {
+                int i = squares.Order[k];
+                if (clearing != null && TreeCleared(squares.Packed, i, b.West, b.North, tileMetres, clearing)) continue;
+                ForestField.Decode(squares.Packed, i, out float fx, out float fz, out _, out _, out _, out _);
+                into.Add((b.West + fx * tileMetres, b.North - tileMetres + fz * tileMetres));
+            }
+        }
+
         static int RoundUp(int n) => (n + LiveRound - 1) / LiveRound * LiveRound;
     }
 }

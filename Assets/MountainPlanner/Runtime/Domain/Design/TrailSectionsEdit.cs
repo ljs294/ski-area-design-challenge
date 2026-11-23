@@ -131,7 +131,7 @@ namespace MountainPlanner.Domain.Design
                 }
                 if (!lost) continue;
                 if (mine.Count == 0) remove.Add(line.Id);
-                else { put.Add(new TrailLine(line.Id, line.Name, SpansOf(ts, mine), line.Posted, line.Switch, line.Grooming)); ids.Add(line.Id.Value); }
+                else { put.Add(new TrailLine(line.Id, line.Name, SpansOf(ts, mine), line.Posted, line.Switch, line.Grooming, line.Mowing)); ids.Add(line.Id.Value); }
             }
             if (released.HasValue)
             {

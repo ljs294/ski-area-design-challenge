@@ -89,6 +89,7 @@ namespace MountainPlanner.Simulation
             WriteTrailState(o);
             WriteRunoffState(o);
             WriteGroomState(o);   // v13 (task 4.25)
+            WriteGrassState(o);   // v15 (task 4.29)
         }
 
         internal void ReadState(SidecarReader r, SimSidecar.Header header)
@@ -169,6 +170,8 @@ namespace MountainPlanner.Simulation
             if (header.SidecarVersion >= SimSidecar.TrailSnowVersion) { ReadTrailState(r); ReadRunoffState(r); }
             // v1–v12 → v13 (task 4.25): no grooming block; the design's fleet arrives with the first SetGrooming.
             if (header.SidecarVersion >= SimSidecar.GroomingVersion) ReadGroomState(r, header.SidecarVersion);
+            // v1–v14 → v15 (task 4.29, SN-35): no grass block; every trail starts as a new one when the layout arrives.
+            if (header.SidecarVersion >= SimSidecar.GrassVersion) ReadGrassState(r);
             RefreshTrailRuns();   // SN-20 v4: the switches' table, from the design and the board
         }
 

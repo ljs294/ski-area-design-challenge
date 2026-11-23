@@ -65,6 +65,7 @@ namespace MountainPlanner.Simulation
                                        || layout.OriginXMm != _wxTerrain.OriginXMm || layout.OriginYMm != _wxTerrain.OriginYMm)) return false;
             JoinSnow();
             _trailLayout = layout;
+            GrassLayoutChanged();   // task 4.29: before the ratings read each trail's cover depth
             RebuildFine(keep: true);
             return true;
         }
