@@ -129,6 +129,8 @@ namespace MountainPlanner.Presentation
         /// </summary>
         public void SetElevationRange(float lowest, float highest)
         {
+            s_lowest = lowest;   // task 4.28: the season runs later above the lowest ground
+            PushSeason();
             if (Material == null) return;
             float span = highest - lowest;
             Material.SetVector(AlpineBandId, new Vector4(lowest + 0.45f * span, lowest + 0.7f * span, 0, 0));
@@ -145,6 +147,66 @@ namespace MountainPlanner.Presentation
         public static void SetGrassTint(Color tint) => Shader.SetGlobalVector(GrassTintId, new Vector4(tint.r, tint.g, tint.b, 1));
 
         static readonly int GrassTintId = Shader.PropertyToID("_GrassTint");
+
+        // ---------------- the grass through the year (task 4.28) ----------------
+
+        static readonly int SeasonId = Shader.PropertyToID("_GrassSeason"), SeasonStripId = Shader.PropertyToID("_GrassSeasonStrip");
+        const int StripTexels = 128;
+        static Texture2D s_strip;
+        static int s_day = -1;
+        static double s_stripLatitude = double.NaN;
+        static float s_lowest;
+
+        /// <summary>The grass's season: the day of the year (1–366) at the site's latitude.</summary>
+        public static int SeasonDay => s_day;
+
+        /// <summary>
+        /// The date on the grass (<see cref="MountainPlanner.Domain.Cover.GrassSeason"/>): the lighting calls this with its
+        /// own day, so the ground and the sun always agree. Nothing happens unless the day or the latitude changed; the colour
+        /// strip (January to December, half the multiplier a texel) is rebuilt only for a new latitude.
+        /// </summary>
+        public static void SetSeason(int dayOfYear, double latitude)
+        {
+            if (dayOfYear == s_day && latitude == s_stripLatitude && s_strip != null) return;
+            if (s_strip == null || latitude != s_stripLatitude)
+            {
+                if (s_strip == null)
+                    s_strip = new Texture2D(StripTexels, 1, TextureFormat.RGBA32, false, true)
+                    {
+                        name = "Grass season", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave,
+                    };
+                var texels = new Color32[StripTexels];
+                for (int k = 0; k < StripTexels; k++)
+                {
+                    var (r, g, b) = MountainPlanner.Domain.Cover.GrassSeason.Tint((k + 0.5) * MountainPlanner.Domain.Cover.GrassSeason.Days / StripTexels, latitude);
+                    texels[k] = new Color32((byte)Mathf.Clamp(Mathf.RoundToInt(r * 127.5f), 0, 255), (byte)Mathf.Clamp(Mathf.RoundToInt(g * 127.5f), 0, 255),
+                                            (byte)Mathf.Clamp(Mathf.RoundToInt(b * 127.5f), 0, 255), 255);
+                }
+                s_strip.SetPixels32(texels);
+                s_strip.Apply(false);
+                Shader.SetGlobalTexture(SeasonStripId, s_strip);
+                s_stripLatitude = latitude;
+            }
+            s_day = dayOfYear;
+            PushSeason();
+        }
+
+        /// <summary>Off: the grass as it was before task 4.28, one look whatever the land or the date (<c>-plaingrass</c>, and
+        /// demo 154's before-and-after key). The moisture map's own switch follows through <see cref="SurfaceStates.ShowMoisture"/>.</summary>
+        public static bool GrassVariation { get; private set; } = true;
+
+        public static void SetGrassVariation(bool on)
+        {
+            GrassVariation = on;
+            PushSeason();
+        }
+
+        static void PushSeason()
+        {
+            if (s_day < 0) return;
+            Shader.SetGlobalVector(SeasonId, new Vector4(MountainPlanner.Domain.Cover.GrassSeason.NorthernDay(s_day, s_stripLatitude), s_lowest,
+                                                         MountainPlanner.Domain.Cover.GrassSeason.DaysLaterPerMetre, GrassVariation ? 1 : 0));
+        }
 
         static readonly int OverlayId = Shader.PropertyToID("_Overlay");
         static readonly int SnowOnId = Shader.PropertyToID("_SnowOn");

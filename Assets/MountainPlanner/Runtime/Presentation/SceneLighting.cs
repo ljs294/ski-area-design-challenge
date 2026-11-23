@@ -242,6 +242,7 @@ namespace MountainPlanner.Presentation
         {
             _dirty = false;
             var now = Clock.Now;
+            GroundLayers.SetSeason(now.DayOfYear, Latitude);   // task 4.28: the grass wears the sun's date (nothing unless the day changed)
             var day = new SolarDay(Latitude, Longitude, now.Year, now.DayOfYear);
             var light = SkyLight.From(day.SunAt(now.SecondOfDay + _fraction), GridConvergence);
             CurrentLight = light;

@@ -42,6 +42,10 @@ namespace MountainPlanner.Presentation.Edits
         public bool HasSnowTerrain => _snowTerrain != null;
         /// <summary>No snow work is waiting or running: the presentation's inputs hold every edit so far.</summary>
         public bool SnowSettled => !_snowRunning && !_snowDue;
+        int _snowInputsVersion;
+        /// <summary>Task 4.28: counts the times earthwork changed the cells' mean heights (the resort's own array), so the
+        /// ground's moisture knows when to follow.</summary>
+        public int SnowInputsVersion => System.Threading.Volatile.Read(ref _snowInputsVersion);
 
         readonly struct CellRect
         {
@@ -186,6 +190,7 @@ namespace MountainPlanner.Presentation.Edits
                 Array.Copy(mm, j * pw, _snowMm, (r.J0 + j) * width + r.I0, pw);
                 Array.Copy(canopy, j * pw, _snowCanopyBytes, (r.J0 + j) * width + r.I0, pw);
             }
+            System.Threading.Interlocked.Increment(ref _snowInputsVersion);
         }
 
         /// <summary>A core tile's edited posts as the tile holds them (<see cref="Normalised(IPointDeltas, int, int, int, int)"/>),

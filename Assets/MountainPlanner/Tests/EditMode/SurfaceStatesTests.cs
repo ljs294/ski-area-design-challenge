@@ -40,6 +40,36 @@ namespace MountainPlanner.Tests
             Assert.That(Shader.GetGlobalVector(BodyParams), Is.EqualTo(Vector4.zero), "closing the mountain clears the state");
         }
 
+        /// <summary>Task 4.28: the ground's moisture reaches the shader on the snow map's grid, and -plaingrass switches it off.</summary>
+        [Test]
+        public void TheMoistureMapIsBoundForTheGrass()
+        {
+            int map = Shader.PropertyToID("_GroundMoistureMap"), pars = Shader.PropertyToID("_GroundMoistureParams");
+            var states = new SurfaceStates(new Rect(-40, -24, 80, 48));   // 10 × 6 cells
+            try
+            {
+                Assert.That(states.HasMoisture, Is.False);
+                Assert.That(states.SetMoisture(new byte[7]), Is.False, "a map of another size is refused");
+                var bytes = new byte[states.Snow.Width * states.Snow.Height];
+                for (int k = 0; k < bytes.Length; k++) bytes[k] = (byte)(k * 4);
+                Assert.That(states.SetMoisture(bytes), Is.True);
+                var bound = (Texture2D)Shader.GetGlobalTexture(map);
+                Assert.That(bound, Is.Not.Null);
+                Assert.That((bound.width, bound.height), Is.EqualTo((states.Snow.Width, states.Snow.Height)));
+                Assert.That(bound.GetPixel(3, 2).r, Is.EqualTo((2 * states.Snow.Width + 3) * 4 / 255f).Within(1e-3f), "rows run south to north, as the snow map's");
+                Assert.That(Shader.GetGlobalVector(pars).x, Is.EqualTo(1), "on");
+                GroundLayers.SetGrassVariation(false);
+                states.ShowMoisture(false);
+                Assert.That(Shader.GetGlobalVector(pars).x, Is.Zero, "the grass as it was");
+            }
+            finally
+            {
+                GroundLayers.SetGrassVariation(true);
+                states.Dispose();
+            }
+            Assert.That(Shader.GetGlobalVector(pars), Is.EqualTo(Vector4.zero), "closing the mountain clears it");
+        }
+
         /// <summary>A 10 × 5 table at the ring's corner: the streams in cell 0, a lake (index 1) in cells 12–13.</summary>
         static WaterBodyTable Table(Rect ring, int width = 10, int depth = 5)
         {
