@@ -424,6 +424,10 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
+echo   4.28 ground grass: wet hollows, dry ridges and the season (rebuilds the game; close the editor first)
+echo     154 The moisture and season tests, then the game four times in mid-July on your Jackson NH map (or the
+echo        demo mountain), a scratch copy: the old plain grass, the new grass, early October (gold), and the
+echo        moisture map (blue wet, cream dry). Close each window to open the next.
 echo   4.26 bug bash PR E: trail hover and a groomer's path (builds the game if there is none)
 echo     145 The hover and map tests, then the drawn resort on January 15 with two groomers: hover trails, then
 echo        Analysis, Grooming, Equipment and a groomer's card (only its path lit).
@@ -640,6 +644,7 @@ if /i "%CHOICE%"=="145" goto hover426
 if /i "%CHOICE%"=="146" goto tests426
 if /i "%CHOICE%"=="147" goto pads426
 if /i "%CHOICE%"=="149" goto garbage426
+if /i "%CHOICE%"=="154" goto grass428
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -1295,6 +1300,46 @@ echo   and top terminals stand on clear ground, the snow rising again a few metr
 pause
 start "" "%GAME%" -data "%PD%" -notitle -offline -drawnresort -simto 02-01
 pause
+goto menu
+
+:grass428
+rem 4.28: terrain-driven grass (owner 2026-11-22: "the grass is a bit too plain"; terrain driven only, no photo).
+chcp 65001 >nul
+echo.
+echo   Part 1 (.NET, about a minute): the moisture map (a valley wetter than its ridges, the shaded side wetter, a
+echo   pond's margin and a dug hollow wet, the same bytes every time) and the grass's colour by date and latitude.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~GroundMoistureTests|FullyQualifiedName~GrassSeasonTests" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+echo.
+echo   Part 2: the game (rebuilding it first, a few minutes).
+call :buildplayer
+if not exist "%GAME%" goto done
+set "GR428=%LOCALAPPDATA%\SkiAreaDesignChallenge-grass428"
+if exist "%GR428%" rmdir /s /q "%GR428%"
+mkdir "%GR428%"
+set "GR428PKG=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts\0cf7b7bd1e05e710"
+set "GR428ARG="
+if exist "%GR428PKG%\manifest.json" (
+    echo   Copying your Jackson NH map into the scratch folder (yours is only read^)...
+    robocopy "%GR428PKG%" "%GR428%\JacksonNH" /e /nfl /ndl /njh /njs /np >nul
+    set "GR428ARG=-package "%GR428%\JacksonNH""
+) else (
+    echo   Your Jackson NH map isn't in the library; the demo mountain opens instead.
+)
+echo.
+echo   1 of 4, before: mid-July with the old grass, one straw-green all over. Close the game for the next.
+pause
+"%GAME%" -data "%GR428%" -notitle -offline %GR428ARG% -season summer -plaingrass <nul
+echo   2 of 4, after: the same day. Deeper green in the draws, hollows and beside water; paler, yellower patches on
+echo   ridges and dry sun-facing slopes, ragged at the edges. Try a pond or dig a hollow: the grass around it greens
+echo   up a second or so after the ground settles.
+pause
+"%GAME%" -data "%GR428%" -notitle -offline %GR428ARG% -season summer <nul
+echo   3 of 4, early October: the grass turns gold, the high ground first.
+pause
+"%GAME%" -data "%GR428%" -notitle -offline %GR428ARG% -season summer -day 280 <nul
+echo   4 of 4, the moisture map with the trees hidden: blue wet (streams, draws, valley floors, ponds), cream dry.
+pause
+"%GAME%" -data "%GR428%" -notitle -offline %GR428ARG% -season summer -moisturemap -noforest <nul
 goto menu
 
 :tests426

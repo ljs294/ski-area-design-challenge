@@ -505,6 +505,44 @@ namespace MountainPlanner.Presentation
             return true;
         }
 
+        // ---------------- the ground's moisture (task 4.28) ----------------
+
+        static readonly int MoistureMapId = Shader.PropertyToID("_GroundMoistureMap"), MoistureParamsId = Shader.PropertyToID("_GroundMoistureParams");
+        Texture2D _moisture;
+        /// <summary>The moisture map is bound: the grass varies with the land.</summary>
+        public bool HasMoisture => _moisture != null;
+
+        /// <summary>
+        /// Binds the ground's moisture (<see cref="MountainPlanner.Domain.Cover.GroundMoisture"/>, a byte per cell of this grid,
+        /// 128 ordinary ground): the grass draws lush where it is wet and straw where it is dry. Read smoothly between cells; a
+        /// map of any other size is refused. Returns whether it was bound.
+        /// </summary>
+        public bool SetMoisture(byte[] map)
+        {
+            if (map == null || map.Length != Snow.Width * Snow.Height) return false;
+            if (_moisture == null)
+            {
+                _moisture = new Texture2D(Snow.Width, Snow.Height, TextureFormat.R8, false, true)
+                {
+                    name = "Ground moisture", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp,
+                };
+                Shader.SetGlobalTexture(MoistureMapId, _moisture);
+            }
+            _moisture.SetPixelData(map, 0);
+            _moisture.Apply(false);
+            Shader.SetGlobalVector(MoistureParamsId, new Vector4(GroundLayers.GrassVariation ? 1 : 0, MoistureView ? 1 : 0, 0, 0));
+            return true;
+        }
+
+        /// <summary>A check's view of the map itself in place of the ground's colour (<c>-moisturemap</c>, demo 154).</summary>
+        public static bool MoistureView { get; private set; }
+
+        public void ShowMoisture(bool on)
+        {
+            MoistureView = on;
+            Shader.SetGlobalVector(MoistureParamsId, new Vector4(_moisture != null && GroundLayers.GrassVariation ? 1 : 0, on ? 1 : 0, 0, 0));
+        }
+
         static void DestroyTexture(Texture2D t)
         {
             if (t == null) return;
@@ -524,6 +562,11 @@ namespace MountainPlanner.Presentation
             DestroyTexture(_bodyStates);
             _bodyMap = _bodyStates = null;
             BoundTable = 0;
+            Shader.SetGlobalVector(MoistureParamsId, Vector4.zero);
+            Shader.SetGlobalTexture(MoistureMapId, null);
+            DestroyTexture(_moisture);
+            _moisture = null;
+            MoistureView = false;
             DestroyTexture(_depth);
             DestroyTexture(_surface);
             DestroyTexture(_lift);

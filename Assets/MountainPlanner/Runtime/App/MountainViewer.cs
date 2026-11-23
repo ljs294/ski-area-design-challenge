@@ -236,6 +236,10 @@ namespace MountainPlanner.App
                 if (lake >= 0 && lake + 1 < args.Length) SetLakes(args[lake + 1] == "open" ? WaterSurfaceState.OpenWater
                                                                  : args[lake + 1] == "ice" ? WaterSurfaceState.Ice : WaterSurfaceState.SnowCoveredIce);
                 if (Array.IndexOf(args, "-covermap") >= 0) _layers.Set(MapLayers.CoverMap, true);
+                // Task 4.28: -plaingrass draws the grass as it was (one look whatever the land or the date), -moisturemap the
+                // moisture map itself.
+                if (Array.IndexOf(args, "-plaingrass") >= 0) GroundLayers.SetGrassVariation(false);
+                _resort.States.ShowMoisture(Array.IndexOf(args, "-moisturemap") >= 0);
                 int info = Array.IndexOf(args, "-info");
                 if (info >= 0 && info + 1 < args.Length) _layers.Set(args[info + 1], true);
                 if (Array.IndexOf(args, "-contours") >= 0) _layers.Set(MapLayers.Contours, true);
@@ -369,6 +373,7 @@ namespace MountainPlanner.App
             while (!_resort.CoverReady.IsCompleted) yield return null;   // the cover, snowpack, contour labels and forest are in
             while (WorkBusy) yield return null;                           // and any -testbench or -styletile edit, drawn
             while (_simToRunning) yield return null;                      // and a -simto run, at its date
+            for (float t = 0; !MoistureReady && t < 30; t += Time.unscaledDeltaTime) yield return null;   // and the ground's moisture (task 4.28)
             // Task 4.07 PR A3: a seeded capture waits (up to 180 s: a -styletile build re-runs the snow's inputs first) for the
             // live snow's first full pass, when the snow shell stands on it; it says so if it gave up.
             float waited = 0;
@@ -431,6 +436,7 @@ namespace MountainPlanner.App
             UpdateSnowHover();   // then snowmaking: a gun, node, pump house or water line lights and opens its card (task 4.15)
             UpdateWaterHover();  // then water: a dam, pond, stream or lake lights and opens its card (task 4.14, LK-10)
             _resort?.States?.Sync();
+            UpdateMoisture();   // task 4.28: the ground's moisture follows earthwork and ponds
             UpdateShellPad();
             StartSimulationIfReady();   // an opened save's clock, once its network is in (finding B2c-5)
             RunClock();

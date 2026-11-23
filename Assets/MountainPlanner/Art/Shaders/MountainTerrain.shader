@@ -85,6 +85,13 @@ Shader "MountainPlanner/Terrain"
         // six splat layers (GroundTextures): alpine meadow, scree, bare dirt and meadow seen from a distance.
         float4 _AlpineBand;          // x, y: elevations (m) where valley grass gives way to alpine meadow; unset: none
         float4 _GrassTint;           // the season's colour on grass and meadow (rgb multiplier; unset reads as none), for the seasons task
+        // Task 4.28: the grass follows the land and the date. The ground's moisture (GroundMoisture, a byte per 8 m cell on the
+        // snow map's grid, 128 ordinary ground) and the grass's colour through the year (GrassSeason, a strip from January to
+        // December), both read through the fixed sampler so every variant keeps them.
+        TEXTURE2D(_GroundMoistureMap);
+        float4 _GroundMoistureParams;   // x: the map is bound; y: draw the map itself (a check's view)
+        TEXTURE2D(_GrassSeasonStrip);
+        float4 _GrassSeason;            // x: the day of the year (northern calendar); y: the lowest ground, m; z: days later per metre up; w: on
         static const int MeadowLayer = 6, ScreeLayer = 7, DirtLayer = 8, MeadowFarLayer = 9;
         static const float MeadowTile = 4, ScreeTile = 6, DirtTile = 3, MeadowFarTile = 90;   // metres per repeat
         float4 _OverlayColor[8];
@@ -319,23 +326,54 @@ Shader "MountainPlanner/Terrain"
                 return 0.86 + 0.18 * ValueNoise(p.xz / 230) + 0.08 * ValueNoise(p.xz / 61 + 17);
             }
 
+            // Task 4.28: the ground's moisture at a point, −1 the driest ridge, 0 ordinary ground (and until the map is bound),
+            // +1 a stream bank.
+            float GroundWetness(float3 p)
+            {
+                if (_GroundMoistureParams.x < 0.5) return 0;
+                float m = SAMPLE_TEXTURE2D_LOD(_GroundMoistureMap, sampler_mp_linear_clamp, SnowUV(p.xz), 0).r;
+                return clamp((m * 255 - 128) / 127, -1, 1);
+            }
+
+            // Task 4.28: the grass's colour for the date (an rgb multiplier on the summer grass; 1 until the strip is set). The
+            // season runs later up high (spring arrives late, autumn early) and dry ground cures sooner after midsummer, while
+            // wet ground stays green longer.
+            float3 GrassSeasonTint(float3 p, float wet)
+            {
+                if (_GrassSeason.w < 0.5) return 1;
+                float late = clamp((p.y - _GrassSeason.y) * _GrassSeason.z, 0, 45);
+                float day = _GrassSeason.x > 196 ? _GrassSeason.x + late - wet * (wet > 0 ? 10 : 18) : _GrassSeason.x - late;
+                return SAMPLE_TEXTURE2D_LOD(_GrassSeasonStrip, sampler_mp_linear_clamp, float2(clamp(day, 0.5, 364.5) / 365, 0.5), 0).rgb * 2;
+            }
+
             // Grass (task 12c): winter-dormant valley grass giving way to sparser alpine meadow up high (its far
-            // texture shows rock patches across 90 m), and bare dirt breaking through on steep grass.
-            void SampleGrass(float3 p, float3 n, float slopePercent, out float4 albedo, out float3 normal)
+            // texture shows rock patches across 90 m), and bare dirt breaking through on steep grass. Task 4.28: lush in the
+            // draws and beside water, sparse and straw on the ridges and the steep sun-facing slopes, in ragged patches (two
+            // scales of noise tilt the moisture, so no edge follows the map's 8 m cells).
+            void SampleGrass(float3 p, float3 n, float slopePercent, float fineBelow, out float4 albedo, out float3 normal)
             {
                 SampleDetail(2, _Tile[2], p, n, albedo, normal);
+                float wet = GroundWetness(p);
+                float patches = ValueNoise(p.xz / 17 + 31) * 0.55 + ValueNoise(p.xz / 63 + 7) * 0.45;
+                // The 8 m map, the patches, and the fine lie of the land from the 1 m heights: a ditch or the foot of a bank is
+                // wetter than the map can say, a small crest drier.
+                bool varied = _GroundMoistureParams.x > 0.5;
+                float damp = varied ? wet * 1.2 + (patches - 0.5) * 1.3 + clamp(fineBelow / 0.5, -1, 1) * 0.5 : 0;
+                float lush = smoothstep(0.05, 0.65, damp), dry = smoothstep(-0.05, -0.65, damp);
                 float alpine = _AlpineBand.y > _AlpineBand.x
                     ? smoothstep(_AlpineBand.x, _AlpineBand.y, p.y + (ValueNoise(p.xz / 150) - 0.5) * 80) : 0;
-                [branch] if (alpine > 0.01)
+                float sparse = max(alpine, dry * 0.7);   // dry ground wears the sparse meadow's look without its far rock patches
+                [branch] if (sparse > 0.01)
                 {
                     float4 meadow;
                     float3 meadowN;
                     SampleDetail(MeadowLayer, MeadowTile, p, n, meadow, meadowN);
-                    meadow.rgb = lerp(meadow.rgb, SAMPLE_TEXTURE2D_ARRAY(_Albedo, sampler_Albedo, p.xz / MeadowFarTile, MeadowFarLayer).rgb, 0.5);
-                    albedo = lerp(albedo, meadow, alpine);
-                    normal = normalize(lerp(normal, meadowN, alpine));
+                    [branch] if (alpine > 0.01)
+                        meadow.rgb = lerp(meadow.rgb, SAMPLE_TEXTURE2D_ARRAY(_Albedo, sampler_Albedo, p.xz / MeadowFarTile, MeadowFarLayer).rgb, 0.5 * alpine / sparse);
+                    albedo = lerp(albedo, meadow, sparse);
+                    normal = normalize(lerp(normal, meadowN, sparse));
                 }
-                float bare = smoothstep(60, 95, slopePercent) * smoothstep(0.5, 0.75, ValueNoise(p.xz / 14)) * 0.75;
+                float bare = smoothstep(60, 95, slopePercent - dry * 20) * smoothstep(0.5, 0.75, ValueNoise(p.xz / 14)) * 0.75;
                 [branch] if (bare > 0.01)
                 {
                     float4 dirt;
@@ -345,6 +383,17 @@ Shader "MountainPlanner/Terrain"
                     normal = normalize(lerp(normal, dirtN, bare));
                 }
                 albedo.rgb *= Macro(p) * (any(_GrassTint.rgb) ? _GrassTint.rgb : 1);
+                // Task 4.28: wet grass a deeper, cooler green; dry grass paler and yellower; a slow drift of hue over the
+                // slope; then the season.
+                albedo.rgb *= lerp(1, float3(0.62, 0.90, 0.56), lush) * lerp(1, float3(1.24, 1.10, 0.78), dry);
+                if (varied)
+                {
+                    albedo.rgb *= lerp(float3(1.09, 0.98, 0.86), float3(0.91, 1.02, 1.03), ValueNoise(p.xz / 140 + 53));
+                    // Clumps a few metres across, as a meadow has: tussocks a little darker and greener, thin turf lighter.
+                    float clump = ValueNoise(p.xz / 4.3 + 11) * 0.6 + ValueNoise(p.xz / 1.9 + 3) * 0.4;
+                    albedo.rgb *= lerp(float3(0.86, 0.90, 0.84), float3(1.10, 1.08, 1.02), clump);
+                }
+                albedo.rgb *= GrassSeasonTint(p, damp);
                 // Depth up close (beauty pass, item 3): hollows between the blades darker, the relief a little stronger.
                 albedo.rgb *= lerp(0.78, 1.12, albedo.a);
                 normal = normalize(n + (normal - n) * 1.6);
@@ -526,7 +575,8 @@ Shader "MountainPlanner/Terrain"
 
             // Fine creases (beauty pass, item 2): how far the ground sits below its neighbours 3 samples away (3 m in
             // the core), so gullies, ditches and the feet of banks hold a little shade the 8 m sky map can't see.
-            half Crease(float2 uv)
+            // Metres the ground sits below (+) or above (−) the mean of its neighbours 3 samples away.
+            float CreaseBelow(float2 uv)
             {
                 float res = max(_HeightmapParams.x, 2);
                 float2 huv = (uv * (res - 1) + 0.5) / res;
@@ -536,8 +586,7 @@ Shader "MountainPlanner/Terrain"
                              + SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(t, 0), 0).r
                              + SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t), 0).r
                              + SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t), 0).r;
-                float below = (around * 0.25 - c) * _HeightmapParams.y;   // metres below the neighbours' mean
-                return 1 - 0.45 * saturate(below / 1.5);
+                return (around * 0.25 - c) * _HeightmapParams.y;
             }
 
             // BR13 (task 15): the elevation the close-up contours follow, the 1 m heightmap's own (the slope's sample),
@@ -674,6 +723,7 @@ Shader "MountainPlanner/Terrain"
                 weights[1] = floorWeight;
                 float footprint = length(fwidth(i.positionWS));   // metres per pixel, for the lake's cracks
                 float groundPercent = length(n.xz) / max(n.y, 1e-3) * 100;   // the mesh's slope as a grade, for the ground's variation
+                float fineBelow = CreaseBelow(i.uv);   // the fine creases: the light's (below) and the grass's (task 4.28)
                 [unroll] for (int k = 0; k < 8; k++)
                 {
                     albedos[k] = 0;
@@ -686,7 +736,7 @@ Shader "MountainPlanner/Terrain"
                         else if (k == 5) SampleLake(i.positionWS, n, cuv, res, weights[k], footprint, albedos[k], normals[k], smooths[k]);
                         else if (k == 2)
                         {
-                            SampleGrass(i.positionWS, n, groundPercent, albedos[k], normals[k]);
+                            SampleGrass(i.positionWS, n, groundPercent, fineBelow, albedos[k], normals[k]);
                             albedos[k].rgb *= lerp(1, float3(0.8, 0.74, 0.62) * lerp(0.85, 1.05, ragged), needles);
                         }
                         else if (k == 1)
@@ -799,6 +849,13 @@ Shader "MountainPlanner/Terrain"
                     total += w;
                 }
                 albedo /= total;
+                // Task 4.28, a check's view (-moisturemap): the moisture map itself, straw for dry through green to blue for wet.
+                if (_GroundMoistureParams.y > 0.5)
+                {
+                    float wetView = GroundWetness(i.positionWS);
+                    albedo = wetView < 0 ? lerp(float3(0.30, 0.50, 0.22), float3(0.85, 0.72, 0.35), -wetView)
+                                         : lerp(float3(0.30, 0.50, 0.22), float3(0.10, 0.25, 0.75), wetView);
+                }
                 albedo = ApplyPaint(albedo, i.positionWS.xz);
                 normal = normalize(normal);
                 smooth /= total;
@@ -811,7 +868,7 @@ Shader "MountainPlanner/Terrain"
                 float spec = pow(saturate(dot(normal, h)), exp2(10 * smooth + 1)) * smooth * 0.5;
                 // Ambient occlusion (beauty pass, item 2): the sky light dims in valleys (8 m sky map) and creases
                 // (1 m heightmap); creases also take a little off the sun.
-                half crease = Crease(i.uv);
+                half crease = 1 - 0.45 * saturate(fineBelow / 1.5);
                 half skyLight = TerrainSkyVisibility(i.positionWS) * crease;
                 // The crowns hide most of the sky from the ground below them (P2-09), and past the shadow cascades,
                 // where trees cast no shadows of their own, some of the sun too.
