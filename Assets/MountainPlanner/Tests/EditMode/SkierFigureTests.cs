@@ -93,11 +93,24 @@ namespace MountainPlanner.Tests
                 sum += layout.Slots[s.x + c].x;
             }
             Assert.That(sum / seats, Is.EqualTo(2.5f).Within(1e-3f), "the front row stands under the loaded rope");
-            // Every place faces somewhere flat and unit, and a row's skiers all face the same way.
+            // Every place faces somewhere flat and unit. The throat's rows all face up the lift; past it (task 4.26 BB4) each
+            // skier faces the front along its own lane: toward the place ahead of it in its column, a row or so away.
             for (int k = 0; k < s.y; k++) Assert.That(math.length(layout.Facing[s.x + k]), Is.EqualTo(1f).Within(1e-3f), $"place {k}");
-            for (int r = 0; r + seats <= s.y && r < 10 * seats; r += seats)
-                for (int c = 1; c < seats; c++)
-                    Assert.That(math.dot(layout.Facing[s.x + r + c], layout.Facing[s.x + r]), Is.GreaterThan(0.999f), $"row {r / seats} column {c}");
+            int throat = seats * Mathf.CeilToInt((4 + LineLayout.TerminalMarginMetres + seats * LineLayout.ColumnMetres * 0.5f) / LineLayout.RowMetres);
+            for (int k = seats; k < throat && k < s.y; k++)
+                Assert.That(math.dot(layout.Facing[s.x + k], layout.Facing[s.x]), Is.GreaterThan(0.999f), $"throat place {k}");
+            int checkedPlaces = 0;
+            for (int k = seats; k < s.y; k++)
+            {
+                var here = layout.Slots[s.x + k];
+                var ahead = layout.Slots[s.x + k - seats];
+                var toward = new float2(ahead.x - here.x, ahead.z - here.z);
+                float gap = math.length(toward);
+                if (gap < 1f || gap > LineLayout.RowMetres * 1.5f) continue;   // a jump to a new fold, or round a tight corner
+                Assert.That(math.dot(layout.Facing[s.x + k], toward / gap), Is.GreaterThan(0.8f), $"place {k} faces the one ahead in its lane");
+                checkedPlaces++;
+            }
+            Assert.That(checkedPlaces, Is.GreaterThan(s.y / 2), "most places stand a row behind the one ahead in their lane");
         }
     }
 }

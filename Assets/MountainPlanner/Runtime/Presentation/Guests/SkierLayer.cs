@@ -117,7 +117,85 @@ namespace MountainPlanner.Presentation.Guests
             _noSlots = new NativeArray<float3>(1, Allocator.Persistent);
             _noFacing = new NativeArray<float2>(1, Allocator.Persistent);
             _noLiftSlots = new NativeArray<int2>(1, Allocator.Persistent);
+            _linePlace = new NativeArray<int>(_cap, Allocator.Persistent);
+            _colOf = new int[_cap]; _colLine = new int[_cap]; _colStamp = new int[_cap]; _colSerial = new uint[_cap];
+            _order = new int[_cap];
         }
+
+        // ---- task 4.26 BB4: each queued skier's place in its line ----
+        NativeArray<int> _linePlace;
+        int[] _colOf, _colLine, _colStamp, _order;
+        uint[] _colSerial;
+        int[] _lineLen = new int[16], _lineStart = new int[17], _nextCol = new int[16];
+        readonly int[] _colDepth = new int[64];
+        int _stamp;
+        long _placedTick = long.MinValue, _placedRevision = long.MinValue;
+        LineLayout _placedLines;
+
+        /// <summary>Task 4.26 BB4: record <paramref name="i"/>'s place in its line this frame (row · seats + column), or its rank.</summary>
+        public int LinePlaceAt(int i) => i >= 0 && i < _count ? _linePlace[i] : 0;
+
+        /// <summary>
+        /// Task 4.26 BB4 (owner 2026-11-23, option A "fill from behind"): which place each queued skier stands on. A skier
+        /// keeps the column it joined in (the next one round, so a run of the line always fills a row across), and stands
+        /// as many rows from the front as there are skiers ahead of it in that column. When a chair takes part of the front
+        /// row, only the skiers behind those gaps step forward, each straight along its own lane; nobody crosses a
+        /// neighbour. The simulation's order is untouched: the first <c>seats</c> in line are always the front row.
+        /// Once a column (never per frame without a new one), with no allocation.
+        /// </summary>
+        void AssignPlaces()
+        {
+            var lines = _lines;
+            if (_frameTick == _placedTick && _frameRevision == _placedRevision && ReferenceEquals(lines, _placedLines)) return;
+            _placedTick = _frameTick; _placedRevision = _frameRevision; _placedLines = lines;
+            _stamp++;
+            int nLines = lines != null && lines.LiftSlots.IsCreated ? lines.LiftSlots.Length : 0;
+            int top = lines != null && lines.TopSlotsAt >= 0 ? lines.TopSlotsAt : int.MaxValue / 2;
+            if (_lineLen.Length < nLines) { _lineLen = new int[nLines * 2]; _lineStart = new int[nLines * 2 + 1]; _nextCol = new int[nLines * 2]; }
+            Array.Clear(_lineLen, 0, nLines);
+            for (int i = 0; i < _count; i++)
+            {
+                var r = _records[i];
+                _linePlace[i] = r.Rank;
+                int line = LineOf(r, top);
+                if (line < 0 || line >= nLines) continue;
+                if (r.Rank + 1 > _lineLen[line]) _lineLen[line] = r.Rank + 1;
+            }
+            _lineStart[0] = 0;
+            for (int l = 0; l < nLines; l++) _lineStart[l + 1] = _lineStart[l] + _lineLen[l];
+            int total = Math.Min(_lineStart[nLines], _order.Length);
+            for (int k = 0; k < total; k++) _order[k] = -1;
+            for (int i = 0; i < _count; i++)
+            {
+                var r = _records[i];
+                int line = LineOf(r, top);
+                if (line < 0 || line >= nLines) continue;
+                int at = _lineStart[line] + r.Rank;
+                if (at < total && _order[at] < 0) _order[at] = i;
+            }
+            for (int line = 0; line < nLines; line++)
+            {
+                int seats = Math.Max(1, Math.Min(_colDepth.Length, lines.SeatsOf(line)));
+                Array.Clear(_colDepth, 0, seats);
+                for (int at = _lineStart[line]; at < Math.Min(_lineStart[line + 1], total); at++)
+                {
+                    int i = _order[at];
+                    if (i < 0) continue;
+                    var r = _records[i];
+                    int slot = r.Slot;
+                    if (slot >= _colOf.Length) continue;
+                    int col;
+                    if (_colSerial[slot] == r.Serial && _colLine[slot] == line + 1 && _colStamp[slot] >= _stamp - 1) col = _colOf[slot] % seats;
+                    else col = _nextCol[line]++ % seats;
+                    if (_nextCol[line] >= seats) _nextCol[line] %= seats;
+                    _colOf[slot] = col; _colSerial[slot] = r.Serial; _colLine[slot] = line + 1; _colStamp[slot] = _stamp;
+                    _linePlace[i] = _colDepth[col]++ * seats + col;
+                }
+            }
+        }
+
+        static int LineOf(SkierRender r, int top) =>
+            r.State == (byte)GuestState.Queued ? r.Index : r.State == (byte)GuestState.QueuedDown ? top + r.Index : -1;
 
         void Lifts(int n)
         {
@@ -192,6 +270,7 @@ namespace MountainPlanner.Presentation.Guests
             Drawn = 0;
             if (!Ready || camera == null) return;
             GrowLines();
+            AssignPlaces();
             var lines = _lines;
             var job = new SkierPlaceJob
             {
@@ -212,6 +291,7 @@ namespace MountainPlanner.Presentation.Guests
                 ScreenSize = _screenSize = new float2(camera.pixelWidth, camera.pixelHeight),
                 CameraPosition = camera.transform.position,
                 Prev = _prev, PrevSerial = _prevSerial,
+                LinePlace = _linePlace,
                 Dots = _dots, Screen = _screen, Facing = _facing, Figures = Figures,
             };
             job.Schedule(_count, 256).Complete();
@@ -408,6 +488,7 @@ namespace MountainPlanner.Presentation.Guests
             if (_screen.IsCreated) _screen.Dispose();
             if (_prev.IsCreated) _prev.Dispose();
             if (_prevSerial.IsCreated) _prevSerial.Dispose();
+            if (_linePlace.IsCreated) _linePlace.Dispose();
             if (_ropeNow.IsCreated) _ropeNow.Dispose();
             if (_drawRiders.IsCreated) _drawRiders.Dispose();
             if (_lineCount.IsCreated) _lineCount.Dispose();

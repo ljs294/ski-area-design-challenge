@@ -101,10 +101,11 @@ namespace MountainPlanner.Tests
         [Test]
         public void BoxedInByForestTheLineFoldsOverTheTreesButNeverOnARun()
         {
-            // A small clearing, forest all round, and a run across the forest 40 m south: nowhere open in reach.
+            // A small clearing, forest all round, and a run across the forest 40 m south (past the line's reach either
+            // way, as the test below assumes): nowhere open in reach.
             bool Clearing(float x, float z) => x > -6 && x < 6 && z > -20 && z < 2;
             bool Trees(float x, float z) => !Clearing(x, z);
-            var runs = new[] { new LineLayout.RunInput { Line = new[] { new Vector2(-300, -40), new Vector2(0, -40), new Vector2(300, -40) }, HalfWidth = 10 } };
+            var runs = new[] { new LineLayout.RunInput { Line = new[] { new Vector2(-600, -40), new Vector2(0, -40), new Vector2(600, -40) }, HalfWidth = 10 } };
             using var layout = LineLayout.Build(1, new[] { Lift(Vector2.zero, new Vector2(0, 800), 4) }, runs, (x, z) => 0f, Trees);
             GrowTo(layout, 0, 300);
             Assert.GreaterOrEqual(layout.Capacity(0), 300, layout.Describe(0));

@@ -52,13 +52,13 @@ namespace MountainPlanner.App
                     if (at.TryGetValue(key, out var other) && other.Lift == rec.Index)
                     {
                         pairs[rec.Index] = (pairs.TryGetValue(rec.Index, out int p) ? p : 0) + 1;
-                        if (!pairRanks.ContainsKey(rec.Index)) pairRanks[rec.Index] = $"ranks {other.Rank} and {rec.Rank}";
-                        bool onA = _skiers.Lines.PlaceOf(rec.Index, rec.Rank, out var pa) && Vector3.Distance(new Vector3(dot.x, dot.y, dot.z), pa) < 0.15f;
+                        if (!pairRanks.ContainsKey(rec.Index)) pairRanks[rec.Index] = $"places {other.Rank} and {_skiers.LinePlaceAt(i)}";
+                        bool onA = _skiers.Lines.PlaceOf(rec.Index, _skiers.LinePlaceAt(i), out var pa) && Vector3.Distance(new Vector3(dot.x, dot.y, dot.z), pa) < 0.15f;
                         bool onB = _skiers.Lines.PlaceOf(rec.Index, other.Rank, out var pb);
                         if (onA) settled++; else moving++;
-                        if (near.Count < 12) near.Add($"lift {rec.Index} ranks {other.Rank}/{rec.Rank}: dot {(onA ? "on its place" : "off its place by " + Vector3.Distance(new Vector3(dot.x, dot.y, dot.z), pa).ToString("F1") + " m")}, places {Vector3.Distance(pa, pb):F2} m apart");
+                        if (near.Count < 12) near.Add($"lift {rec.Index} places {other.Rank}/{_skiers.LinePlaceAt(i)}: dot {(onA ? "on its place" : "off its place by " + Vector3.Distance(new Vector3(dot.x, dot.y, dot.z), pa).ToString("F1") + " m")}, places {Vector3.Distance(pa, pb):F2} m apart");
                     }
-                    else at[key] = (rec.Rank, rec.Index);
+                    else at[key] = (_skiers.LinePlaceAt(i), rec.Index);   // its place (4.26 BB4: row and column), not its rank
                 }
                 if (pairs.Count > 0) samplesWithPairs++;
                 foreach (var kv in pairs)

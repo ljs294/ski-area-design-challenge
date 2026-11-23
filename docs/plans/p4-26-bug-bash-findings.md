@@ -21,7 +21,7 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB1 | Candidate (backlog) | On the drawn resort, Big Meadow says "No way there" at night, but the daytime grooming preview plans it | Night grooming reaches every trail the daytime preview plans | | Explained in PR E: the drawn resort's network is split (no code change) |
 | BB2 | Candidate (backlog) | With a groomer's card open, trails off its path aren't dimmed | Trails off the groomer's path are dimmed while its card is open | | Fixed in PR E: only the path is lit |
 | BB3 | Candidate (backlog) | Hovering a trail allocates 12–33 MB: the highlight is draped on the package heights, which makes a hitch | Hovering a trail allocates nothing per frame and doesn't hitch | | Fixed in PR E: the casing copies the drawn line |
-| BB4 | Candidate (backlog) | In long lift lines two guests sometimes share one line place, so their skis cross | Every guest in a line has a place of their own | | Parked: measured; how a line moves on a part-full chair is the owner's call |
+| BB4 | Candidate (backlog) | In long lift lines two guests sometimes share one line place, so their skis cross | Every guest in a line has a place of their own | | Fixed in PR N: guests keep their lane and the gap fills from behind (owner, option A); lines bend round smoothly |
 | BB5 | Candidate (backlog) | The lift ride button's tooltip names an R key that doesn't exist (`MountainHud.Lifts.cs` ~249) | The tooltip names only keys that work | | Fixed in PR A+B: "Ride this lift" |
 | BB6 | Candidate (backlog) | The Weather tab still has its placeholder tooltip (`MountainHud.Panels.cs` ~50); 4.17 may own it | A real tooltip | | Fixed in PR A+B: player words |
 | BB7 | Candidate (backlog) | T-bar and J-bar log "TW-01 v2 SHORT": the chair-clearance check runs on surface lifts | The chair-clearance check runs only on aerial lifts | | Already fixed in 4.01 PR 2 (92da0416) |
@@ -236,7 +236,7 @@ runs when no groomer is picked), so the rest are drawn as the grey line under a 
 
 ![Before and after: Groomer 1's card open](images/p4-26-bb2-groomer-path.jpg)
 
-## BB4: two guests in one lift-line place (parked: needs the owner)
+## BB4: two guests in one lift-line place
 
 Measured in the built game (`-linecheck <out.txt>` with `-drawnresort -guests 3000`: four minutes at 8×, twice a second,
 counting queued guests standing within 0.4 m of another on the same line; render lane, 2026-11-21):
@@ -260,6 +260,25 @@ row instead of stepping forward. That's the common case in a long line, and it l
 Question for the owner: how should a line move when a chair takes less than a full row? Options: rows step forward and
 the gap fills from behind; single file through the maze, rows only at the loading gate; or guests keep their column, and
 a row boards whoever is at its front. The probe stays (`-linecheck`) to measure whichever is chosen.
+
+Decision (owner, 2026-11-23): **A, fill from behind.** Also (owner, same day): "the lines should bend naturally when they
+need to change direction". Fixed in PR N, both in the presentation only (the simulation, goldens, saves and sidecar are
+unchanged):
+
+- Lanes (`SkierLayer.AssignPlaces`): a guest keeps the lane it joined in (taken in turn per line), and its place is
+  depth·seats + lane, where depth counts the guests ahead of it in its lane. When a chair takes fewer than a row, the
+  rest of each lane steps straight forward; nobody walks across another lane. The first `seats` guests are always the
+  front row, so boarding is unchanged.
+- Smooth lines (`LineLayout.Lay`): the planner still lays its rows (folds, U-turns, steering round trees and lifts), and
+  now also records the line's centre. Its corners are rounded (a U-turn round a long fold is a half circle, its ground
+  claimed on every lift's grid first; a short fold keeps a square turn), and each lane walks its own offset of that
+  centre, a row's length between places, so the outer lanes hold more round a bend. Walkways stay single file; rows
+  square up after a jump to a new fold. Places laid once never move as a line grows, and no two places, on any line,
+  share a half-metre cell.
+- Each skier faces the one ahead in its lane when it stands close (round a tight bend too), else back along the line.
+- Tests: `SkierFigureTests.ALineFacesItsFrontAndStandsUnderTheLoadedRope` now checks that each place faces the one ahead
+  in its lane; `LiftLineLayoutTests` all still hold (one lane-sharing test got a longer run line to fit the rounder
+  folds).
 
 ## BB15: snow covers the cleared lift terminals
 

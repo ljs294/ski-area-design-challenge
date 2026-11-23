@@ -42,6 +42,8 @@ namespace MountainPlanner.Presentation.Guests
         /// <summary>Task 4.22: per place, the way its skier faces (LineLayout.Facing).</summary>
         [ReadOnly] public NativeArray<float2> SlotFacing;
         [ReadOnly] public NativeArray<int2> LiftSlots;
+        /// <summary>Task 4.26 BB4: per record, its place in its line (row · seats + column; SkierLayer.AssignPlaces).</summary>
+        [ReadOnly] public NativeArray<int> LinePlace;
         /// <summary>
         /// Task 4.24 PR B (RD-2): where the top lines' places start in <see cref="LiftSlots"/>: lift i's top line is entry
         /// <c>TopSlotsAt + i</c> (the layout's mirrored inputs). Zero entries past the end: the line stands round the top.
@@ -119,12 +121,14 @@ namespace MountainPlanner.Presentation.Guests
                 // RD-2: the top line has its own places, laid like a bottom line at the top station's down side.
                 int at = st == GuestState.QueuedDown ? TopSlotsAt + lift : lift;
                 int2 s = at < LiftSlots.Length ? LiftSlots[at] : int2.zero;
+                // Task 4.26 BB4: its place (row and column), not its rank, so a part-full chair moves only the columns it took from.
+                int place = i < LinePlace.Length ? LinePlace[i] : r.Rank;
                 if (s.y <= 0) { p = r.Node < Nodes.Length ? Ring(Nodes[r.Node], r.Serial) : float3.zero; cls = ClassOverflow; }
                 // Lines grow as long as they need (owner, 2026-11-10): a skier past the end only waits a frame for the
                 // layout to lay more places, standing at the tail meanwhile, never in a pile round it.
-                else { p = Slots[s.x + math.min((int)r.Rank, s.y - 1)]; cls = ClassQueued; }
-                // Facing the front of the line along its pass (task 4.22: not at the neighbour in the row).
-                int rank = math.min((int)r.Rank, s.y - 1);
+                else { p = Slots[s.x + math.min(place, s.y - 1)]; cls = ClassQueued; }
+                // Facing the front of the line along its lane (task 4.22: not at the neighbour in the row).
+                int rank = math.min(place, s.y - 1);
                 float3 ahead = s.y > 0 && s.x + rank < SlotFacing.Length ? new float3(SlotFacing[s.x + rank].x, 0, SlotFacing[s.x + rank].y)
                     : st == GuestState.QueuedDown ? -LiftDirection(lift) : LiftDirection(lift);
                 facing = new float4(Flat(ahead), -1, 0);
