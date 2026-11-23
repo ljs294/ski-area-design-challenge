@@ -40,7 +40,7 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB20 | Owner, 2026-11-21 | The game always starts with a crash-log popup, implying the game crashed on startup | Find out why the notice appears; a normal start shows no crash notice | | Fixed in PR A+B: one crash marker per session |
 | BB21 | Owner, 2026-11-21 | Deciduous trees seem way too big, and the owner isn't loving how they look in game | Audit the deciduous trees and report the findings as a plan to make them look more normal | | Audited: a plan for the owner (5 steps); the model rebuild goes to its own thread after the owner's OK |
 | BB22 | 4.26 thread, 2026-11-22 (demo 41 for PR L) | Every frame allocates 88 bytes on main (1.15 MB over the benchmark's High lap; the release heap grows 2.5 MB), where the Nov 17 baselines allocated nothing | The benchmark's garbage check passes: nothing allocates per frame | | Fixed in PR M: two per-frame methods made a lambda's closure at every call; demo 149 |
-| BB23 | 4.08 thread via 0.0, 2026-11-23 | A capture or screenshot run with a bad `-opensave` value (it was given the save's folder name) throws in `OpenSaveForCapture`, the rest of Start is skipped and the player never quits: it held the render lane for 2 hours, until gpu.ps1's limit | Any capture switch whose setup fails logs the error and quits with a nonzero exit code (every capture switch, not just `-opensave`) | | |
+| BB23 | 4.08 thread via 0.0, 2026-11-23 | A capture or screenshot run with a bad `-opensave` value (it was given the save's folder name) throws in `OpenSaveForCapture`, the rest of Start is skipped and the player never quits: it held the render lane for 2 hours, until gpu.ps1's limit | Any capture switch whose setup fails logs the error and quits with a nonzero exit code (every capture switch, not just `-opensave`) | | Fixed in PR O: an unattended run (batch mode, a GPU lane's job) whose start fails quits with exit code 1 |
 
 Each finding's cause, fix and evidence are recorded in its own section below as it is worked.
 
@@ -475,3 +475,26 @@ Fix: each job starts in its own small static method (`BuildTrailSnow`, `CompileS
 arguments, so the object is made only when a job starts. The same pattern in `UpdateBuiltWork` is already safe (its
 captured locals are declared inside the block that starts the job); the other `Task.Run` calls in the viewer run on
 demand, not per frame.
+
+## BB23: a capture run whose setup fails never quits (4.08, via 0.0)
+
+The viewer's start opens the area and then sets up every capture switch in one `try`. `-opensave <name>` loads the save
+before the HUD wires up, and a bad name throws (`save.json is missing`). The `catch` put the error on screen, so none of
+the capture switches after it started, and nothing would ever quit the player. 4.08's capture held the render lane for 2
+hours, until gpu.ps1's limit. Seen: the v0.3.4+ player with `-batchmode -nographics -opensave no-such-save -crowdshot
+<folder>` was still running when `timeout 180` killed it.
+
+Fix (`App/Diagnostics/UnattendedRun.cs`): a run nobody watches quits with exit code 1 when its setup fails. The rule
+doesn't depend on the switch, so it holds for every capture switch, present and future. A run is unattended when it is a
+player in batch mode, or a job in a GPU lane (`tools/gpu/gpu.ps1` sets `MP_GPU_LANE` for every command it runs). The game
+played by hand keeps its error screen, and so does the editor (it can't quit, and tests check their own errors). It
+applies where a start can fail:
+
+- the viewer's open-and-setup `catch` (the opening, `-opensave`, `-view`, `-crowdviews` and every other switch's setup);
+- "No areas downloaded yet";
+- anything else the viewer's start throws;
+- Lift Lab's start.
+
+Evidence: the same run now quits with exit code 1 after 12 s and logs `[Unattended] setup failed (Couldn't open the
+area: save.json is missing.)`. `UnattendedRunTests` checks the rule (batch mode, either lane, a blank lane, the editor)
+and that the editor only logs. The lane path isn't run on the GPU; the rule test covers it.
