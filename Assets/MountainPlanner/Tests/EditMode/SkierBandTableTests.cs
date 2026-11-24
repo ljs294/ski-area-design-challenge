@@ -57,6 +57,10 @@ namespace MountainPlanner.Tests
             var lines = new NativeArray<int>(1, Allocator.TempJob);
             var shown = new NativeArray<int>(16, Allocator.TempJob);   // task 4.26 BB4: the line's places and walks
             var snow = new NativeArray<float>(1, Allocator.TempJob);
+            // Task 4.26 BB27: the fine trail snow's arrays, as the layer always passes them (FineT 0: none in use). The job
+            // safety check refuses a job with an unassigned container, so these tests threw since task 4.08 PR A added them.
+            var fineLift = new NativeArray<float>(1, Allocator.TempJob);
+            var finePage = new NativeArray<int>(1, Allocator.TempJob);
             var prev = new NativeArray<float3>(16, Allocator.TempJob);
             var prevSerial = new NativeArray<uint>(16, Allocator.TempJob);
             var dots = new NativeArray<float4>(records.Length, Allocator.TempJob);
@@ -70,7 +74,7 @@ namespace MountainPlanner.Tests
                     Edges = paths.Edges, EdgeSize = paths.EdgeSize, Samples = paths.Samples, Side = paths.Side,
                     LaneY = paths.LaneY, Table = paths.Table, LiftPaths = paths.Lifts, Nodes = paths.Nodes,
                     Slots = none3, SlotFacing = noFacing, LiftSlots = none2, LinePlace = lines, LineSeats = lines, Shown = shown, RopeNow = ropes, DrawRiders = riders, LineCount = lines,
-                    Snow = snow, SnowCell = 8,
+                    Snow = snow, SnowCell = 8, FineLift = fineLift, FinePage = finePage,
                     ViewProjection = viewProjection, ScreenSize = new float2(1920, 1080), CameraPosition = camera,
                     Prev = prev, PrevSerial = prevSerial, Dots = dots, Screen = screen, Facing = facing,
                 }.Run(records.Length);
@@ -80,7 +84,7 @@ namespace MountainPlanner.Tests
             finally
             {
                 rec.Dispose(); none3.Dispose(); none2.Dispose(); noFacing.Dispose(); ropes.Dispose(); riders.Dispose(); lines.Dispose(); shown.Dispose();
-                snow.Dispose(); prev.Dispose(); prevSerial.Dispose(); dots.Dispose(); screen.Dispose(); facing.Dispose();
+                snow.Dispose(); fineLift.Dispose(); finePage.Dispose(); prev.Dispose(); prevSerial.Dispose(); dots.Dispose(); screen.Dispose(); facing.Dispose();
             }
         }
 
