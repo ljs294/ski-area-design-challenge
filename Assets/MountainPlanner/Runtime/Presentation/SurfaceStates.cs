@@ -549,6 +549,99 @@ namespace MountainPlanner.Presentation
             Shader.SetGlobalVector(MoistureParamsId, new Vector4(_moisture != null && GroundLayers.GrassVariation ? 1 : 0, on ? 1 : 0, 0, 0));
         }
 
+        // ---------------- the trails' grass (task 4.29 PR B) ----------------
+
+        static readonly int TrailGrassMapId = Shader.PropertyToID("_TrailGrassMap"), TrailGrassStatesId = Shader.PropertyToID("_TrailGrassStates"),
+                            TrailGrassParamsId = Shader.PropertyToID("_TrailGrassParams");
+        /// <summary>The grass table's width in texels (layout trail t is at t mod this, t ÷ this).</summary>
+        public const int TrailGrassRow = 256;
+        /// <summary>A trail whose grass isn't known yet (the snapshot's <c>NoGrass</c>): drawn mown, as before 4.29.</summary>
+        public const byte TrailGrassUnknown = 255;
+        Texture2D _trailGrassMap, _trailGrassStates;
+        byte[] _trailGrass = System.Array.Empty<byte>();
+        int _trailGrassCount;
+        /// <summary>Uploads of the trails' grass table (tests: one per change).</summary>
+        public int TrailGrassUploads { get; private set; }
+        /// <summary>The trails' map is bound (<see cref="SetTrailGrassMap"/>).</summary>
+        public bool HasTrailGrass => _trailGrassMap != null;
+
+        /// <summary>
+        /// Binds which trail each 8 m cell draws as: <paramref name="owners"/> is <see cref="Domain.Snow.TrailCellOwners"/>'s
+        /// map of <paramref name="layout"/> (1 + the layout trail, 0 none). A layout on any other grid is refused with an error
+        /// (never silently). Every trail's grass reads unknown (drawn mown) until <see cref="SetTrailGrass"/>. Returns whether
+        /// it was bound.
+        /// </summary>
+        public bool SetTrailGrassMap(TrailSnowLayout layout, ushort[] owners)
+        {
+            if (layout == null || owners == null) return false;
+            bool grid = layout.GridWidth == Snow.Width && layout.GridHeight == Snow.Height && owners.Length == Snow.Width * Snow.Height
+                        && Mathf.Abs(layout.OriginXMm / 1000f - _ring.xMin) <= 0.001f && Mathf.Abs(layout.OriginYMm / 1000f - _ring.yMin) <= 0.001f;
+            if (!grid)
+            {
+                Debug.LogError($"[SurfaceStates] the trail layout's grid ({layout.GridWidth}x{layout.GridHeight} at {layout.OriginXMm} mm, {layout.OriginYMm} mm) " +
+                               $"isn't the snow map's ({Snow.Width}x{Snow.Height} at {_ring.xMin:F3} m, {_ring.yMin:F3} m): the trails draw mown");
+                return false;
+            }
+            int trails = layout.Trails;
+            if (_trailGrassMap == null)
+            {
+                _trailGrassMap = new Texture2D(Snow.Width, Snow.Height, TextureFormat.R16, false, true)
+                {
+                    name = "Trail grass owners", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
+                };
+                Shader.SetGlobalTexture(TrailGrassMapId, _trailGrassMap);
+            }
+            _trailGrassMap.SetPixelData(owners, 0);
+            _trailGrassMap.Apply(false);
+            int rows = Mathf.Max(1, (trails + TrailGrassRow - 1) / TrailGrassRow);
+            if (_trailGrassStates == null || _trailGrassStates.height != rows)
+            {
+                DestroyTexture(_trailGrassStates);
+                _trailGrassStates = new Texture2D(TrailGrassRow, rows, TextureFormat.R8, false, true)
+                {
+                    name = "Trail grass", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
+                };
+                Shader.SetGlobalTexture(TrailGrassStatesId, _trailGrassStates);
+            }
+            if (_trailGrass.Length != TrailGrassRow * rows) _trailGrass = new byte[TrailGrassRow * rows];
+            for (int t = 0; t < _trailGrass.Length; t++) _trailGrass[t] = TrailGrassUnknown;
+            _trailGrassCount = trails;
+            UploadTrailGrass();
+            PushTrailGrassParams();
+            return true;
+        }
+
+        /// <summary>
+        /// Each layout trail's grass, % of brush (0–100, <see cref="TrailGrassUnknown"/> not known), in the bound map's order.
+        /// Uploads only when a value changed; cheap otherwise. Returns whether it uploaded.
+        /// </summary>
+        public bool SetTrailGrass(byte[] grass, int count)
+        {
+            if (_trailGrassMap == null || grass == null) return false;
+            int n = Mathf.Min(Mathf.Min(count, grass.Length), _trailGrassCount);
+            bool changed = false;
+            for (int t = 0; t < n; t++)
+                if (_trailGrass[t] != grass[t]) { _trailGrass[t] = grass[t]; changed = true; }
+            if (changed) UploadTrailGrass();
+            return changed;
+        }
+
+        /// <summary>The grass the table holds for a layout trail (tests).</summary>
+        public byte TrailGrassOf(int trail) => trail >= 0 && trail < _trailGrassCount ? _trailGrass[trail] : TrailGrassUnknown;
+
+        void UploadTrailGrass()
+        {
+            _trailGrassStates.SetPixelData(_trailGrass, 0);
+            _trailGrassStates.Apply(false);
+            TrailGrassUploads++;
+        }
+
+        /// <summary>The shader's switch: the trails' grass shows with the ground's variation (<c>-plaingrass</c> draws every
+        /// trail mown, as before 4.28 and 4.29).</summary>
+        public void PushTrailGrassParams() =>
+            Shader.SetGlobalVector(TrailGrassParamsId, _trailGrassMap != null && GroundLayers.GrassVariation
+                ? new Vector4(1, _trailGrassCount, Snow.Width, Snow.Height) : Vector4.zero);
+
         static void DestroyTexture(Texture2D t)
         {
             if (t == null) return;
@@ -574,6 +667,13 @@ namespace MountainPlanner.Presentation
             _moisture = null;
             MoistureView = false;
             Fine.Dispose();
+            Shader.SetGlobalVector(TrailGrassParamsId, Vector4.zero);
+            Shader.SetGlobalTexture(TrailGrassMapId, null);
+            Shader.SetGlobalTexture(TrailGrassStatesId, null);
+            DestroyTexture(_trailGrassMap);
+            DestroyTexture(_trailGrassStates);
+            _trailGrassMap = _trailGrassStates = null;
+            _trailGrassCount = 0;
             DestroyTexture(_depth);
             DestroyTexture(_surface);
             DestroyTexture(_lift);

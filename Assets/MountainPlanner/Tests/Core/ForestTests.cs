@@ -186,11 +186,19 @@ namespace MountainPlanner.Tests
         /// </summary>
         static readonly Dictionary<string, string> GoldenTrees = new Dictionary<string, string>
         {
+            ["t4_3"] = "ad8b35958d807f8a8b18d416018e22743872dcc89dac599f94d00a4df78a4206",
+            ["t4_4"] = "303b751035854b868c4c1d40ad0cd50348ecdb9d6bf6245093ac77b267be467f",
+            ["t0_0"] = "26a334e0f87529f9e193b1accb4379e90b976791a9185f365ad8bc803df74d6f",
+        };
+        const int GoldenTreeCount = 182149;   // task 4.27 (cache v13): forest-grown aspen crowns spaced by their own size; was 195,568 (cache v12)
+        /// <summary>The goldens before task 4.27 (owner-approved 2026-10-05, cache v12): every tree spaced by the conifer crown.</summary>
+        static readonly Dictionary<string, string> ConiferCrownGoldenTrees = new Dictionary<string, string>
+        {
             ["t4_3"] = "e5037b18efdc790dedd987ff7ecc5b12ff1a479391a4181e622f1aafdd8a7f7b",
             ["t4_4"] = "17e7c892a83a6199b0192dd636eeb4103c1073ef335114238db4807f68b0ea80",
             ["t0_0"] = "1596d39616262363aa08959648fbeee8e6b134f6f4fdf571997ca037472fa71a",
         };
-        const int GoldenTreeCount = 195568;   // owner-approved 2026-10-05: ring forest at the core's height, in stands (cache v12)
+        const int ConiferCrownGoldenTreeCount = 195568;
 
         static (PackageManifest Manifest, string Dir) JacksonHole2Km()
         {
@@ -469,6 +477,118 @@ namespace MountainPlanner.Tests
             TestContext.Progress.WriteLine($"GoldenTreeCount = {total};");
             foreach (var kv in GoldenTrees) Assert.That(Golden(kv.Key), Is.EqualTo(kv.Value), kv.Key + " golden hash");
             Assert.That(total, Is.EqualTo(GoldenTreeCount), "golden tree count");
+        }
+
+        // Task 4.27: forest-grown broadleaf crowns, spaced by their own size.
+
+        [Test]
+        public void AnEmptyCrownTableGrowsTheForestAsBefore()
+        {
+            // Every tree spaced and counted by the conifer crown, as before task 4.27: byte-identical to the goldens before it (cache v12).
+            var (manifest, dir) = JacksonHole2Km();
+            var tiles = Grid(manifest);
+            var keys = tiles.All().ToList();
+            var trees = new ForestField(manifest, dir, null, new int[SpeciesMap.Models.Length]).BuildAll(tiles);
+            string Hash(List<PlacedTree> t) => GridFile.HashValues(ForestField.Encode(t, TileGrid.TileMetres));
+            foreach (var kv in ConiferCrownGoldenTrees)
+                Assert.That(Hash(trees[keys.FindIndex(k => k.ToString() == kv.Key)]), Is.EqualTo(kv.Value), kv.Key + " golden hash");
+            Assert.That(trees.Sum(t => t.Count), Is.EqualTo(ConiferCrownGoldenTreeCount), "golden tree count");
+        }
+
+        [Test]
+        public void TheCrownTableMatchesTheTreeLibrary()
+        {
+            string json = null;
+            foreach (string start in new[] { TestContext.CurrentContext.TestDirectory, Environment.CurrentDirectory })
+                for (var d = new DirectoryInfo(start); d != null && json == null; d = d.Parent)
+                {
+                    string candidate = Path.Combine(d.FullName, "tools", "assets", "trees", "species.json");
+                    if (File.Exists(candidate)) json = File.ReadAllText(candidate);
+                }
+            if (json == null) Assert.Ignore("tools/assets/trees/species.json is not available here.");
+            var table = ForestPlacement.BroadleafCrowns.ToDictionary(c => c.Model, c => c.Share256);
+            var deciduous = new List<string>();
+            foreach (string block in Regex.Split(json, "\\{\\s*\"id\"").Skip(1))
+            {
+                string id = Regex.Match(block, "^\\s*:\\s*\"([a-z_]+)\"").Groups[1].Value;
+                if (!Regex.IsMatch(block, "\"form\"\\s*:\\s*\"deciduous\"")) continue;
+                deciduous.Add(id);
+                double crown = double.Parse(Regex.Match(block, "\"crownRadius\"\\s*:\\s*([0-9.]+)").Groups[1].Value,
+                                            System.Globalization.CultureInfo.InvariantCulture);
+                Assert.That(table.ContainsKey(id), id + " has a crown in the table");
+                Assert.That(table[id], Is.EqualTo((int)Math.Round(crown * 256)), id + ": the table's crown is species.json's crownRadius");
+            }
+            Assert.That(table.Keys, Is.EquivalentTo(deciduous), "every broadleaf model, and only those");
+        }
+
+        [TestCase(20.0)]
+        [TestCase(35.0)]
+        public void BroadleafStandsCloseWithoutStackingCrowns(double height)
+        {
+            // Crowns over each point of a full, pure stand: the D4 density, about 1.5 (task 4.27). By the conifer crown a
+            // broadleaf stand stacked far deeper (BB21: about 9 at 18 m with the open-field oak).
+            var calibration = ForestCalibration.Default;
+            const double cell = ForestPlacement.CellMetres * ForestPlacement.CellMetres;
+            foreach (var (model, share) in ForestPlacement.BroadleafCrowns)
+            {
+                double r = ForestPlacement.CrownRadius(height, share), area = Math.PI * r * r;
+                double layers = ForestPlacement.TreesPerCell(1, calibration, area) * area / cell;
+                double before = ForestPlacement.TreesPerCell(1, height, calibration) * area / cell;
+                Assert.That(layers, Is.LessThanOrEqualTo(calibration.DensityFactor + 1e-9), $"{model} at {height} m: {layers:F2} crowns deep");
+                Assert.That(before, Is.GreaterThan(layers), $"{model}: the conifer rule stacked its crowns ({before:F2})");
+            }
+        }
+
+        [Test]
+        public void BroadleafTreesStandApartByTheirOwnCrownsAndWidenAtOpenings()
+        {
+            var (manifest, dir) = JacksonHole2Km();
+            var plan = new ForestField(manifest, dir).Prepare(Grid(manifest));
+            new ManagedForestPlanter().Plant(plan);
+            var trees = Trees(plan);
+            int aspen = SpeciesMap.IndexOf("quaking_aspen"), variants = SpeciesMap.VariantsPerModel;
+            bool Broad(ForestPoint p) => plan.CrownShare256[p.Prototype / variants] != 0 && p.Prototype / variants != plan.KrummholzModel;
+            ForestCell CellOf(ForestPoint p)
+            {
+                int i = (p.X - plan.CellOriginX) / PoissonForest.CellFixed, j = (p.Y - plan.CellOriginY) / PoissonForest.CellFixed;
+                return plan.Cells[j * plan.CellsX + i];
+            }
+            var broad = trees.Where(Broad).ToList();
+            var conifers = trees.Where(p => !Broad(p)).ToList();
+            Assert.That(broad.Count(p => p.Prototype / variants == aspen), Is.GreaterThan(1000), "Jackson Hole grows aspen");
+            double Ratio(List<ForestPoint> list) => list.Average(p => p.Spacing256 / (double)CellOf(p).Spacing256);
+            Assert.That(Ratio(broad), Is.GreaterThan(1.05), "an aspen stands further apart than its cell's conifer spacing");
+            Assert.That(Ratio(conifers), Is.LessThanOrEqualTo(1.0), "a conifer never further");
+
+            // Edge trees: some broadleaf trees widen beyond the 85-115% jitter, no conifer does, and not every broadleaf tree.
+            int jitterMax = 32 * (218 + 77) / 256;
+            var core = broad.Where(p => CellOf(p).Kind == ForestCell.Core).ToList();
+            var widened = core.Where(p => p.Width32 > jitterMax).ToList();
+            TestContext.Progress.WriteLine($"{core.Count:N0} core broadleaf trees, {widened.Count:N0} widened at openings");
+            Assert.That(widened.Count, Is.GreaterThan(core.Count / 50), "trees beside trails and glades widen");
+            Assert.That(widened.Count, Is.LessThan(core.Count * 6 / 10), "interior trees don't");
+            Assert.That(conifers.Where(p => CellOf(p).Kind == ForestCell.Core).All(p => p.Width32 <= jitterMax), "conifers keep their width");
+            Assert.That(widened.All(p => p.Width32 <= jitterMax * (256 + ForestPlacement.EdgeWiden256) / 256), "at most 1.25 x");
+
+            // Each widened tree has open ground on the canopy map within two crown radii (never only the core's straight edge).
+            int Bit(int px, int py)
+            {
+                int mx = (px >> 8) - plan.MaskWest, my = (int)Math.Floor(((plan.MaskNorth << 8) - py) / 256.0);
+                if (mx < 0 || my < 0 || mx >= plan.MaskWidth || my >= plan.MaskHeight) return -1;
+                long bit = (long)my * plan.MaskWidth + mx;
+                return (int)((plan.CanopyMask[bit >> 6] >> (int)(bit & 63)) & 1UL);
+            }
+            foreach (var p in widened)
+            {
+                int r = PoissonForest.BroadleafCrown256(plan.CrownShare256[p.Prototype / variants], p.HeightCode);
+                bool open = false;
+                for (int d = 0; d < 8 && !open; d++)
+                {
+                    double a = d * Math.PI / 4;
+                    open = Bit(p.X + (int)(Math.Cos(a) * 2 * r), p.Y + (int)(Math.Sin(a) * 2 * r)) == 0;
+                }
+                Assert.That(open, $"a widened tree at ({p.X / 256}, {p.Y / 256}) has an opening on the map beside it");
+            }
         }
     }
 }

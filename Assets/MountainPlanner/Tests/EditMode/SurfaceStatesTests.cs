@@ -70,6 +70,67 @@ namespace MountainPlanner.Tests
             Assert.That(Shader.GetGlobalVector(pars), Is.EqualTo(Vector4.zero), "closing the mountain clears it");
         }
 
+        /// <summary>
+        /// Task 4.29 PR B: the trails' owners map and grass table reach the shader on the snow map's grid; the table uploads
+        /// only when a height changes; a layout on another grid is refused; -plaingrass and closing switch it off.
+        /// </summary>
+        [Test]
+        public void TheTrailsGrassIsBoundForTheGround()
+        {
+            int map = Shader.PropertyToID("_TrailGrassMap"), table = Shader.PropertyToID("_TrailGrassStates"), pars = Shader.PropertyToID("_TrailGrassParams");
+            var ring = new Rect(-40, -24, 80, 48);   // 10 × 6 cells
+            var states = new SurfaceStates(ring);
+            try
+            {
+                Assert.That(states.HasTrailGrass, Is.False);
+                var layout = TrailSnowLayout.Build(10, 6, -40_000, -24_000, new[] { Strip(0), Strip(16_000) }, 100_000);
+                var owners = TrailCellOwners.Build(layout);
+                UnityEngine.TestTools.LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("trail layout's grid"));
+                var elsewhere = TrailSnowLayout.Build(10, 6, -32_000, -24_000, new[] { Strip(0) }, 100_000);
+                Assert.That(states.SetTrailGrassMap(elsewhere, TrailCellOwners.Build(elsewhere)), Is.False, "another grid is refused");
+                Assert.That(states.SetTrailGrassMap(layout, owners), Is.True);
+                var bound = (Texture2D)Shader.GetGlobalTexture(map);
+                Assert.That((bound.width, bound.height), Is.EqualTo((10, 6)));
+                // Trail 1 runs north–south at x 16 m: cell (7, 2) (x 16–24 m, y −8–0 m) is its, + 1 = 2, as R16's 2 / 65535.
+                Assert.That(owners[2 * 10 + 7], Is.EqualTo(2));
+                Assert.That(bound.GetPixel(7, 2).r * 65535, Is.EqualTo(2).Within(0.01f), "rows run south to north, as the snow map's");
+                Assert.That(Shader.GetGlobalVector(pars), Is.EqualTo(new Vector4(1, 2, 10, 6)));
+                Assert.That((states.TrailGrassOf(0), states.TrailGrassOf(1)), Is.EqualTo((SurfaceStates.TrailGrassUnknown, SurfaceStates.TrailGrassUnknown)),
+                    "not known until the snapshot says: drawn mown");
+                int uploads = states.TrailGrassUploads;
+                Assert.That(states.SetTrailGrass(new byte[] { 10, 54 }, 2), Is.True);
+                Assert.That(states.SetTrailGrass(new byte[] { 10, 54 }, 2), Is.False, "nothing changed: no upload");
+                Assert.That(states.TrailGrassUploads, Is.EqualTo(uploads + 1));
+                var grass = (Texture2D)Shader.GetGlobalTexture(table);
+                Assert.That((grass.width, grass.height), Is.EqualTo((SurfaceStates.TrailGrassRow, 1)));
+                Assert.That(grass.GetPixel(1, 0).r * 255, Is.EqualTo(54).Within(0.01f));
+                GroundLayers.SetGrassVariation(false);
+                states.PushTrailGrassParams();
+                Assert.That(Shader.GetGlobalVector(pars).x, Is.Zero, "-plaingrass: every trail mown, as before");
+            }
+            finally
+            {
+                GroundLayers.SetGrassVariation(true);
+                states.Dispose();
+            }
+            Assert.That(Shader.GetGlobalVector(pars), Is.EqualTo(Vector4.zero), "closing the mountain clears it");
+        }
+
+        /// <summary>A 12 m wide trail running north–south at <paramref name="xMm"/> across the 10 × 6 grid (design mm).</summary>
+        static TrailSnowInput Strip(int xMm)
+        {
+            var stroke = new Domain.Design.Stroke(12_000, false, new[] { new Domain.Design.PointMm(xMm, -24_000), new Domain.Design.PointMm(xMm, 24_000) });
+            int row0 = int.MaxValue, rowEnd = int.MinValue;
+            Domain.Design.TrailMask.Builder.RowsOf(stroke, ref row0, ref rowEnd);
+            var b = new Domain.Design.TrailMask.Builder(row0, rowEnd);
+            b.Stamp(stroke);
+            return new TrailSnowInput
+            {
+                Mask = b.ToMask(), LineXMm = new[] { xMm, xMm }, LineYMm = new[] { -24_000, 24_000 }, WidthMm = 12_000,
+                SegmentStartMm = new[] { 0 }, SegmentEdge = new[] { 0 }, Id = (ulong)(1000 + xMm),
+            };
+        }
+
         /// <summary>A 10 × 5 table at the ring's corner: the streams in cell 0, a lake (index 1) in cells 12–13.</summary>
         static WaterBodyTable Table(Rect ring, int width = 10, int depth = 5)
         {

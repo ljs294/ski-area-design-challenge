@@ -223,9 +223,9 @@
         12.0,
         17.0
       ],
-      "crownBase": 0.5,
-      "crownShape": "narrow",
-      "crownRadius": 0.16,
+      "crownBase": 0.55,
+      "crownShape": "column",
+      "crownRadius": 0.15,
       "stems": [
         1,
         1
@@ -236,16 +236,16 @@
         24
       ],
       "primaryAngle": [
-        30.0,
-        50.0
+        20.0,
+        40.0
       ],
-      "primaryLength": 0.24,
+      "primaryLength": 0.22,
       "upward": 0.5,
       "secondaries": [
         4,
         6
       ],
-      "trunkRadius": 0.012,
+      "trunkRadius": 0.008,
       "leaf": "aspen",
       "bark": [
         "aspen",
@@ -261,7 +261,23 @@
         "#D9A826",
         "#F0D050"
       ],
-      "winterCrown": true
+      "winterCrown": true,
+      "forest": true,
+      "variantWidth": [
+        0.9,
+        1.0,
+        1.1
+      ],
+      "variantBase": [
+        1.08,
+        1.0,
+        0.6
+      ],
+      "lowLimbs": [
+        1,
+        2,
+        5
+      ]
     },
     {
       "id": "paper_birch",
@@ -273,9 +289,9 @@
         15.0,
         20.0
       ],
-      "crownBase": 0.4,
-      "crownShape": "narrow",
-      "crownRadius": 0.2,
+      "crownBase": 0.5,
+      "crownShape": "column",
+      "crownRadius": 0.16,
       "stems": [
         1,
         3
@@ -286,16 +302,16 @@
         18
       ],
       "primaryAngle": [
-        35.0,
-        60.0
+        25.0,
+        45.0
       ],
-      "primaryLength": 0.26,
+      "primaryLength": 0.24,
       "upward": 0.3,
       "secondaries": [
         4,
         7
       ],
-      "trunkRadius": 0.011,
+      "trunkRadius": 0.0075,
       "leaf": "birch",
       "bark": [
         "birch",
@@ -311,7 +327,23 @@
         "#D4A020",
         "#EACB4A"
       ],
-      "winterCrown": true
+      "winterCrown": true,
+      "forest": true,
+      "variantWidth": [
+        0.9,
+        1.0,
+        1.1
+      ],
+      "variantBase": [
+        1.08,
+        1.0,
+        0.6
+      ],
+      "lowLimbs": [
+        1,
+        2,
+        5
+      ]
     },
     {
       "id": "yellow_birch",
@@ -323,9 +355,9 @@
         18.0,
         24.0
       ],
-      "crownBase": 0.35,
-      "crownShape": "irregular",
-      "crownRadius": 0.3,
+      "crownBase": 0.45,
+      "crownShape": "ovoid",
+      "crownRadius": 0.19,
       "stems": [
         1,
         1
@@ -336,16 +368,16 @@
         14
       ],
       "primaryAngle": [
-        45.0,
-        70.0
+        30.0,
+        50.0
       ],
-      "primaryLength": 0.33,
+      "primaryLength": 0.28,
       "upward": 0.15,
       "secondaries": [
         5,
         7
       ],
-      "trunkRadius": 0.016,
+      "trunkRadius": 0.009,
       "leaf": "birch",
       "bark": [
         "yellowbirch",
@@ -361,7 +393,23 @@
         "#D8B030",
         "#C9A02A"
       ],
-      "winterCrown": true
+      "winterCrown": true,
+      "forest": true,
+      "variantWidth": [
+        0.9,
+        1.0,
+        1.1
+      ],
+      "variantBase": [
+        1.08,
+        1.0,
+        0.6
+      ],
+      "lowLimbs": [
+        1,
+        2,
+        5
+      ]
     },
     {
       "id": "sugar_maple",
@@ -373,9 +421,9 @@
         20.0,
         26.0
       ],
-      "crownBase": 0.3,
-      "crownShape": "oval",
-      "crownRadius": 0.3,
+      "crownBase": 0.5,
+      "crownShape": "ovoid",
+      "crownRadius": 0.2,
       "stems": [
         1,
         1
@@ -386,16 +434,16 @@
         14
       ],
       "primaryAngle": [
-        30.0,
-        55.0
+        25.0,
+        45.0
       ],
-      "primaryLength": 0.36,
+      "primaryLength": 0.3,
       "upward": 0.35,
       "secondaries": [
         5,
         8
       ],
-      "trunkRadius": 0.017,
+      "trunkRadius": 0.009,
       "leaf": "maple",
       "bark": [
         "furrowed",
@@ -412,7 +460,23 @@
         "#C23B22",
         "#E88A1A"
       ],
-      "winterCrown": true
+      "winterCrown": true,
+      "forest": true,
+      "variantWidth": [
+        0.9,
+        1.0,
+        1.1
+      ],
+      "variantBase": [
+        1.08,
+        1.0,
+        0.6
+      ],
+      "lowLimbs": [
+        1,
+        2,
+        5
+      ]
     },
     {
       "id": "red_maple",
@@ -424,9 +488,9 @@
         16.0,
         22.0
       ],
-      "crownBase": 0.3,
-      "crownShape": "oval",
-      "crownRadius": 0.26,
+      "crownBase": 0.45,
+      "crownShape": "ovoid",
+      "crownRadius": 0.19,
       "stems": [
         1,
         2
@@ -437,16 +501,16 @@
         16
       ],
       "primaryAngle": [
-        30.0,
-        50.0
+        25.0,
+        45.0
       ],
-      "primaryLength": 0.32,
+      "primaryLength": 0.28,
       "upward": 0.4,
       "secondaries": [
         5,
         7
       ],
-      "trunkRadius": 0.014,
+      "trunkRadius": 0.0085,
       "leaf": "maple",
       "bark": [
         "beech",
@@ -463,7 +527,23 @@
         "#A81E1E",
         "#E05A2A"
       ],
-      "winterCrown": true
+      "winterCrown": true,
+      "forest": true,
+      "variantWidth": [
+        0.9,
+        1.0,
+        1.1
+      ],
+      "variantBase": [
+        1.08,
+        1.0,
+        0.6
+      ],
+      "lowLimbs": [
+        1,
+        2,
+        5
+      ]
     },
     {
       "id": "american_beech",
@@ -475,9 +555,9 @@
         18.0,
         24.0
       ],
-      "crownBase": 0.2,
-      "crownShape": "spreading",
-      "crownRadius": 0.36,
+      "crownBase": 0.4,
+      "crownShape": "dome",
+      "crownRadius": 0.22,
       "stems": [
         1,
         1
@@ -488,16 +568,16 @@
         15
       ],
       "primaryAngle": [
-        55.0,
-        80.0
+        35.0,
+        60.0
       ],
-      "primaryLength": 0.4,
+      "primaryLength": 0.32,
       "upward": 0.12,
       "secondaries": [
         5,
         7
       ],
-      "trunkRadius": 0.017,
+      "trunkRadius": 0.0095,
       "leaf": "beech",
       "bark": [
         "beech",
@@ -519,7 +599,23 @@
         "#D2B489"
       ],
       "winterCrown": true,
-      "keptShare": 0.5
+      "keptShare": 0.5,
+      "forest": true,
+      "variantWidth": [
+        0.9,
+        1.0,
+        1.1
+      ],
+      "variantBase": [
+        1.08,
+        1.0,
+        0.6
+      ],
+      "lowLimbs": [
+        1,
+        2,
+        5
+      ]
     },
     {
       "id": "pacific_silver_fir",
@@ -837,9 +933,9 @@
         20.0,
         27.0
       ],
-      "crownBase": 0.32,
-      "crownShape": "spreading",
-      "crownRadius": 0.38,
+      "crownBase": 0.5,
+      "crownShape": "dome",
+      "crownRadius": 0.225,
       "stems": [
         1,
         1
@@ -850,18 +946,18 @@
         15
       ],
       "primaryAngle": [
-        50.0,
-        80.0
+        35.0,
+        60.0
       ],
-      "primaryLength": 0.42,
+      "primaryLength": 0.34,
       "upward": 0.12,
       "secondaries": [
         6,
         9
       ],
       "crook": 0.3,
-      "limbs": 1.4,
-      "trunkRadius": 0.019,
+      "limbs": 1.2,
+      "trunkRadius": 0.01,
       "leaf": "oak",
       "bark": [
         "oak",
@@ -884,7 +980,23 @@
         "#9E7C55"
       ],
       "keptShare": 0.3,
-      "winterCrown": true
+      "winterCrown": true,
+      "forest": true,
+      "variantWidth": [
+        0.9,
+        1.0,
+        1.1
+      ],
+      "variantBase": [
+        1.08,
+        1.0,
+        0.6
+      ],
+      "lowLimbs": [
+        1,
+        2,
+        5
+      ]
     },
     {
       "id": "black_cherry",
@@ -896,9 +1008,9 @@
         18.0,
         24.0
       ],
-      "crownBase": 0.42,
-      "crownShape": "irregular",
-      "crownRadius": 0.28,
+      "crownBase": 0.55,
+      "crownShape": "column",
+      "crownRadius": 0.18,
       "stems": [
         1,
         1
@@ -909,17 +1021,17 @@
         12
       ],
       "primaryAngle": [
-        30.0,
-        60.0
+        25.0,
+        45.0
       ],
-      "primaryLength": 0.34,
+      "primaryLength": 0.28,
       "upward": 0.35,
       "secondaries": [
         4,
         6
       ],
       "crook": 0.2,
-      "trunkRadius": 0.015,
+      "trunkRadius": 0.0085,
       "leaf": "cherry",
       "bark": [
         "cherry",
@@ -936,7 +1048,23 @@
         "#B8431F",
         "#E0B43A"
       ],
-      "winterCrown": true
+      "winterCrown": true,
+      "forest": true,
+      "variantWidth": [
+        0.9,
+        1.0,
+        1.1
+      ],
+      "variantBase": [
+        1.08,
+        1.0,
+        0.6
+      ],
+      "lowLimbs": [
+        1,
+        2,
+        5
+      ]
     }
   ]
 }

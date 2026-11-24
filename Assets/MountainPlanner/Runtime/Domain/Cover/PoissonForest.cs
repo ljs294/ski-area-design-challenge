@@ -69,6 +69,11 @@ namespace MountainPlanner.Domain.Cover
         public int SpeciesWest, SpeciesNorth, SpeciesCell;
         /// <summary>Species table index (0–255) → model.</summary>
         public int* ModelOfIndex;
+        /// <summary>
+        /// Per model, a broadleaf crown's radius as a share of the tree's height in 1/256 (task 4.27,
+        /// <see cref="ForestPlacement.BroadleafCrowns"/>); 0, or no table, spaces it by the conifer crown.
+        /// </summary>
+        public int* CrownShare256;
         /// <summary>Per model, the running total of the site's species shares (the last is the total).</summary>
         public int* SiteCumulative;
         public int Models, Variants;
@@ -206,6 +211,9 @@ namespace MountainPlanner.Domain.Cover
                         var tree = Grow(ref f, cell, px, py, Hash(tileSeed, cellIndex, k, 0x6A0E), Hash(tileSeed, cellIndex, k, 0x5E1F));
                         int lx = px - ox, ly = py - oy;
                         if (Crowded(ref s, bins, lx, ly, tree.Spacing256, maxSpacing)) continue;
+                        if (cell.Kind == ForestCell.Core) EdgeTree(ref f, px, py, ref tree);
+                        // A broadleaf crown may be wider than its cell's: every later tree must look that far.
+                        if (tree.Spacing256 > maxSpacing) maxSpacing = tree.Spacing256;
 
                         f.Points[slot + placed] = tree;
                         placed++;
@@ -236,7 +244,14 @@ namespace MountainPlanner.Domain.Cover
             int shortest = cell.HeightCode * 166 >> 8;
             if (height < shortest && height < ForestRule.TreeCode) height = shortest < ForestRule.TreeCode ? shortest : ForestRule.TreeCode;   // an understory tree is still a tree (3 m)
             int spacing = cell.Spacing256;
-            if (cell.Stand != 0)
+            int crown = CrownShare(ref f, model);
+            if (crown != 0)
+            {
+                // A broadleaf tree (task 4.27) keeps its own species' crown apart, not the conifer crown the cell is spaced by;
+                // in a stand, at its own height like the conifers below.
+                spacing = (int)((long)spacing * BroadleafCrown256(crown, cell.Stand != 0 ? height : cell.HeightCode) / CrownRadius256(cell.HeightCode));
+            }
+            else if (cell.Stand != 0)
             {
                 // A smaller tree has a smaller crown, so it may stand closer: the spacing floor follows each tree's own crown.
                 spacing = (int)((long)spacing * CrownRadius256(height) / CrownRadius256(cell.HeightCode));
@@ -266,6 +281,57 @@ namespace MountainPlanner.Domain.Cover
                 Rotation = (byte)rotation,
                 Width32 = (byte)(width < 1 ? 1 : width > 255 ? 255 : width),
             };
+        }
+
+        /// <summary>A model's broadleaf crown share (1/256 of its height), or 0 for a conifer or without a crown table.</summary>
+        public static int CrownShare(ref ForestInputs f, int model) =>
+            f.CrownShare256 == null || model < 0 || model >= f.Models ? 0 : f.CrownShare256[model];
+
+        /// <summary>A broadleaf crown's radius in 1/256 m: share × height (0.25 m steps), at least 1.2 m (<see cref="ForestPlacement.CrownRadius(double, int)"/>).</summary>
+        public static int BroadleafCrown256(int share256, int heightCode)
+        {
+            int r = share256 * heightCode / 4;
+            return r < 307 ? 307 : r;
+        }
+
+        /// <summary>
+        /// A broadleaf tree's width beside an opening (task 4.27): edge trees grow wider crowns into the light. Eight
+        /// directions are probed at 1, 1.5 and 2 crown radii in the canopy map; a direction is open when all three are
+        /// open ground (a real opening, not a 1 m gap between crowns), and probes off the map don't count, so the
+        /// core's straight edge doesn't widen a band of trees. The width grows by up to
+        /// <see cref="ForestPlacement.EdgeWiden256"/> with the open share.
+        /// </summary>
+        static void EdgeTree(ref ForestInputs f, int px, int py, ref ForestPoint tree)
+        {
+            int model = tree.Prototype / f.Variants;
+            int share = CrownShare(ref f, model);
+            if (share == 0 || model == f.KrummholzModel || f.CanopyMask == null) return;
+            int r = BroadleafCrown256(share, tree.HeightCode), counted = 0, open = 0;
+            for (int d = 0; d < 8; d++)
+            {
+                int dx = d == 0 ? 256 : d == 1 ? 181 : d == 2 ? 0 : d == 3 ? -181 : d == 4 ? -256 : d == 5 ? -181 : d == 6 ? 0 : 181;
+                int dy = d == 0 ? 0 : d == 1 ? 181 : d == 2 ? 256 : d == 3 ? 181 : d == 4 ? 0 : d == 5 ? -181 : d == 6 ? -256 : -181;
+                int state = 1;   // 1 open, 0 closed, -1 off the map
+                for (int k = 256; k <= 512 && state == 1; k += 128)
+                {
+                    long reach = (long)r * k >> 8;
+                    int bit = CanopyBit(ref f, px + (int)(dx * reach >> 8), py + (int)(dy * reach >> 8));
+                    if (bit < 0) state = -1;
+                    else if (bit == 1) state = 0;
+                }
+                if (state < 0) continue;
+                counted++;
+                if (state == 1) open++;
+            }
+            // The last variant is the low-branched one (task 4.27): a tree beside an opening keeps its lower limbs, one
+            // inside the stand has pruned them, so it takes the others.
+            int variant = tree.Prototype % f.Variants, low = f.Variants - 1;
+            bool edge = counted > 0 && open * ForestPlacement.EdgeVariantShare4 >= counted;
+            if (f.Variants > 1 && edge != (variant == low))
+                tree.Prototype = (byte)(model * f.Variants + (edge ? low : variant % low));
+            if (counted == 0 || open == 0) return;
+            int w = tree.Width32 * (256 + ForestPlacement.EdgeWiden256 * open / counted) >> 8;
+            tree.Width32 = (byte)(w > 255 ? 255 : w);
         }
 
         /// <summary><see cref="ForestPlacement.CrownRadius"/> in 1/256 m for a height in 0.25 m steps: 0.1 h + 0.6 m, 1.2–4.5 m.</summary>
@@ -368,13 +434,16 @@ namespace MountainPlanner.Domain.Cover
             if (j1 >= f.CellsY) j1 = f.CellsY - 1;
         }
 
-        static bool IsCanopyTree(ref ForestInputs f, int px, int py)
+        static bool IsCanopyTree(ref ForestInputs f, int px, int py) => CanopyBit(ref f, px, py) == 1;
+
+        /// <summary>The canopy map at a frame position: 1 a tree, 0 open ground, -1 off the map (or no map).</summary>
+        static int CanopyBit(ref ForestInputs f, int px, int py)
         {
-            if (f.CanopyMask == null) return false;
+            if (f.CanopyMask == null) return -1;
             int mx = (px >> 8) - f.MaskWest, my = FloorDiv((f.MaskNorth << 8) - py, Fixed);   // a pixel owns its west and north edges, as in the grids
-            if (mx < 0 || my < 0 || mx >= f.MaskWidth || my >= f.MaskHeight) return false;
+            if (mx < 0 || my < 0 || mx >= f.MaskWidth || my >= f.MaskHeight) return -1;
             long bit = (long)my * f.MaskWidth + mx;
-            return ((f.CanopyMask[bit >> 6] >> (int)(bit & 63)) & 1UL) != 0;
+            return (int)((f.CanopyMask[bit >> 6] >> (int)(bit & 63)) & 1UL);
         }
 
         /// <summary>True when a tree at (lx, ly) with this spacing would stand too close to one already there.</summary>

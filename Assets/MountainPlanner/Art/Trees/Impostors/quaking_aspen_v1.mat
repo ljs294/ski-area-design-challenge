@@ -37,12 +37,14 @@ Material:
     - _Cutoff: 0.35
     - _ImpFrameSize: 96
     - _ImpFrames: 8
+    - _ImpRelief: 0.45
+    - _ImpSharpen: 1
     - _SnowLoad: 1
     - _SnowScale: 1
     - _Translucency: 0.6
     m_Colors:
-    - _ImpCenter: {r: -0.66714394, g: 7.1087894, b: 0.022415042, a: 0}
-    - _ImpSize: {r: 5.2782955, g: 16.241854, b: 0, a: 0}
+    - _ImpCenter: {r: -0.39713335, g: 7.496301, b: -0.124195576, a: 0}
+    - _ImpSize: {r: 2.450316, g: 17.008785, b: 0, a: 0}
     - _SnowColor: {r: 0.93, g: 0.95, b: 0.97999996, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

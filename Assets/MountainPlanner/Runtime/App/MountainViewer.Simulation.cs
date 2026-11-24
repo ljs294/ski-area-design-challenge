@@ -542,6 +542,7 @@ namespace MountainPlanner.App
             DrainFineTiles(s);
             ShowLakes(s);   // task 4.09 PR B: before the paused return, so a reopened save shows its ice while paused
             ShowPondLevels(s);   // task 4.14 PR B: the same, for the water a pond or reservoir holds
+            ShowTrailGrass(s);   // task 4.29 PR B: each trail's grass on the ground
             EaseSiteSnow();
             // SI-17: once the opening's snowpack is in, the worker gets the whole field (unless a save brought its own). Task 4.07
             // PR A2: only as a seed (-snowseed, captures) or when the snow's inputs failed; a new game otherwise starts bare.

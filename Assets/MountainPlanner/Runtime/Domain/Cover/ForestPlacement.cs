@@ -61,6 +61,48 @@ namespace MountainPlanner.Domain.Cover
             return Math.Min(MaxTreesPerCell, treeShare * calibration.DensityFactor * crowns);
         }
 
+        /// <summary>Calibrated trees in one 10 m cell whose trees' mean crown area (m²) is known (a mix of species).</summary>
+        public static double TreesPerCell(double treeShare, ForestCalibration calibration, double meanCrownArea) =>
+            Math.Min(MaxTreesPerCell, treeShare * calibration.DensityFactor * CellMetres * CellMetres / meanCrownArea);
+
+        /// <summary>
+        /// Task 4.27: each broadleaf model's crown radius as a share of its height, in 1/256 (species.json <c>crownRadius</c>,
+        /// forest-grown: a stand's crowns, not an open-field tree's; a Core test checks they match). 0: the model is spaced
+        /// by the conifer crown <see cref="CrownRadius(double)"/>.
+        /// </summary>
+        public static readonly (string Model, int Share256)[] BroadleafCrowns =
+        {
+            ("quaking_aspen", 38), ("paper_birch", 41), ("black_cherry", 46), ("yellow_birch", 49), ("red_maple", 49),
+            ("sugar_maple", 51), ("american_beech", 56), ("northern_red_oak", 58),
+        };
+
+        /// <summary>The crown share (1/256 of height) per model in <see cref="Flora.SpeciesMap.Models"/> order; 0 for conifers.</summary>
+        public static int[] CrownShares256()
+        {
+            var shares = new int[Flora.SpeciesMap.Models.Length];
+            foreach (var (model, share) in BroadleafCrowns) shares[Flora.SpeciesMap.IndexOf(model)] = share;
+            return shares;
+        }
+
+        /// <summary>Crown radius (metres) of a tree of this height with this crown share (1/256; 0: the conifer formula).</summary>
+        public static double CrownRadius(double height, int share256) =>
+            share256 == 0 ? CrownRadius(height) : Math.Max(MinBroadleafCrown, share256 / 256.0 * height);
+
+        /// <summary>The smallest broadleaf crown radius (metres), as the conifer formula's floor.</summary>
+        public const double MinBroadleafCrown = 1.2;
+
+        /// <summary>
+        /// Task 4.27: a broadleaf tree beside an opening (a trail, a glade, the forest's edge) grows a wider crown into the
+        /// light. Its width grows by up to this share with the share of directions that are open.
+        /// </summary>
+        public const int EdgeWiden256 = 64;
+
+        /// <summary>
+        /// Task 4.27: a broadleaf tree with at least 1/this of its directions open takes the low-branched variant (the last);
+        /// every other core broadleaf tree takes one of the others (a stand's interior trees have pruned their lower limbs).
+        /// </summary>
+        public const int EdgeVariantShare4 = 4;
+
         /// <summary>Ring thinning: 1 at the core's edge, easing to <see cref="RingMinDensity"/>.</summary>
         public static double RingDensity(double metresOutsideCore)
         {

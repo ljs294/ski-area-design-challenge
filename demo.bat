@@ -428,10 +428,18 @@ echo   4.26 bug bash PR N: lift lines that bend and fill from behind (builds the
 echo     161 The drawn resort on January 15, busy: the lift lines run straight back from the terminal, curve
 echo        round their folds and stand clear of the trees; when a chair takes fewer than a row the guests behind
 echo        step straight forward in their own lane.
+echo   4.29 trail grass PR B: each trail's grass on the ground, and the card's Grass line
+echo     156 The tests, then mid-July on a scratch copy of your Gilford save (or the drawn resort), three times:
+echo        every trail mown as before, then as the simulation grows it, then short, long and brush in turn.
+echo     157 The trail card pictures (each card's Grass line in the log), then the game
+echo        on that save for your hands-on check. Both rebuild the game; close the editor first.
 echo   4.29 trail grass PR A: grass grows on a trail, a skied winter kills it, mowing keeps it short (.NET only)
 echo     155 The grass and save tests, then two label years on the test mountain from bare ground (a few
 echo        minutes): two natural twins, the first mown every autumn; each one's grass every October 1 and April,
 echo        and the first day each winter it is Covered. The mown one needs less snow and opens no later.
+echo   4.27 deciduous trees: forest-grown broadleaf crowns, eastern heights and density (rebuilds the game)
+echo     150 The forest tests, then your Jackson NH map in mid-July and in winter: narrower hardwood
+echo        crowns in the stands, low-branched trees along trails and edges, eastern trees no taller than the lidar.
 echo   4.28 ground grass: wet hollows, dry ridges and the season (rebuilds the game; close the editor first)
 echo     154 The moisture and season tests, then the game four times in mid-July on your Jackson NH map (or the
 echo        demo mountain), a scratch copy: the old plain grass, the new grass, early October (gold), and the
@@ -657,9 +665,12 @@ if /i "%CHOICE%"=="146" goto tests426
 if /i "%CHOICE%"=="147" goto pads426
 if /i "%CHOICE%"=="161" goto lines426
 if /i "%CHOICE%"=="149" goto garbage426
+if /i "%CHOICE%"=="150" goto trees427
 if /i "%CHOICE%"=="154" goto grass428
 if /i "%CHOICE%"=="119" goto snowlook408a
 if /i "%CHOICE%"=="155" goto grass429
+if /i "%CHOICE%"=="156" goto grassb429
+if /i "%CHOICE%"=="157" goto cardb429
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -1343,6 +1354,103 @@ dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedN
 echo.
 echo   Part 2 (.NET, a few minutes): two years, mown beside unmown.
 dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "Name=SN37_TwoYearsMownBesideUnmown" --logger "console;verbosity=normal" <nul | findstr /l /c:"[two years]" /c:"Passed" /c:"Failed"
+goto menu
+
+:grassb429
+rem 4.29 PR B: the trails' grass on the ground (SN-35), summer look only (owner 2026-11-23).
+chcp 65001 >nul
+echo.
+echo   Part 1 (.NET, about a minute): each 8 m cell draws as the trail that owns most of it.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TrailSnowLayoutTests" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+call :grassb429setup
+if not exist "%GAME%" goto done
+echo.
+echo   1 of 3, before: mid-July, every trail the even mown stripe it always was. Close the game for the next.
+pause
+"%GAME%" -data "%GB%" -notitle -offline %GBARG% -season summer -plaingrass <nul
+echo   2 of 3, after: each trail as the simulation has it. A trail built this year is long grass (half height):
+echo   its stripe fades into the meadow beside it. Graded trails start bare and mown-short.
+pause
+"%GAME%" -data "%GB%" -notitle -offline %GBARG% -season summer <nul
+echo   3 of 3: the trails short, long and brush in turn (the look only; nothing is saved). Short is the fresh,
+echo   even stripe; long and brush turn back into the meadow beside them, like ground that was never a trail.
+pause
+"%GAME%" -data "%GB%" -notitle -offline %GBARG% -season summer -trailgrass 10,50,100 <nul
+goto menu
+
+:cardb429
+rem 4.29 PR B: the trail card's Grass line (SN-36); Mowing is off the card (owner 2026-11-23).
+chcp 65001 >nul
+call :grassb429setup
+if not exist "%GAME%" goto done
+set "GBOUT=%~dp0test-results\p4-29b\cards"
+if exist "%GBOUT%" rmdir /s /q "%GBOUT%"
+echo.
+echo   Part 1: the card pictures on December 15 (the list, a Covered, a Bare and a Marginal card); the log lists
+echo   each card's Grass line.
+start "" /wait "%GAME%" -data "%GB%" -notitle -offline %GBARG% -simto 12-15 -trailcardshots "%GBOUT%" -logFile "%~dp0test-results\p4-29b\cards.log"
+findstr /l /c:"[TrailCards]" "%~dp0test-results\p4-29b\cards.log"
+if exist "%GBOUT%" start "" "%GBOUT%"
+echo.
+echo   Part 2: the game for your hands-on check. Open a trail's card: Grass, Short, Long or Brush and the snow it
+echo   needs to be Covered.
+pause
+"%GAME%" -data "%GB%" -notitle -offline %GBARG% <nul
+goto menu
+
+:grassb429setup
+call :buildplayer
+if not exist "%GAME%" exit /b 0
+set "GB=%LOCALAPPDATA%\SkiAreaDesignChallenge-grass429b"
+if exist "%GB%" rmdir /s /q "%GB%"
+mkdir "%GB%"
+set "GBPKG=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts\920664685ffa7122"
+set "GBSAVE=%LOCALAPPDATA%\SkiAreaDesignChallenge\Saves\920664685ffa7122\autosave"
+set "GBARG=-drawnresort"
+if exist "%GBPKG%\manifest.json" if exist "%GBSAVE%\save.json" (
+    echo   Copying your Gilford map and its autosave into a scratch folder (yours are only read^)...
+    robocopy "%GBPKG%" "%GB%\Gilford" /e /nfl /ndl /njh /njs /np >nul
+    robocopy "%GBSAVE%" "%GB%\Saves\920664685ffa7122\autosave" /e /nfl /ndl /njh /njs /np >nul
+    set "GBARG=-package "%GB%\Gilford" -opensave "%GB%\Saves\920664685ffa7122\autosave""
+)
+if "%GBARG%"=="-drawnresort" echo   Your Gilford save isn't here; the drawn resort opens instead.
+exit /b 0
+
+:trees427
+rem 4.27: forest-grown broadleaf trees (owner 2026-11-22: narrow crowns 0.30-0.45 x height, edge trees low-branched,
+rem eastern heights x1.26 with density x1.15, the same tree count as before). Terrain cache v13 rebuilds on first open.
+chcp 65001 >nul
+echo.
+echo   Part 1 (.NET, about a minute): the forest tests (each broadleaf crown matches the tree library, crowns spaced by
+echo   their own size, the same trees every time, the old conifer-crown forest kept exactly when the table is empty).
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~ForestTests" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+echo.
+echo   Part 2: the game (rebuilding it first, a few minutes).
+call :buildplayer
+if not exist "%GAME%" goto done
+set "TR427=%LOCALAPPDATA%\SkiAreaDesignChallenge-trees427"
+if exist "%TR427%" rmdir /s /q "%TR427%"
+mkdir "%TR427%"
+set "TR427PKG=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts\0cf7b7bd1e05e710"
+set "TR427ARG="
+if exist "%TR427PKG%\manifest.json" (
+    echo   Copying your Jackson NH map into the scratch folder (yours is only read^)...
+    robocopy "%TR427PKG%" "%TR427%\JacksonNH" /e /nfl /ndl /njh /njs /np >nul
+    set "TR427ARG=-package "%TR427%\JacksonNH""
+) else (
+    echo   Your Jackson NH map isn't in the library; the demo mountain opens instead.
+)
+echo.
+echo   1 of 3, mid-July: the hardwoods stand close with narrow crowns; trees beside the trails and the forest's edge
+echo   keep their low limbs. Their crowns are still bare in every season (leaves in the game come later, Part 4). The first open rebuilds the map's tiles (cache v13), a minute or two. Close the game for the next.
+pause
+"%GAME%" -data "%TR427%" -notitle -offline %TR427ARG% -season summer <nul
+echo   2 of 3, the same day, low over a stand: fly along a trail to see the edge trees.
+pause
+"%GAME%" -data "%TR427%" -notitle -offline %TR427ARG% -season summer -view -150,250,160,330,14 <nul
+echo   3 of 3, the opening winter day: the bare hardwoods among the conifers.
+pause
+"%GAME%" -data "%TR427%" -notitle -offline %TR427ARG% <nul
 goto menu
 
 :grass428
