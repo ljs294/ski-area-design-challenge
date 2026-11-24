@@ -529,6 +529,9 @@ namespace MountainPlanner.App
             {
                 _simFailureShown = true;
                 Debug.LogException(_sim.Failure);
+                // Task 4.26 BB25: nobody is at an unattended run's screen, and its capture waits on a clock that has stopped
+                // (a -simto run held the render lane to its 120-minute limit): it quits with an error code instead.
+                if (MountainPlanner.App.Diagnostics.UnattendedRun.FailRun("the simulation stopped: " + _sim.Failure.Message)) return;
                 Toast("The simulation stopped: " + _sim.Failure.Message);
                 Hud?.Toast("The simulation stopped — F1 says what happened");
             }

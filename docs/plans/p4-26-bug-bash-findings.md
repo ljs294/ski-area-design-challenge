@@ -41,6 +41,8 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB21 | Owner, 2026-11-21 | Deciduous trees seem way too big, and the owner isn't loving how they look in game | Audit the deciduous trees and report the findings as a plan to make them look more normal | | Audited: a plan for the owner (5 steps); the model rebuild goes to its own thread after the owner's OK |
 | BB22 | 4.26 thread, 2026-11-22 (demo 41 for PR L) | Every frame allocates 88 bytes on main (1.15 MB over the benchmark's High lap; the release heap grows 2.5 MB), where the Nov 17 baselines allocated nothing | The benchmark's garbage check passes: nothing allocates per frame | | Fixed in PR M: two per-frame methods made a lambda's closure at every call; demo 149 |
 | BB23 | 4.08 thread via 0.0, 2026-11-23 | A capture or screenshot run with a bad `-opensave` value (it was given the save's folder name) throws in `OpenSaveForCapture`, the rest of Start is skipped and the player never quits: it held the render lane for 2 hours, until gpu.ps1's limit | Any capture switch whose setup fails logs the error and quits with a nonzero exit code (every capture switch, not just `-opensave`) | | Fixed in PR O: an unattended run (batch mode, a GPU lane's job) whose start fails quits with exit code 1 |
+| BB24 | 4.27 thread via 0.0, 2026-11-23 | 4.29 B's card capture at Gilford (`-simto 12-15`): the simulation's worker threw `DivideByZeroException` in `FineSnow.DepthUm`, from the Grooming tab's preview of tonight (`WriteGrooming` → `PreviewTonight` → `BuildTasks` → `TrailSnapshot`), and the clock stopped | The simulation never crashes there; fix it in the grooming preview, not in `FineSnow.cs` (4.08 owns it); no format bump, and stop before any golden or pin moves | | Fixed in PR P: the preview and the hours since a groom wait for the hour's snow in flight (the last preview stays on show); a grooming order finishes that hour first |
+| BB25 | 4.27 thread via 0.0, 2026-11-23 | The same capture: once the worker had died, the player waited for a day that never came and held the render lane to gpu.ps1's 120-minute limit. BB23 covers only a failed setup | An unattended run whose simulation dies quits with a nonzero exit code, as BB23 does for a failed setup | | Fixed in PR P: an unattended run (batch mode, a GPU lane's job) quits with exit code 1 when its simulation stops |
 
 Each finding's cause, fix and evidence are recorded in its own section below as it is worked.
 
@@ -498,3 +500,39 @@ applies where a start can fail:
 Evidence: the same run now quits with exit code 1 after 12 s and logs `[Unattended] setup failed (Couldn't open the
 area: save.json is missing.)`. `UnattendedRunTests` checks the rule (batch mode, either lane, a blank lane, the editor)
 and that the editor only logs. The lane path isn't run on the GPU; the rule test covers it.
+
+## BB24: the Grooming tab's preview crashes the simulation (4.27, via 0.0)
+
+Every hour the worker's hour step runs the trails (whose grooming marks tonight's preview due) and then starts the hour's
+snow on the snow crew's threads. That job writes the fine trail cells (`FineSnow.ShareHour`, `Settle`, `SeedBlock`; a
+cell that melts out gets density 0) until it is joined at its landing, 312,000 face ms later (`Pacing.SnowLandFaceMs`).
+The next snapshot's `WriteGrooming` remade the preview at once and read those cells on the worker thread meanwhile.
+`DepthUm` checks the density and then divides by it, so a crew thread that zeroed the cell in between made it divide by
+zero. Thin, melting November snow at Gilford made that likely. Before it crashed, the preview read half-updated snow, and
+an order or a fleet change mid-night replanned the real night from it (`ReplanNow`), so the plan also depended on thread
+timing. 4.08 traced the same and pointed out the second read: the hours since each trail's groom after a reopen.
+
+Fix (Simulation only; `FineSnow.cs` untouched, 4.08 owns it):
+
+- `WriteGrooming` remakes tonight's preview and fills the hours since a groom only when no hour's snow is in flight, as
+  `StageFine` does. Meanwhile the last preview stays on show. A new trail layout drops it, so a preview made for the old
+  layout is never shown.
+- `ApplyGrooming` (an order, a fleet change) joins the hour in flight first, as `PaintSnow` and `SetTrailSnow` do. It
+  keeps its landing tick, so the bytes are the same, and an order still shows in the preview at once. Joining at every
+  snapshot instead would have lost the hour's overlap every hour.
+
+Evidence: `GroomingTests.BB24_TonightsPreviewWaitsForTheHoursSnowAndAnOrderFinishesItFirst` fails on the old code (the
+preview was remade with the snow in flight) and passes. All 21 grooming tests and the golden season (`SI08`, hashes
+unchanged), trail snow, sidecar, paint and `SimWorldTests` pass, 117 of 117. Not reproduced on the GPU: the crash is a race,
+and the test checks the rule that removes it.
+
+## BB25: a capture run whose simulation dies never quits (4.27, via 0.0)
+
+BB23 quits an unattended run whose setup fails. Here the setup had worked, and the simulation's worker died later
+(BB24). `RunClock` logged it and showed a toast, the clock stopped, and a `-simto` capture waited for a day that never
+came, until gpu.ps1's 120-minute limit.
+
+Fix: `UnattendedRun.FailRun`, used by `RunClock` when the worker has failed. An unattended run (batch mode, a GPU lane's
+job) logs why and quits with exit code 1. The game played by hand keeps the toast and the F1 report, and so does the
+editor. Evidence: `UnattendedRunTests` (the editor only logs a stopped run), with the compile check. The quit itself
+isn't run on the GPU; it is BB23's quit, which was run in batch mode.

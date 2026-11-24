@@ -167,6 +167,7 @@ namespace MountainPlanner.Tests
             Assert.IsFalse(UnattendedRun.IsUnattended(editor: true, batchMode: true, lane: "render"), "the editor never quits");
             Assert.AreEqual("MP_GPU_LANE", UnattendedRun.LaneVariable, "the variable tools/gpu/gpu.ps1 sets");
             Assert.AreNotEqual(0, UnattendedRun.SetupFailedExitCode);
+            Assert.AreNotEqual(0, UnattendedRun.StoppedExitCode, "a run whose simulation died (BB25)");
         }
 
         [Test]
@@ -174,6 +175,15 @@ namespace MountainPlanner.Tests
         {
             LogAssert.Expect(LogType.Exception, "InvalidOperationException: no such save");
             Assert.IsFalse(UnattendedRun.FailSetup("a test", new InvalidOperationException("no such save")));
+        }
+
+        [Test]
+        public void InTheEditorAStoppedRunIsLoggedButNeverQuits()
+        {
+            // BB25: a run whose simulation died after its setup
+            LogAssert.Expect(LogType.Exception, "DivideByZeroException: Attempted to divide by zero.");
+            Assert.IsFalse(UnattendedRun.FailRun("a test", new DivideByZeroException()));
+            Assert.IsFalse(UnattendedRun.FailRun("a test, already logged"));
         }
     }
 }
