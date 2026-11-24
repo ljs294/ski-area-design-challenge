@@ -104,5 +104,39 @@ namespace MountainPlanner.Tests
             m.Add(TrailSnowLabel.Covered, 0, 100, 2, Snow(SnowType.PP), OperatingStatus.Open, 1000);
             Assert.That(m.Signature, Is.Not.EqualTo(sig), "a rating change redraws");
         }
+
+        /// <summary>Task 4.29 PR B: the Grass line, by length over the runs whose grass is known, and the snow it needs (SN-36).</summary>
+        [Test]
+        public void TC06_TheGrassLineAndTheSnowItNeeds()
+        {
+            var m = new TrailCardModel();
+            m.Add(TrailSnowLabel.None, 0, 0, 0, 0, OperatingStatus.Open, 1000);
+            Assert.That(m.GrassPct, Is.EqualTo(-1));
+            Assert.That(m.GrassText(false), Is.EqualTo("—"), "not known yet");
+            long before = m.Signature;
+            m.Clear();
+            m.Add(TrailSnowLabel.None, 0, 0, 0, 0, OperatingStatus.Open, 1000, 54);
+            Assert.That(m.Signature, Is.Not.EqualTo(before), "the grass coming in redraws, even before the snow");
+            Assert.That(m.GrassText(false), Is.EqualTo("Long · needs 12 in"), "natural: 9 in + 6 in × 54 % (311 mm)");
+            Assert.That(m.GrassText(false, imperial: false), Is.EqualTo("Long · needs 31 cm"));
+
+            var line = new TrailCardModel();
+            line.Add(TrailSnowLabel.Covered, 0, 100, 3, Snow(SnowType.PP), OperatingStatus.Open, 3000, 10);
+            line.Add(TrailSnowLabel.Covered, 0, 100, 3, Snow(SnowType.PP), OperatingStatus.Open, 1000, 90);
+            line.Add(TrailSnowLabel.Covered, 0, 100, 3, Snow(SnowType.PP), OperatingStatus.Open, 5000, SimSnapshot.NoGrass);
+            Assert.That(line.GrassPct, Is.EqualTo(30), "(10 × 3 + 90 × 1) ÷ 4; a run not known yet doesn't count");
+            long sig = line.Signature;
+            Assert.That(line.GrassText(true), Is.EqualTo("Long · needs 8 in"), "graded: 6 in + 6 in × 30 % (197 mm)");
+
+            var mown = new TrailCardModel();
+            mown.Add(TrailSnowLabel.Covered, 0, 100, 3, Snow(SnowType.PP), OperatingStatus.Open, 1000, 10);
+            Assert.That(mown.GrassText(true), Is.EqualTo("Short · needs 7 in"), "graded, mown: 6 in + 0.6 in");
+            Assert.That(mown.Signature, Is.Not.EqualTo(sig));
+            var brush = new TrailCardModel();
+            brush.Add(TrailSnowLabel.Covered, 0, 100, 3, Snow(SnowType.PP), OperatingStatus.Open, 1000, 100);
+            Assert.That(brush.GrassText(false), Is.EqualTo("Brush · needs 15 in"), "natural brush: 9 in + 6 in");
+            Assert.That((TrailCardModel.GrassWord(15), TrailCardModel.GrassWord(16), TrailCardModel.GrassWord(84), TrailCardModel.GrassWord(85)),
+                Is.EqualTo(("Short", "Long", "Long", "Brush")));
+        }
     }
 }

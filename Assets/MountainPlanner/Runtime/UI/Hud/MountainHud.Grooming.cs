@@ -865,14 +865,14 @@ namespace MountainPlanner.UI
             {
                 _trailCardGroom = new VisualElement { name = "trail-card-grooming" };
                 _trailCardGroom.AddToClassList("lift-sched");
-                int at = _trailCard.IndexOf(_trailCardSwitch);
+                int at = _trailCard.IndexOf(_trailCardSnowKv);   // under More details (owner 2026-11-23)
                 _trailCard.Insert(at + 1, _trailCardGroom);
             }
             foreach (var d in _trailCardGroomMenus) d.Close();
             _trailCardGroomMenus.Clear();
             _trailCardGroom.Clear();
             var g = t.Built ? TrailGroomingOf?.Invoke(t.Id) : null;
-            _trailCardGroom.EnableInClassList("hidden", !g.HasValue);
+            _trailCardGroom.EnableInClassList("hidden", !g.HasValue || !_trailCardMoreOpen);
             if (!g.HasValue) return;
             ulong id = t.Id;
             var row = _groomModel?.RowOf(id);

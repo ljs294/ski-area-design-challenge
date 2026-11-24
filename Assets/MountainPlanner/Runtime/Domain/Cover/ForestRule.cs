@@ -144,6 +144,19 @@ namespace MountainPlanner.Domain.Cover
         /// </summary>
         public static readonly ForestCalibration Default = new ForestCalibration("Jackson Hole (WY) lidar, 2020", 1.5, 1.6, 2.2);
 
+        /// <summary>
+        /// Task 4.27: east of <see cref="EastOfLongitude"/>, the New England lidar's dominant height (forest-structure report
+        /// §9: the mean of Loon, Stowe, Killington, Sunday River and Sugarloaf, ×1.26), so a 15 m hardwood canopy isn't drawn
+        /// 28 m tall. Density: <see cref="EastDensityFactor"/>. NE8 tried ×0.93 with the old models and read pale and thin.
+        /// </summary>
+        public static readonly ForestCalibration East = new ForestCalibration("New England lidar mean, 2026", EastDensityFactor, 1.6 * 1.26 / 2.2, 1.26);
+
+        public const double EastOfLongitude = -100, EastDensityFactor = 1.15;   // owner 2026-11-22: the same tree count as before task 4.27 (Jackson NH 760k vs 759k)
+
+        /// <summary>The calibration for a site at this longitude (degrees east; 0 with latitude 0: unknown, the default).</summary>
+        public static ForestCalibration ForSite(double latitude, double longitude) =>
+            (latitude != 0 || longitude != 0) && longitude > EastOfLongitude ? East : Default;
+
         /// <summary>A calibrated height in metres for one 1 m canopy cell.</summary>
         public double TreeHeight(byte canopy) => canopy * ForestRule.CanopyStep * HeightFactor;
 

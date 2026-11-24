@@ -92,10 +92,21 @@ namespace MountainPlanner.Tests
             Assert.That(cardKeys, Does.Not.Contain("Grading").And.Not.Contain("Game rates it"));
             var status = root.Q("trail-card").Query<Label>(className: "tw-kv__k").Where(l => l.text == "Status").First();
             Assert.That(status.parent.Q<Label>(className: "tw-kv__v").text, Is.EqualTo("Closed"));
+            // Owner 2026-11-23: the card opens short, Conditions among its figures; More details unfolds the grade, the snow and
+            // grass (task 4.29 PR B) and grooming, and stays unfolded for the next card.
+            var shortKeys = root.Q("trail-card").Q(className: "tw-kv").Query<Label>(className: "tw-kv__k").ToList().Select(l => l.text).ToList();
+            Assert.That(shortKeys, Is.EqualTo(new[] { "Posted", "Length", "Vertical", "Status", "Conditions" }));
+            Assert.That(root.Q("trail-card-snow").ClassListContains("hidden"), Is.True, "the details are folded");
+            Assert.That(root.Q<Button>("trail-card-more").Q<Label>(className: "trail-card__more-t").text, Is.EqualTo("More details"));
+            hud.SetTrailCardMoreForTest(true);
+            yield return Frames(2);
+            Assert.That(hud.TrailCardMoreOpen, Is.True);
+            Assert.That(root.Q("trail-card-snow").ClassListContains("hidden"), Is.False, "More details unfolds them");
+            Assert.That(root.Q<Button>("trail-card-more").Q<Label>(className: "trail-card__more-t").text, Is.EqualTo("Fewer details"));
             // Task 4.07 B2: the snow rows read "—" before the snow; wired, the switch is Auto | Open | Closed, one click one choice,
             // and Status says why.
             var snowKeys = root.Q("trail-card-snow").Query<Label>(className: "tw-kv__k").ToList().Select(l => l.text).ToList();
-            Assert.That(snowKeys, Is.EqualTo(new[] { "Conditions", "Cover", "Snow rating", "Snow" }));
+            Assert.That(snowKeys, Is.EqualTo(new[] { "Average grade", "Cover", "Snow rating", "Snow", "Grass" }));
             Assert.That(root.Q("trail-card-switch").ClassListContains("hidden"), Is.True, "no switch until the app wires it");
             var sw = MountainPlanner.Domain.Design.TrailSwitch.Auto;
             MountainPlanner.Domain.Design.TrailSwitch? chosen = null;
@@ -113,9 +124,14 @@ namespace MountainPlanner.Tests
             Assert.That(chosen, Is.EqualTo(MountainPlanner.Domain.Design.TrailSwitch.Closed));
             Assert.That(hud.TrailCardSwitchForTest()[2].On, Is.True, "the card shows the new switch at once");
             var snowValues = root.Q("trail-card-snow").Query<Label>(className: "tw-kv__v").ToList().Select(l => l.text).ToList();
-            Assert.That(snowValues, Is.EqualTo(new[] { "Covered", "97%", "Good", "Packed powder" }));
+            Assert.That(snowValues, Is.EqualTo(new[] { "0%", "97%", "Good", "Packed powder", "—" }), "no grass known yet: —");
+            var conditions = root.Q("trail-card").Query<Label>(className: "tw-kv__k").Where(l => l.text == "Conditions").First();
+            Assert.That(conditions.parent.Q<Label>(className: "tw-kv__v").text, Is.EqualTo("Covered"));
             status = root.Q("trail-card").Query<Label>(className: "tw-kv__k").Where(l => l.text == "Status").First();
             Assert.That(status.parent.Q<Label>(className: "tw-kv__v").text, Is.EqualTo("Closed by you"));
+            hud.SetTrailCardMoreForTest(false);
+            yield return Frames(2);
+            Assert.That(root.Q("trail-card-snow").ClassListContains("hidden"), Is.True, "Fewer details folds them again");
             hud.TrailSwitchOf = null;
             hud.TrailSwitchChosen = null;
             hud.ClearLive();

@@ -74,7 +74,7 @@ namespace MountainPlanner.Persistence
     public static partial class TerrainCache
     {
         /// <summary>Bump when the tile format or sampling changes: existing caches are then rebuilt.</summary>
-        public const int Version = 12;   // 12: ring forest at the core's height, in patches (polish); 11: roads (task 12d), eight cover bands
+        public const int Version = 13;   // 13: forest-grown broadleaf crowns, eastern heights and density (task 4.27); 12: ring forest at the core's height, in patches (polish); 11: roads (task 12d), eight cover bands
 
         /// <summary>
         /// Splat texels per tile edge: 1 m in core tiles, 4 m in the ring (Unity needs powers of two).
