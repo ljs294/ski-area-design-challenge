@@ -151,6 +151,8 @@ namespace MountainPlanner.Simulation
         int _gPreviewDay = -1;
         /// <summary>Tests: no preview (to show it changes nothing).</summary>
         internal bool GroomPreviewOff;
+        /// <summary>Tests: tonight's preview is due again (task 4.26 BB24: it waits while the hour's snow is in flight).</summary>
+        internal bool GroomPreviewDue => _gPreviewDirty;
 
         /// <summary>The fleet (tests and the readout).</summary>
         internal int GroomerCount => _gCount;
@@ -218,6 +220,10 @@ namespace MountainPlanner.Simulation
 
         bool ApplyGrooming(in SimCommand c)
         {
+            // Task 4.26 BB24: an order or a fleet change replans from the trail snow at once (mid-night) and remakes tonight's
+            // preview at the next snapshot, so the hour in flight, which writes the fine cells on the snow crew's threads,
+            // finishes first (it keeps its landing tick, as for PaintSnow and SetTrailSnow).
+            JoinSnow();
             if (c.A == 1)
             {
                 if (!(c.Payload is SimGroomOrder o) || o.Order > GroomOrder.Skip) return false;
@@ -262,6 +268,7 @@ namespace MountainPlanner.Simulation
         void GroomLayoutChanged()
         {
             _gPreviewDirty = true;   // GO-14 v3: a preview made for the old layout is never swapped in
+            _gPreviewOn = false;     // not even while the next one waits on the hour's snow (task 4.26 BB24)
             var L = _trailLayout;
             if (L == null) return;
             int n = L.Trails;
@@ -1446,12 +1453,15 @@ namespace MountainPlanner.Simulation
         void WriteGrooming(SimSnapshot s)
         {
             var v = s.Grooming;
-            // after a reopen (the sidecar keeps no hours-since) the first snapshot fills them, not the next hour
-            if (_gSinceH.Length == 0 && _gSetting.Length > 0) GroomSince();
+            // Task 4.26 BB24: both read the fine cells, which the hour's snow in flight writes on the snow crew's threads (a
+            // preview divided by a density a crew thread had just zeroed), so they wait for it, as StageFine does.
+            // After a reopen (the sidecar keeps no hours-since) the first snapshot fills them, not the next hour.
+            if (_gSinceH.Length == 0 && _gSetting.Length > 0 && !_snowRunning) GroomSince();
             // GO-14 v3: while no night is planned the tab shows tonight's preview (swapped in for the writing, then back)
-            if (_gPreviewDirty) PreviewTonight();
-            // only a preview made for this layout (its per-trail arrays are this long)
-            bool pv = _gPreviewOn && _gNight < 0 && !_gPreviewDirty && _gPreview.Warned.Length == _gSetting.Length && _gPreview.Tonight.Length == _gSetting.Length;
+            if (_gPreviewDirty && !_snowRunning) PreviewTonight();
+            // only a preview made for this layout (its per-trail arrays are this long); while the next one waits on the
+            // hour's snow the last one stays on show (a new layout dropped it, GroomLayoutChanged)
+            bool pv = _gPreviewOn && _gNight < 0 && _gPreview.Warned.Length == _gSetting.Length && _gPreview.Tonight.Length == _gSetting.Length;
             if (pv) SwapPlan();
             try
             {

@@ -401,6 +401,33 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void BB24_TonightsPreviewWaitsForTheHoursSnowAndAnOrderFinishesItFirst()
+        {
+            // Task 4.26 BB24 (4.27's capture at Gilford, 2026-11-23): the hour's snow writes the fine cells on the snow crew's
+            // threads until it is joined, and a snapshot's preview read them meanwhile (DepthUm divided by a density a crew
+            // thread had just zeroed). The preview now waits for the hour, showing the last one; an order joins it first.
+            var w = OneRun(1, setting: GroomSetting.WhenOrdered);
+            To(w, 12);
+            var noon = View(w);
+            Assert.That(noon.Preview, Is.True, "the day shows tonight's plan");
+            Assert.That(w.GroomPreviewDue, Is.False);
+            long h0 = w.HourIndex;
+            while (w.HourIndex == h0) w.Step(1);   // the 13:00 roll: the hour's grooming marks the preview due, its snow starts
+            Assert.That(w.SnowInFlight, Is.True, "the hour's snow is on the crew");
+            var waiting = View(w);
+            Say($"[BB24] in flight: due {w.GroomPreviewDue}, preview {waiting.Preview}, night {waiting.NightDay} (noon {noon.NightDay})");
+            Assert.That(w.GroomPreviewDue, Is.True, "no preview reads the trail snow while the crew writes it");
+            Assert.That(waiting.Preview, Is.True, "the last preview stays on show");
+            Assert.That(waiting.NightDay, Is.EqualTo(noon.NightDay));
+            ulong id = TrailSnowWorldTests.GroomedLayout(w).TrailId[0];
+            w.ApplyNow(SimCommand.Of(SimCommandKind.SetGrooming, 1, new SimGroomOrder(id, GroomOrder.Till)));
+            var ordered = View(w);
+            Assert.That(w.GroomPreviewDue, Is.False, "the order finished the hour, so its preview is made at once");
+            Assert.That(ordered.Job[0], Is.EqualTo(GroomJob.Till), "the order shows at once");
+            Assert.That(w.SnowInFlight, Is.True, "joining kept the hour's landing tick");
+        }
+
+        [Test]
         public void GO14_TheTabKnowsLastNightAndTheHoursSinceTheGroom()
         {
             var w = OneRun(2);

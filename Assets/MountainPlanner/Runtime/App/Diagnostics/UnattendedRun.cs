@@ -10,11 +10,16 @@ namespace MountainPlanner.App.Diagnostics
     /// 2026-11-23). The rule doesn't depend on which capture switch was asked for: a run is unattended in batch mode, or
     /// as a job in a GPU lane (<c>tools/gpu/gpu.ps1</c> sets <c>MP_GPU_LANE</c> for every command it runs). The game
     /// played by hand keeps its error screen, and so does the editor (tests check their own errors; it can't quit).
+    /// <para>BB25 (4.27's card capture, 2026-11-23): the same holds once the run has started. Its simulation's worker threw,
+    /// the clock stopped, and the player waited for a day that never came until the lane's 120-minute limit.</para>
     /// </summary>
     public static class UnattendedRun
     {
         /// <summary>The exit code of an unattended run whose setup failed.</summary>
         public const int SetupFailedExitCode = 1;
+
+        /// <summary>The exit code of an unattended run whose work stopped after its setup (BB25): the same.</summary>
+        public const int StoppedExitCode = SetupFailedExitCode;
 
         /// <summary>The variable gpu.ps1 sets to the lane (measure or render) of every command it runs.</summary>
         public const string LaneVariable = "MP_GPU_LANE";
@@ -30,12 +35,20 @@ namespace MountainPlanner.App.Diagnostics
         /// unattended run logs why and quits with <see cref="SetupFailedExitCode"/>. Returns whether it is quitting
         /// (false when someone is at the screen, which then shows the error as before).
         /// </summary>
-        public static bool FailSetup(string what, Exception e = null)
+        public static bool FailSetup(string what, Exception e = null) => Fail("setup failed", what, e, SetupFailedExitCode);
+
+        /// <summary>
+        /// The run's work stopped for good after its setup (<paramref name="what"/>: its simulation's worker threw, BB25),
+        /// as <see cref="FailSetup"/>: an unattended run logs why and quits with <see cref="StoppedExitCode"/>.
+        /// </summary>
+        public static bool FailRun(string what, Exception e = null) => Fail("run stopped", what, e, StoppedExitCode);
+
+        static bool Fail(string kind, string what, Exception e, int code)
         {
             if (e != null) Debug.LogException(e);
             if (!Active) return false;
-            Debug.LogError($"[Unattended] setup failed ({what}): quitting with exit code {SetupFailedExitCode}");
-            Application.Quit(SetupFailedExitCode);
+            Debug.LogError($"[Unattended] {kind} ({what}): quitting with exit code {code}");
+            Application.Quit(code);
             return true;
         }
     }
