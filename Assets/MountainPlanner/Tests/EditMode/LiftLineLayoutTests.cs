@@ -307,7 +307,7 @@ namespace MountainPlanner.Tests
                                                 (x, z) => x > 300 ? (x - 300) * 0.6f : 0f, null);
             Assert.AreEqual(0, layout.Capacity(0), "a planned lift has no line");
             // The throat runs under the terminal whatever the ground; past it, nobody stands on the 60% slope.
-            int throat = 4 * Mathf.CeilToInt((4 + LineLayout.TerminalMarginMetres + 2 * LineLayout.ColumnMetres) / LineLayout.RowMetres);
+            int throat = 4 * layout.ThroatRows(1);
             var slots = SlotsOf(layout, 1);
             Assert.Greater(slots.Count, throat);
             for (int k = throat; k < slots.Count; k++) Assert.LessOrEqual(slots[k].x, 300.5f, "nobody stands on the 60% slope");

@@ -96,7 +96,8 @@ namespace MountainPlanner.Tests
             // Every place faces somewhere flat and unit. The throat's rows all face up the lift; past it (task 4.26 BB4) each
             // skier faces the front along its own lane: toward the place ahead of it in its column, a row or so away.
             for (int k = 0; k < s.y; k++) Assert.That(math.length(layout.Facing[s.x + k]), Is.EqualTo(1f).Within(1e-3f), $"place {k}");
-            int throat = seats * Mathf.CeilToInt((4 + LineLayout.TerminalMarginMetres + seats * LineLayout.ColumnMetres * 0.5f) / LineLayout.RowMetres);
+            int throat = seats * layout.ThroatRows(0);
+            Assert.That(layout.ThroatRows(0), Is.GreaterThanOrEqualTo(2), "the front rows stand square to the lift");
             for (int k = seats; k < throat && k < s.y; k++)
                 Assert.That(math.dot(layout.Facing[s.x + k], layout.Facing[s.x]), Is.GreaterThan(0.999f), $"throat place {k}");
             int checkedPlaces = 0;
