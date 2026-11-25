@@ -112,7 +112,11 @@ namespace MountainPlanner.App
                 }
             DumpLines(outPath, lines, guests: false, ground: true);
             Debug.Log($"[LineLayout] grown in {watch.ElapsedMilliseconds} ms; reversals {lines.Reversals}" + (lines.FirstReversal != null ? ": " + lines.FirstReversal : ""));
-            for (int l = 0; l < 12 && lines.Capacity(l) > 0; l++) Debug.Log("[LineLayout] " + lines.Describe(l));
+            for (int l = 0; l < 12 && lines.Capacity(l) > 0; l++)
+            {
+                Debug.Log("[LineLayout] " + lines.Describe(l));
+                Debug.Log($"[LineLook] lift {l}: {lines.Measure(l)}");   // task 4.26 BB26: breaks, bends, density
+            }
             lines.Dispose();
             _probeLines = null;
             Application.Quit(0);
