@@ -22,9 +22,6 @@ namespace MountainPlanner.Presentation.Guests
     /// </summary>
     public sealed partial class LineLayout
     {
-        /// <summary>Whether lines are laid as ribbons (task 4.26 BB26) or by the old serpentine grid (until the owner approves).</summary>
-        internal static bool UseRibbon = true;
-
         /// <summary>The space between two folds of one line, metres (footprint to footprint, a little less).</summary>
         public const float FoldGapMetres = 1f;
         /// <summary>The most a bend may squeeze a line's inner lane: at most this share of its length (it never folds on itself).</summary>
@@ -916,7 +913,7 @@ namespace MountainPlanner.Presentation.Guests
 
         // ================= the ground =================
 
-        /// <summary>Eight ways round a disc's rim (not from <see cref="Oi"/>: partial classes' statics start in no set order).</summary>
+        /// <summary>Eight ways round a disc's rim (here, not in another part: partial classes' statics start in no set order).</summary>
         static readonly Vector2[] Rim =
         {
             new Vector2(1, 0), new Vector2(0.70710678f, 0.70710678f), new Vector2(0, 1), new Vector2(-0.70710678f, 0.70710678f),
