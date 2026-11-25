@@ -35,7 +35,7 @@ namespace MountainPlanner.Presentation.Guests
                 $"within30 {Within30} centre {CentreMetres:F0} m" + (FirstBreak != null ? " first break: " + FirstBreak : "");
         }
 
-        /// <summary>Task 4.26 BB26: how lift <paramref name="lift"/>'s line looks (a ribbon's; empty for the old planner's).</summary>
+        /// <summary>Task 4.26 BB26: how lift <paramref name="lift"/>'s line looks (empty when it has none).</summary>
         public LineLook Measure(int lift)
         {
             var look = new LineLook { TightestCentre = float.PositiveInfinity, TightestInner = float.PositiveInfinity };
