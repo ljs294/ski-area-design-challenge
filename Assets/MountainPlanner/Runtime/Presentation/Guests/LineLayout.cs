@@ -29,10 +29,11 @@ namespace MountainPlanner.Presentation.Guests
     /// Deterministic: the same design and the same growth requests give the same places, in the same order. Plain C#, a
     /// few milliseconds for a resort and about a millisecond a growth, never per frame.
     /// </summary>
-    public sealed class LineLayout : IDisposable
+    public sealed partial class LineLayout : IDisposable
     {
         public const float ColumnMetres = 0.9144f;   // 3 ft
-        public const float RowMetres = 2.1336f;      // 7 ft
+        /// <summary>Task 4.26 BB26 (owner, 2026-11-24: "the skiers can stand closer together"): 1.8 m a row (was 7 ft).</summary>
+        public const float RowMetres = 1.8f;
         public const float AisleMetres = 1f;
         public const float PassMetres = 12f;
         public const float CellMetres = 0.5f;
@@ -70,6 +71,8 @@ namespace MountainPlanner.Presentation.Guests
             /// <summary>Task 4.22: how far right of the centreline (looking uphill) the carriers load, metres: half the rope
             /// gauge, so the line's front rows stand under the loaded rope's chairs (0 for a carpet).</summary>
             public float LoadSide;
+            /// <summary>Task 4.26 BB26: the line's own key for its keyed choices (0: from its index).</summary>
+            public uint Key;
         }
 
         /// <summary>A run's centreline, for keeping lines off the runs (local x, z per point) and its half width.</summary>
@@ -103,21 +106,24 @@ namespace MountainPlanner.Presentation.Guests
 
         /// <summary>Task 4.26 BB4: how many columns line <paramref name="line"/> stands in (place d·seats + c is row d, column c).</summary>
         /// <summary>Task 4.26 BB4: how many stretches line <paramref name="line"/> has (rows across, then single file, ...).</summary>
-        public int SectionCount(int line) => _snakes != null && line >= 0 && line < _snakes.Length && _snakes[line] != null ? _snakes[line].SectionRows.Count : 0;
+        public int SectionCount(int line) => _ribbons != null ? (line >= 0 && line < _ribbons.Length && _ribbons[line] != null ? _ribbons[line].SectionRows.Count : 0) : _snakes != null && line >= 0 && line < _snakes.Length && _snakes[line] != null ? _snakes[line].SectionRows.Count : 0;
 
         /// <summary>Task 4.26 BB4: stretch <paramref name="k"/> of line <paramref name="line"/>: its rows, and whether it is single file.</summary>
         public void Section(int line, int k, out int rows, out bool file)
         {
+            if (_ribbons != null) { var r = _ribbons[line]; rows = r.SectionRows[k]; file = r.SectionFile[k]; return; }
             var s = _snakes[line];
             rows = s.SectionRows[k]; file = s.SectionFile[k];
         }
 
-        public int SeatsOf(int line) => _snakes != null && line >= 0 && line < _snakes.Length && _snakes[line] != null ? _snakes[line].Seats : 1;
+        public int SeatsOf(int line) => _ribbons != null ? (line >= 0 && line < _ribbons.Length && _ribbons[line] != null ? _ribbons[line].Seats : 1) : _snakes != null && line >= 0 && line < _snakes.Length && _snakes[line] != null ? _snakes[line].Seats : 1;
 
         public int Capacity(int lift) => LiftSlots.IsCreated && lift >= 0 && lift < LiftSlots.Length ? LiftSlots[lift].y : 0;
 
         /// <summary>Whether lift <paramref name="lift"/>'s line can still grow (it has a line, and room was found last time).</summary>
-        public bool CanGrow(int lift) => _snakes != null && lift >= 0 && lift < _snakes.Length && _snakes[lift] != null
+        public bool CanGrow(int lift) => _ribbons != null
+            ? lift >= 0 && lift < _ribbons.Length && _ribbons[lift] != null && !_ribbons[lift].Done && _ribbons[lift].Out.Count < MaxSlots
+            : _snakes != null && lift >= 0 && lift < _snakes.Length && _snakes[lift] != null
                                          && !_snakes[lift].Done && _snakes[lift].Placed.Count < MaxSlots;
 
         // ================= the ground =================
@@ -265,12 +271,23 @@ namespace MountainPlanner.Presentation.Guests
 
             // One grid per lift (its exemption differs), sharing the claims through Claim on every grid.
             var grids = layout._grids = new Grid[lifts.Count];
-            var snakes = layout._snakes = new Snake[lifts.Count];
             for (int i = 0; i < lifts.Count; i++)
             {
                 int me = i;
                 grids[i] = new Grid((x, z) => Reason(x, z, me));
             }
+            if (UseRibbon) layout.BuildRibbons(lifts);
+            else layout.BuildSnakes(lifts);
+            layout.Diagnose(lifts, Reason);
+            return layout;
+        }
+
+        /// <summary>The old serpentine grid's lines (until the owner approves the ribbons, task 4.26 BB26).</summary>
+        void BuildSnakes(IReadOnlyList<LiftInput> lifts)
+        {
+            var layout = this;
+            var grids = _grids;
+            var snakes = layout._snakes = new Snake[lifts.Count];
             // The throat first, for every lift: the line's front rows run straight back from the load point under the
             // terminal (its load lane is always the way in), so the fold starts clear of the terminal and can turn any
             // way from there. Without it a line could only leave the terminal straight back, and trees right behind it
@@ -353,8 +370,12 @@ namespace MountainPlanner.Presentation.Guests
             }
             for (int i = 0; i < snakes.Length; i++) if (snakes[i] != null) layout.LayTo(snakes[i], grids[i], InitialSlots);
             layout.Rebuild();
+        }
 
-            // A line with little room says why: what covers the ground in the 40 m behind its load point.
+        /// <summary>A line with little room says why: what covers the ground in the 40 m behind its load point.</summary>
+        void Diagnose(IReadOnlyList<LiftInput> lifts, Func<float, float, int, int> Reason)
+        {
+            var layout = this;
             var why = new System.Text.StringBuilder();
             for (int i = 0; i < lifts.Count; i++)
             {
@@ -374,7 +395,6 @@ namespace MountainPlanner.Presentation.Guests
                            $"lift lane {count[3]}, forest {count[4]}, steep {count[5]}, run {count[6]} (of 1640 m² behind it); ");
             }
             layout.Diagnosis = why.ToString();
-            return layout;
         }
 
         /// <summary>For each lift whose line has little room, what covers the ground behind its load point (logs, captures).</summary>
@@ -383,6 +403,13 @@ namespace MountainPlanner.Presentation.Guests
         /// <summary>How lift <paramref name="lift"/>'s line was laid (logs, captures): its places and how it found them.</summary>
         public string Describe(int lift)
         {
+            if (_ribbons != null)
+            {
+                var r = lift >= 0 && lift < _ribbons.Length ? _ribbons[lift] : null;
+                if (r == null) return "no line";
+                return $"{r.Out.Count} places ({r.Reframes} turns round something, {r.WalkPlaces} on walkways in {r.Walks}, " +
+                       $"{r.SoftPlaces} through trees or steep ground, {r.Length:F0} m of line){(r.Done ? ", no more ground in reach" : "")}";
+            }
             var s = _snakes != null && lift >= 0 && lift < _snakes.Length ? _snakes[lift] : null;
             if (s == null) return "no line";
             return $"{s.Placed.Count} places ({s.Turns} turns round something, {s.WalkPlaces} on walkways, " +
@@ -390,10 +417,26 @@ namespace MountainPlanner.Presentation.Guests
         }
 
         /// <summary>Lift <paramref name="lift"/>'s places on walkways through gaps, and through trees or steep ground (tests, logs).</summary>
-        public int WalkwayPlaces(int lift) => _snakes != null && lift >= 0 && lift < _snakes.Length ? _snakes[lift]?.WalkPlaces ?? 0 : 0;
+        public int WalkwayPlaces(int lift) => _ribbons != null ? (lift >= 0 && lift < _ribbons.Length ? _ribbons[lift]?.WalkPlaces ?? 0 : 0) : _snakes != null && lift >= 0 && lift < _snakes.Length ? _snakes[lift]?.WalkPlaces ?? 0 : 0;
         /// <summary>Task 4.26 BB4: how often a line's centre doubled straight back on itself (it never should), and the
         /// first time, described.</summary>
-        public int Reversals { get; private set; }
+        public int Reversals
+        {
+            get
+            {
+                if (_ribbons == null) return _reversals;
+                int n = 0;
+                for (int i = 0; i < _ribbons.Length; i++)
+                    if (_ribbons[i] != null)
+                    {
+                        var look = Measure(i);
+                        n += look.CentreBreaks;
+                        if (look.CentreBreaks > 0) FirstReversal ??= $"lift {i}: {look.FirstBreak}";
+                    }
+                return n;
+            }
+        }
+        int _reversals;
         public string FirstReversal { get; private set; }
 
         /// <summary>Task 4.26 BB4 probe: the ground lift <paramref name="lift"/>'s line sees at (x, z): '.' open, 't' trees or
@@ -401,6 +444,7 @@ namespace MountainPlanner.Presentation.Guests
         public char GroundAt(int lift, float x, float z)
         {
             if (_grids == null || lift < 0 || lift >= _grids.Length || _grids[lift] == null) return ' ';
+            if (_ribbons != null && _claims.ContainsKey(Key(Grid.Cell(x), Grid.Cell(z)))) return 'o';
             switch (_grids[lift].State(Grid.Cell(x), Grid.Cell(z)))
             {
                 case Open: return '.';
@@ -410,7 +454,7 @@ namespace MountainPlanner.Presentation.Guests
             }
         }
 
-        public int SoftPlaces(int lift) => _snakes != null && lift >= 0 && lift < _snakes.Length ? _snakes[lift]?.SoftPlaces ?? 0 : 0;
+        public int SoftPlaces(int lift) => _ribbons != null ? (lift >= 0 && lift < _ribbons.Length ? _ribbons[lift]?.SoftPlaces ?? 0 : 0) : _snakes != null && lift >= 0 && lift < _snakes.Length ? _snakes[lift]?.SoftPlaces ?? 0 : 0;
 
         /// <summary>
         /// Lays up to <see cref="GrowSlots"/> more places on lift <paramref name="lift"/>'s line (the renderer calls it when
@@ -419,6 +463,15 @@ namespace MountainPlanner.Presentation.Guests
         public bool Grow(int lift)
         {
             if (!CanGrow(lift)) return false;
+            if (_ribbons != null)
+            {
+                var r = _ribbons[lift];
+                int had = r.Out.Count;
+                Extend(r, Math.Min(MaxSlots, had + GrowSlots));
+                if (r.Out.Count == had) return false;
+                Rebuild();
+                return true;
+            }
             var s = _snakes[lift];
             int before = s.Placed.Count, target = Math.Min(MaxSlots, before + GrowSlots);
             while (!s.Done && s.Placed.Count < target)
@@ -445,21 +498,24 @@ namespace MountainPlanner.Presentation.Guests
 
         void Rebuild()
         {
+            int count = _ribbons?.Length ?? _snakes.Length;
+            List<Vector3> OutOf(int i) => _ribbons != null ? _ribbons[i]?.Out : _snakes[i]?.Out;
+            List<Vector2> FacesOf(int i) => _ribbons != null ? _ribbons[i]?.OutFaces : _snakes[i]?.OutFaces;
             int total = 0;
-            foreach (var s in _snakes) if (s != null) total += s.Out.Count;
+            for (int i = 0; i < count; i++) total += OutOf(i)?.Count ?? 0;
             if (Slots.IsCreated) Slots.Dispose();
             if (Facing.IsCreated) Facing.Dispose();
             if (LiftSlots.IsCreated) LiftSlots.Dispose();
             Slots = new NativeArray<float3>(Math.Max(1, total), Allocator.Persistent);
             Facing = new NativeArray<float2>(Math.Max(1, total), Allocator.Persistent);
-            LiftSlots = new NativeArray<int2>(_snakes.Length, Allocator.Persistent);
+            LiftSlots = new NativeArray<int2>(count, Allocator.Persistent);
             int at = 0;
-            for (int i = 0; i < _snakes.Length; i++)
+            for (int i = 0; i < count; i++)
             {
-                var s = _snakes[i];
-                int n = s?.Out.Count ?? 0;
+                var o = OutOf(i); var f = FacesOf(i);
+                int n = o?.Count ?? 0;
                 LiftSlots[i] = new int2(at, n);
-                for (int k = 0; k < n; k++) { Slots[at + k] = s.Out[k]; Facing[at + k] = s.OutFaces[k]; }
+                for (int k = 0; k < n; k++) { Slots[at + k] = o[k]; Facing[at + k] = f[k]; }
                 at += n;
             }
         }
@@ -586,7 +642,7 @@ namespace MountainPlanner.Presentation.Guests
                 // hair past the true one, so its tangent came out hugely negative and put the corner kilometres away
                 // (and the sampling below never got there: out of memory).
                 bool back = turn > Mathf.PI - 1e-3f;
-                if (back && !s.PathGap[k] && !s.PathGap[k + 1] && Reversals++ == 0)
+                if (back && !s.PathGap[k] && !s.PathGap[k + 1] && _reversals++ == 0)
                 {
                     var sb = new System.Text.StringBuilder($"lift {s.Lift} point {k} of {n}:");
                     for (int j = Math.Max(0, k - 3); j <= Math.Min(n - 1, k + 3); j++)
@@ -634,7 +690,7 @@ namespace MountainPlanner.Presentation.Guests
                     var a = _fine[k - 1]; var b = _fine[k];
                     float len = (b - a).magnitude, at = SampleMetres - carry;
                     // A piece longer than a line can reach is a fault (it would be sampled forever): passed over, and noted.
-                    if (!(len <= 2 * MaxReachMetres)) { FirstReversal ??= $"lift {s.Lift}: a piece {len} m long at fine point {k} of {_fine.Count}"; Reversals++; continue; }
+                    if (!(len <= 2 * MaxReachMetres)) { FirstReversal ??= $"lift {s.Lift}: a piece {len} m long at fine point {k} of {_fine.Count}"; _reversals++; continue; }
                     while (at <= len + 1e-6f) { _centre.Add(a + (b - a) * (at / len)); _sampleKind.Add(_fineKind[k]); at += SampleMetres; }
                     carry = len - (at - SampleMetres);
                     acc += len;

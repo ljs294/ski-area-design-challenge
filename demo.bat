@@ -424,10 +424,10 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
-echo   4.26 bug bash PR N: lift lines that bend and fill from behind (builds the game if there is none)
-echo     161 The drawn resort on January 15, busy: the lift lines run straight back from the terminal, curve
-echo        round their folds and stand clear of the trees; when a chair takes fewer than a row the guests behind
-echo        step straight forward in their own lane.
+echo   4.26 bug bash BB26: each lift line is one winding ribbon (builds the game if there is none)
+echo     161 The drawn resort on January 15, busy: every lift line leaves its loader in square rows, then winds
+echo        back in one chair-wide ribbon, folding close to the lift and curving round trees with no jumps; rows
+echo        1.8 m apart, each guest a little off their mark; guests step straight forward in their own lane.
 echo   4.29 trail grass PR B: each trail's grass on the ground, and the card's Grass line
 echo     156 The tests, then mid-July on a scratch copy of your Gilford save (or the drawn resort), three times:
 echo        every trail mown as before, then as the simulation grows it, then short, long and brush in turn.
@@ -1314,7 +1314,7 @@ pause
 goto menu
 
 :lines426
-rem 4.26 PR N (BB4): guests keep their lane (owner 2026-11-23, option A) and the lines bend smoothly.
+rem 4.26 PR N (BB4): guests keep their lane (owner 2026-11-23, option A); BB26 (2026-11-24): one winding ribbon.
 chcp 65001 >nul
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
@@ -1322,9 +1322,9 @@ set "PD=%LOCALAPPDATA%\SkiAreaDesignChallenge-lines426"
 if exist "%PD%" rmdir /s /q "%PD%"
 echo.
 echo   The drawn resort on January 15 in a scratch folder (your saves aren't touched). Let the clock run to about
-echo   10:00, then fly low over a lift's bottom terminal: its line runs straight back, then folds back and forth in
-echo   smooth bends clear of the trees, each guest facing the one ahead. Watch a chair load with fewer than a row:
-echo   the others step straight up their lane.
+echo   10:00, then fly low over a lift's bottom terminal: two square rows, then one ribbon as wide as the chair
+echo   that eases into a curve and winds back and forth, round trees, never breaking or jumping; in a tight gap it
+echo   narrows to single file and widens again. Watch a chair load with fewer than a row: the others step up their lane.
 pause
 start "" "%GAME%" -data "%PD%" -notitle -offline -drawnresort -simto 01-15
 pause
