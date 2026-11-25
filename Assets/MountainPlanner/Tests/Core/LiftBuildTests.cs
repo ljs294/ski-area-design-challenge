@@ -222,6 +222,27 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void LF12v6_AFixedGripsTopOnItsRampGetsNoPad()
+        {
+            // Owner 2026-11-25 (task 4.50): a fixed grip's top raised 5 ft or more over the ground under its unload deck shows
+            // its timber ramp, and the ground there is no longer edited for a pad; under 5 ft, and at any other terminal, the
+            // pad is graded as before. The replay from what's stored lays the same ground.
+            var natural = new EditedHeights(new Profile(s => 0.1 * s), Lattice, TerrainEdits.Empty);
+            double bx = West + 100, by = North - 900, ty = North - 100;
+            var raised = LiftBuild.Build(Quad, natural, bx, by, bx, ty, TowerStance.Leaned, null, 0, 2.0);
+            Assert.That(TerminalExtras.UnloadRaise(Quad, raised.TopPad), Is.GreaterThanOrEqualTo(TerminalExtras.RampRaiseMetres));
+            Assert.That(raised.TopPad.CutCubicMetres + raised.TopPad.FillCubicMetres, Is.EqualTo(0), "2 m up: no pad");
+            Assert.That(raised.BottomPad.CutCubicMetres + raised.BottomPad.FillCubicMetres, Is.GreaterThan(0), "the bottom's pad as before");
+            var replay = LiftBuild.Earthwork(Quad, natural, bx, by, bx, ty, raised.Towers.Select((t, i) => new Tower(TowerId.Make(1, i), t.AlongMm, t.HeightMm)).ToList(),
+                                             raised.Levels, TowerStance.Leaned);
+            Assert.That(replay.TopPad.CutCubicMetres + replay.TopPad.FillCubicMetres, Is.EqualTo(0), "the replay: no pad either");
+            var low = LiftBuild.Build(Quad, natural, bx, by, bx, ty, TowerStance.Leaned, null, 0, 1.0);
+            Assert.That(low.TopPad.FillCubicMetres, Is.GreaterThan(0), "1 m up: today's pad, filled");
+            var d6 = LiftBuild.Build(LiftType.Of(LiftCatalogIds.SesselliftD6), natural, bx, by, bx, ty, TowerStance.Leaned, null, 0, 2.0);
+            Assert.That(d6.TopPad.FillCubicMetres, Is.GreaterThan(0), "a detachable has no deck: its pad as before");
+        }
+
+        [Test]
         public void LF12v5_ADetachablesPadEndsAtTheHoodsMiddle()
         {
             // LT42 (owner, second review E1): a D6 terminal's front half stands over natural ground. On a 30% line the top

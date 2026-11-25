@@ -8,7 +8,7 @@ from bldgkit import stop_gate
 
 KIND = "stop_gate"
 SPEC = "stopgate.json"
-VARIANTS = ("sessellift", "stern", "monta")
+VARIANTS = ("sessellift", "stern", "monta", "sessellift_drive", "monta_drive")
 
 
 def variant(name):

@@ -12,6 +12,8 @@
   "variants": {
     "sessellift": {"id": "bldg_stop_gate_sessellift", "catalog": {"name": "Stop gate (Sessellift)", "category": "lift_extras"}},
     "stern": {"id": "bldg_stop_gate_stern", "catalog": {"name": "Stop gate (Sessellift Stern)", "category": "lift_extras"}},
-    "monta": {"id": "bldg_stop_gate_monta", "catalog": {"name": "Stop gate (Monta)", "category": "lift_extras"}}
+    "monta": {"id": "bldg_stop_gate_monta", "catalog": {"name": "Stop gate (Monta)", "category": "lift_extras"}},
+    "sessellift_drive": {"id": "bldg_stop_gate_sessellift_drive", "catalog": {"name": "Stop gate (Sessellift drive)", "category": "lift_extras"}},
+    "monta_drive": {"id": "bldg_stop_gate_monta_drive", "catalog": {"name": "Stop gate (Monta drive)", "category": "lift_extras"}}
   }
 }

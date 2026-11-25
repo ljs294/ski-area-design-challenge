@@ -118,6 +118,29 @@ namespace MountainPlanner.Presentation.Lifts
             }
         }
 
+        readonly Dictionary<Material, Material> _plain = new Dictionary<Material, Material>();
+
+        /// <summary>
+        /// Task 4.50 slice 2: points every renderer of a placed building (a terminal's hut, ramp, gate or pedestal: their own
+        /// white-livery materials) at one cached runtime copy per material, so <see cref="SetSnowLoad"/> lays the snow on them
+        /// as on the lifts and the imported materials stay untouched.
+        /// </summary>
+        public void ApplyPlain(GameObject instance)
+        {
+            foreach (var r in instance.GetComponentsInChildren<Renderer>(true))
+            {
+                var shared = r.sharedMaterials;
+                for (int i = 0; i < shared.Length; i++)
+                {
+                    var m = shared[i];
+                    if (m == null || _made.Contains(m)) continue;
+                    if (!_plain.TryGetValue(m, out var copy)) _plain.Add(m, copy = Copy(m));
+                    shared[i] = copy;
+                }
+                r.sharedMaterials = shared;
+            }
+        }
+
         public void SetSnowLoad(float load)
         {
             SnowLoad = Mathf.Clamp01(load);
@@ -137,6 +160,7 @@ namespace MountainPlanner.Presentation.Lifts
             _livery.Clear();
             _glasses.Clear();
             _chairs.Clear();
+            _plain.Clear();
             _made.Clear();
         }
     }

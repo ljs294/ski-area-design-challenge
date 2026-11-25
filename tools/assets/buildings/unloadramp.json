@@ -1,5 +1,5 @@
 {
-  "_about": "Timber unload ramps at a fixed-grip chair's top return terminal (task 4.50 phase 4; bldgkit/unload_ramp.py builds them). Owner 2026-11-24: an unload 5 ft or more over the ground gets this ramp (under 5 ft the game grades an earth mound of the same shape; a top drive gets none); it clips into the terrain, so no railings or walls; double wide like the photos: one deck centred on the lift across both ropes and one ski-off ramp past the bullwheel, flaring 1 in 10 per side, with no ramp back down the line. One model for every lift, whatever its maker and wherever it stands; only the chair's width changes it, so three models (quad, triple, double), and clipping makes that work: the ramp is built for its tallest site (`reach`) and the terrain clips it, and the lift's terminal stands through the plain deck. Approved (plans 2 to 4, 30 % at Gate 1): 4.5 m level deck, the ramp at 30 % (the code's limit), up-side widths 3.6 / 3.0 / 2.4 m (8.8 / 7.6 / 6.4 m in all), a hut bay where the hut stands in its own opening on its own steel posts, a mat as wide as the chair and the operator's pedestal (oppedestal.json); no light pole and no signs, and the stop gate is a post and bar past the wheel, its own model (stopgate.json); a 42 in timber rail round the hut bay; $600 per m2 of deck above the ground plus $2k. Ramp frame in the builder's docstring. Millimetres.",
+  "_about": "Timber unload ramps at a fixed-grip chair's top terminal (task 4.50 phase 4; bldgkit/unload_ramp.py builds them). Owner 2026-11-24: an unload 5 ft or more over the ground gets this ramp (under 5 ft the game grades an earth mound of the same shape; owner 2026-11-25: a top drive as well as a top return, the Monta drive on its own wider ramps); it clips into the terrain, so no railings or walls; double wide like the photos: one deck centred on the lift across both ropes and one ski-off ramp past the bullwheel, flaring 1 in 10 per side, with no ramp back down the line. One model for every lift, whatever its maker and wherever it stands; only the chair's width changes it, so three models (quad, triple, double), and clipping makes that work: the ramp is built for its tallest site (`reach`) and the terrain clips it, and the lift's terminal stands through the plain deck. Approved (plans 2 to 4, 30 % at Gate 1): 4.5 m level deck, the ramp at 30 % (the code's limit), up-side widths 3.6 / 3.0 / 2.4 m (8.8 / 7.6 / 6.4 m in all), a hut bay where the hut stands in its own opening on its own steel posts, a mat as wide as the chair and the operator's pedestal (oppedestal.json); no light pole and no signs, and the stop gate is a post and bar past the wheel, its own model (stopgate.json); a 42 in timber rail round the hut bay; $600 per m2 of deck above the ground plus $2k. Ramp frame in the builder's docstring. Millimetres.",
   "common": {
     "catalog": {"name": "Unload ramp", "category": "lift_extras"},
     "pierClear": 800,
@@ -9,8 +9,10 @@
       "_about": "Each top return terminal, measured on its lift model (ramp frame, from the unload point; the same for its quad, triple and double): `wheelU` the bullwheel's axle past the unload point (it places the stop gate); `gateFace` the front face of the column that holds up the bullwheel, on the lift's centreline (the stop gate's post stands at least 0.3 m past it); `through` what stands through the deck [u from, u to, half width about the lift's centreline]; `under` what lies just under it [.., top]. The deck's boards and joists clip round them; no post or beam comes within `keepClear` of any of them, for every terminal at once.",
       "sessellift": {"wheelU": 1990, "gateFace": 762, "through": [[-762, 762, 311]]},
       "stern": {"wheelU": 3413, "gateFace": 1065, "through": [[-1066, 1065, 455]]},
-      "monta": {"wheelU": 1000, "gateFace": 591, "through": [[-2782, -1282, 750], [501, 591, 150]], "under": [[51, 1051, 500, -300]]}
+      "monta": {"wheelU": 1000, "gateFace": 591, "through": [[-2782, -1282, 750], [501, 591, 150]], "under": [[51, 1051, 500, -300]]},
+      "sessellift_drive": {"wheelU": 3230, "gateFace": 750, "through": [[-750, 750, 311], [-1730, -770, 600], [-2930, -1500, 300]], "_about": "owner 2026-11-25: a fixed grip's top drive gets the ramp too; the Sessellift drive's top head (sessellift_fg{q4,t3,d2}_drive, the same for all three): its column, its landing at the deck and its ladder stand through the deck"}
     },
+    "_sets": "a terminal (`set`, default standard) is served by the ramps of its set: the Monta drive's A-frame stands on two feet either side of the line, through the deck, so it has its own wider ramps (`set` wide, owner 2026-11-25: the hut moved outboard past the feet); `pairs` [u from, u to, inner, outer]: a foot each side of the lift's centreline, inner to outer from it",
     "slope": 0.3,
     "slopeMax": 0.3,
     "reach": {"raise": 4000, "length": 20000, "_about": "the tallest site the model serves (the deck over the natural ground) and the ski-off's run as modelled: 6 m down at 30 %, which meets level ground 4 m down after 13.3 m and ground falling 15 % from 3 m down after 20 m; past that the game fills under the toe"},
@@ -45,7 +47,12 @@
       {"name": "stern_quad_2m", "variant": "quad", "raise": 2000, "terminal": "stern"},
       {"name": "monta_quad_2m", "variant": "quad", "raise": 2000, "terminal": "monta"},
       {"name": "stern_double_5ft", "variant": "double", "raise": 1524, "terminal": "stern"},
-      {"name": "monta_triple_3m", "variant": "triple", "raise": 3000, "terminal": "monta"}
+      {"name": "monta_triple_3m", "variant": "triple", "raise": 3000, "terminal": "monta"},
+      {"name": "sdrive_quad_2m", "variant": "quad", "raise": 2000, "terminal": "sessellift_drive"},
+      {"name": "sdrive_double_5ft", "variant": "double", "raise": 1524, "terminal": "sessellift_drive"},
+      {"name": "mdrive_quad_2m", "variant": "quad_wide", "raise": 2000, "terminal": "monta_drive"},
+      {"name": "mdrive_triple_3m", "variant": "triple_wide", "raise": 3000, "terminal": "monta_drive"},
+      {"name": "mdrive_double_2m", "variant": "double_wide", "raise": 2000, "terminal": "monta_drive"}
     ], "photos": {"_about": "Gate 2 stills (render_ramp_cases.render_photos; owner 2026-11-24: all three versions, quad, triple and double), each width at another maker's terminal: [shot, view, mode]", "sets": [
       {"case": {"name": "quad_2m", "variant": "quad", "raise": 2000, "terminal": "sessellift"},
        "shots": [["hero", "hero", "day"], ["front", "front", "day"], ["hut", "hut", "day"], ["gate", "gateside", "day"]]},
@@ -58,6 +65,13 @@
   "variants": {
     "quad": {"id": "bldg_ramp_quad", "gauge": 4120, "width": 3600, "chairWidth": 2310},
     "triple": {"id": "bldg_ramp_triple", "gauge": 3658, "width": 3000, "chairWidth": 1770},
-    "double": {"id": "bldg_ramp_double", "gauge": 3353, "width": 2400, "chairWidth": 1240}
-  }
+    "double": {"id": "bldg_ramp_double", "gauge": 3353, "width": 2400, "chairWidth": 1240},
+    "quad_wide": {"id": "bldg_ramp_quad_wide", "set": "wide", "catalog": {"name": "Unload ramp (wide)"}, "gauge": 4120, "width": 5000, "posts": {"across": 2700}, "chairWidth": 2310,
+                  "terminals": {"monta_drive": {"set": "wide", "wheelU": 3200, "gateFace": 0, "through": [], "pairs": [[-160, 2860, 4170, 5480]]}}},
+    "triple_wide": {"id": "bldg_ramp_triple_wide", "set": "wide", "catalog": {"name": "Unload ramp (wide)"}, "gauge": 3658, "width": 4400, "posts": {"across": 2500}, "chairWidth": 1770,
+                    "terminals": {"monta_drive": {"set": "wide", "wheelU": 3200, "gateFace": 0, "through": [], "pairs": [[-160, 2860, 3580, 4890]]}}},
+    "double_wide": {"id": "bldg_ramp_double_wide", "set": "wide", "catalog": {"name": "Unload ramp (wide)"}, "gauge": 3353, "width": 3800, "posts": {"across": 2500}, "chairWidth": 1240,
+                    "terminals": {"monta_drive": {"set": "wide", "wheelU": 3200, "gateFace": 0, "through": [], "pairs": [[-160, 2860, 2990, 4300]]}}}
+  },
+  "_wide": "the Monta drive's ramps (owner 2026-11-25): its top head stands on an A-frame whose two feet (the lift's footings, 4.2-5.5 m from the centreline on a quad) come up through the deck either side; the up side's outer edge sits 0.3 m outside the feet (`width` = the feet's outer edge + 300 - pierClear), which moves the hut bay, the hut and the pedestal outboard, and the down side mirrors it; posts 2.5 m apart across the rows (the quad's 2.7; 2.0 on the standard ramps), so the wider deck keeps the ramps' budget"
 }

@@ -26,8 +26,8 @@ from bldgkit import palette as bpal  # noqa: E402
 from liftkit import ao, export, frame, materials, palette, textures  # noqa: E402
 
 HUTS = ("hut_large", "hut_small", "hut_mini")
-RAMPS = ("ramp_quad", "ramp_triple", "ramp_double")
-GATES = ("gate_sessellift", "gate_stern", "gate_monta")
+RAMPS = ("ramp_quad", "ramp_triple", "ramp_double", "ramp_quad_wide", "ramp_triple_wide", "ramp_double_wide")
+GATES = ("gate_sessellift", "gate_stern", "gate_monta", "gate_sessellift_drive", "gate_monta_drive")
 MODULES = {"pumphouse": "pumphouse", "booster": "booster", **{h: "lifthut:" + h[4:] for h in HUTS},
            **{r: "unloadramp:" + r[5:] for r in RAMPS}, "pedestal": "oppedestal",
            **{g: "stopgate:" + g[5:] for g in GATES}, "garage": "garage"}

@@ -445,6 +445,11 @@ echo     160 The pump house and the groomer garage in the game: builds both in B
 echo        rebuilds the game (close the editor first), then takes five pictures on the Jackson Hole test
 echo        mountain (summer and snow, by the doors; waits for a free GPU slot) and opens the game there, both
 echo        standing at the garage (dev only: -buildings, never saved); the pump house is 1.9 km east.
+echo     162 Every lift terminal's operator hut, and at a fixed grip's top its stop gate, pedestal and (raised 5 ft
+echo        or more, now with no earth pad) the timber unload ramp: builds them in Blender, imports them, rebuilds the
+echo        game (close the editor first), then three pictures on the style tile (a Sessellift and a Monta top drive
+echo        raised 8 ft, the Monta's on its wide ramp, by day; the Sessellift's in snow; waits for a free GPU slot)
+echo        and opens the game there. Every lift's card shows its Huts and Unload ramp lines.
 echo   4.29 trail grass PR A: grass grows on a trail, a skied winter kills it, mowing keeps it short (.NET only)
 echo     155 The grass and save tests, then two label years on the test mountain from bare ground (a few
 echo        minutes): two natural twins, the first mown every autumn; each one's grass every October 1 and April,
@@ -686,6 +691,7 @@ if /i "%CHOICE%"=="157" goto cardb429
 if /i "%CHOICE%"=="158" goto pumphouse450
 if /i "%CHOICE%"=="159" goto pumphouse450photos
 if /i "%CHOICE%"=="160" goto buildings450game
+if /i "%CHOICE%"=="162" goto liftextras450
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -3129,6 +3135,34 @@ findstr /c:"[Buildings]" "%B450OUT%\1-garage-summer.log"
 start "" "%B450OUT%"
 echo Opening the game at the garage, both buildings standing (not saved)...
 start "" "%GAME%" -package "%JH2%" -notitle -snowseed -buildings %B450AT% -view -590,-325,120,300,25
+goto done
+:liftextras450
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%UNITY%" (echo Unity 6000.3.25f1 was not found at "%UNITY%". & goto done)
+call :projectfree || goto done
+set "LX450OUT=%~dp0test-results\p4-50\lift-extras"
+if not exist "%LX450OUT%" mkdir "%LX450OUT%"
+echo Building the buildings in Blender: huts, ramps, stop gates, pedestal (about a minute)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\buildings\build_buildings.py" -- --assets pumphouse,garages,lifthut,unloadramp --out "%~dp0tools\assets\buildings\out" <nul | findstr /r /c:"tris per" /c:"Checks" /c:"PROBLEMS" /c:"Error" /c:"Traceback"
+if not exist "%~dp0tools\assets\buildings\out\bldg_ramp_quad_wide.fbx" (echo   The build failed. & goto done)
+echo Importing them into Unity (a minute or two)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.BuildingImport.Import -quit -logFile "%LX450OUT%\import.log" <nul
+if errorlevel 1 (echo   The import failed - see test-results\p4-50\lift-extras\import.log & goto done)
+findstr /c:"[BuildingImport]" "%LX450OUT%\import.log"
+call :buildplayer
+if not exist "%GAME%" goto done
+rem A second fixed quad on the style tile, its top drive raised 8 ft; its top stands at -508,-627.
+set "LX450LIFT=-styletile -extralift -150,-900,450 -extradrive top -extratopraise 8"
+set "LX450RUN=%RENDER% "%GAME%" -notitle -nohud -quality high %SCREEN% %LX450LIFT%"
+echo Taking three pictures (about a minute each; waits for a free GPU slot)...
+%LX450RUN% -extratype sessellift-fgq4 -season summer -view -505,-625,32,222,45 -screenshot "%LX450OUT%\1-sessellift-drive.png" -logFile "%LX450OUT%\1-sessellift-drive.log" <nul
+%LX450RUN% -extratype monta-fg4 -season summer -view -505,-625,32,222,45 -screenshot "%LX450OUT%\2-monta-drive.png" -logFile "%LX450OUT%\2-monta-drive.log" <nul
+%LX450RUN% -extratype sessellift-fgq4 -snowseed -day 40 -view -505,-625,32,222,45 -screenshot "%LX450OUT%\3-sessellift-snow.png" -logFile "%LX450OUT%\3-sessellift-snow.log" <nul
+findstr /c:"[StyleTile] extra" "%LX450OUT%\1-sessellift-drive.log"
+start "" "%LX450OUT%"
+echo Opening the game on the style tile, the Sessellift top drive raised 8 ft...
+start "" "%GAME%" -notitle %LX450LIFT% -extratype sessellift-fgq4 -season summer -view -505,-625,60,222,30
 goto done
 :buildgame
 call :buildplayer
