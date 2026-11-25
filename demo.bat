@@ -433,6 +433,18 @@ echo     156 The tests, then mid-July on a scratch copy of your Gilford save (or
 echo        every trail mown as before, then as the simulation grows it, then short, long and brush in turn.
 echo     157 The trail card pictures (each card's Grass line in the log), then the game
 echo        on that save for your hands-on check. Both rebuild the game; close the editor first.
+echo   4.50 buildings: the pump house, the booster, the lift huts, the unload ramps and the groomer garage (Blender only; no Unity, no game build)
+echo     158 Pick a building (1 pump house, 2 booster, 3 lift huts, 4 unload ramps, 5 groomer garage), build it with its checks (budgets,
+echo        footprint, sockets, lights, same mesh twice), then its Gate 1 drawings and clay views (about 30 seconds;
+echo        the ramps also on each review site, in gate1\cases; the garage beside a
+echo        groomer and a pickup to scale); opens the pictures.
+echo     159 Pick a building, then its Gate 2 pictures in Cycles: day, close-ups, dusk with its lights on, and
+echo        snow (a few minutes on the GPU; waits for a free GPU slot); opens the pictures. The ramps: the quad, triple
+echo        and double, each at another maker's terminal, by day and in snow.
+echo     160 The pump house and the groomer garage in the game: builds both in Blender, imports them into Unity,
+echo        rebuilds the game (close the editor first), then takes five pictures on the Jackson Hole test
+echo        mountain (summer and snow, by the doors; waits for a free GPU slot) and opens the game there, both
+echo        standing at the garage (dev only: -buildings, never saved); the pump house is 1.9 km east.
 echo   4.29 trail grass PR A: grass grows on a trail, a skied winter kills it, mowing keeps it short (.NET only)
 echo     155 The grass and save tests, then two label years on the test mountain from bare ground (a few
 echo        minutes): two natural twins, the first mown every autumn; each one's grass every October 1 and April,
@@ -671,6 +683,9 @@ if /i "%CHOICE%"=="119" goto snowlook408a
 if /i "%CHOICE%"=="155" goto grass429
 if /i "%CHOICE%"=="156" goto grassb429
 if /i "%CHOICE%"=="157" goto cardb429
+if /i "%CHOICE%"=="158" goto pumphouse450
+if /i "%CHOICE%"=="159" goto pumphouse450photos
+if /i "%CHOICE%"=="160" goto buildings450game
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -2941,6 +2956,50 @@ echo Starting the Lift Lab on the Sessellift G8 gondola. Z this view, L LOD, N s
 start "" "%LIFTLAB%" -mode gondola
 goto menu
 
+:pumphouse450
+call :building450pick
+if not defined B450 goto done
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%~dp0test-results\buildings" mkdir "%~dp0test-results\buildings"
+echo Building the %B450NAME% in Blender and drawing the Gate 1 pictures (about 30 seconds)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\buildings\build_buildings.py" -- --assets %B450% --out "%~dp0test-results\buildings" --render "%~dp0test-results\buildings\gate1" %B450EXTRA% <nul | findstr /r /c:"tris per" /c:"Checks" /c:"PROBLEMS" /c:"Error" /c:"Traceback"
+if not exist "%~dp0test-results\buildings\gate1\bldg_%B450ID%_clay_yard.png" (echo   The build failed. & goto done)
+echo   Built and checked: test-results\buildings\bldg_*.fbx
+start "" "%~dp0test-results\buildings\gate1"
+if defined B450EXTRA start "" "%~dp0test-results\buildings\gate1\cases"
+goto done
+
+:pumphouse450photos
+call :building450pick
+if not defined B450 goto done
+if "%B450%"=="garages" (echo   The garage's Gate 2 pictures come after Gate 1 is approved. & goto done)
+set "B450SHOT=bldg_%B450ID%_photo_dusk.png"
+if "%B450%"=="unloadramp" set "B450SHOT=ramp_photo_quad_2m_hero.png"
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%~dp0test-results\buildings" mkdir "%~dp0test-results\buildings"
+echo Building the %B450NAME% and rendering the Gate 2 pictures in Cycles (a few minutes once the GPU is free)...
+%RENDER% "%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\buildings\build_buildings.py" -- --assets %B450% --out "%~dp0test-results\buildings" --photos "%~dp0test-results\buildings\gate2" <nul | findstr /r /c:"tris per" /c:"Checks" /c:"PROBLEMS" /c:"Cycles on" /c:"ramp photos:" /c:"Error" /c:"Traceback"
+if not exist "%~dp0test-results\buildings\gate2\%B450SHOT%" (echo   The render failed. & goto done)
+start "" "%~dp0test-results\buildings\gate2"
+goto done
+
+:building450pick
+set "B450="
+set "B450NAME="
+set "B450ID="
+set "B450PICK="
+set "B450EXTRA="
+set /p "B450PICK=Which building? 1 pump house, 2 booster, 3 lift huts, 4 unload ramps, 5 groomer garage: "
+if "%B450PICK%"=="1" (set "B450=pumphouse" & set "B450NAME=pump house" & set "B450ID=pumphouse")
+if "%B450PICK%"=="2" (set "B450=booster" & set "B450NAME=booster" & set "B450ID=booster")
+if "%B450PICK%"=="3" (set "B450=lifthut" & set "B450NAME=lift huts" & set "B450ID=hut_mini")
+if "%B450PICK%"=="4" (set "B450=unloadramp" & set "B450NAME=unload ramps" & set "B450ID=ramp_quad" & set B450EXTRA=--cases "%~dp0test-results\buildings\gate1\cases")
+if "%B450PICK%"=="5" (set "B450=garages" & set "B450NAME=groomer garage" & set "B450ID=garage")
+if not defined B450 echo   No building picked.
+exit /b 0
+
 :gondolamodel
 set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
 if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
@@ -3038,6 +3097,39 @@ if exist "%~dp0Temp\UnityLockfile" (
 )
 exit /b 0
 
+:buildings450game
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%UNITY%" (echo Unity 6000.3.25f1 was not found at "%UNITY%". & goto done)
+call :projectfree || goto done
+set "B450OUT=%~dp0test-results\p4-50\game"
+if not exist "%B450OUT%" mkdir "%B450OUT%"
+set "JH2=%LOCALAPPDATA%\SkiAreaDesignChallenge-p308\jh2km"
+if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%JH2%" /e /njh /njs /nfl /ndl >nul
+echo Building the pump house and the groomer garage in Blender (about 20 seconds)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\buildings\build_buildings.py" -- --assets pumphouse,garages --out "%~dp0tools\assets\buildings\out" <nul | findstr /r /c:"tris per" /c:"Checks" /c:"PROBLEMS" /c:"Error" /c:"Traceback"
+if not exist "%~dp0tools\assets\buildings\out\bldg_garage.fbx" (echo   The build failed. & goto done)
+echo Importing them into Unity (a minute or two)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.BuildingImport.Import -quit -logFile "%B450OUT%\import.log" <nul
+if errorlevel 1 (echo   The import failed - see test-results\p4-50\game\import.log & goto done)
+findstr /c:"[BuildingImport]" "%B450OUT%\import.log"
+call :buildplayer
+if not exist "%GAME%" goto done
+rem Both on open ground clear of the trees and the tracks: the garage on the flat pad at 2,523 m (its doors east),
+rem the pump house beside the east track at 2,326 m. x,z in metres from the site's centre, as -view; then yaw.
+set "B450AT=garage@-590,-330,0;pumphouse@780,390,0"
+set "B450RUN=%RENDER% "%GAME%" -package "%JH2%" -notitle -nohud -quality high %SCREEN% -buildings %B450AT%"
+echo Taking five pictures (about a minute each; waits for a free GPU slot)...
+%B450RUN% -season summer -time 11:00 -view -590,-325,55,300,14 -screenshot "%B450OUT%\1-garage-summer.png" -logFile "%B450OUT%\1-garage-summer.log" <nul
+%B450RUN% -season summer -time 16:30 -view -590,-322,30,215,10 -screenshot "%B450OUT%\2-garage-yard.png" -logFile "%B450OUT%\2-garage-yard.log" <nul
+%B450RUN% -snowseed -day 40 -time 11:00 -view -590,-325,60,300,18 -screenshot "%B450OUT%\3-garage-snow.png" -logFile "%B450OUT%\3-garage-snow.log" <nul
+%B450RUN% -season summer -time 11:00 -view 781,390,45,300,14 -screenshot "%B450OUT%\4-pumphouse-summer.png" -logFile "%B450OUT%\4-pumphouse-summer.log" <nul
+%B450RUN% -snowseed -day 40 -time 11:00 -view 781,390,50,300,18 -screenshot "%B450OUT%\5-pumphouse-snow.png" -logFile "%B450OUT%\5-pumphouse-snow.log" <nul
+findstr /c:"[Buildings]" "%B450OUT%\1-garage-summer.log"
+start "" "%B450OUT%"
+echo Opening the game at the garage, both buildings standing (not saved)...
+start "" "%GAME%" -package "%JH2%" -notitle -snowseed -buildings %B450AT% -view -590,-325,120,300,25
+goto done
 :buildgame
 call :buildplayer
 goto done

@@ -1,0 +1,74 @@
+{
+  "_about": "The pump house (task 4.50 phase 1; the game's 4.15 pump house, SnowRules.HouseLengthMm/HouseWidthMm/HouseEaveMm): a plain insulated-metal-panel building on a concrete stem wall, 60 x 40 ft, 16 ft eave, 4:12 gable along its long axis, holding one 1,000 hp pump and a 5,000 cfm electric compressor plant fed by pad-mount transformers. Millimetres in the building frame: origin at the footprint's centre on the finished floor, u along the long axis (the game's bearing), v across (-v is the water side, where the intake enters), w up. Sides name walls by their outward normal (+v the yard side). A window or louvre row gives its first and last centre and a count.",
+  "catalog": {"name": "Pump house", "kind": "pumphouse"},
+  "footprint": {"length": 18288, "width": 12192},
+  "eave": 4877,
+  "pitch": [4, 12],
+  "roof": {"thick": 150, "overhang": 450, "rake": 300, "ridgeCap": [400, 90]},
+  "base": {"top": 457, "skirt": -2000, "flashing": 60},
+  "reveal": 120,
+  "cornerTrim": 120,
+  "doors": [
+    {"name": "door_main", "kind": "rollup", "side": "+v", "u": 4500, "width": 4267, "height": 4267, "slats": 9},
+    {"name": "door_yard", "kind": "man", "side": "+v", "u": 1000, "width": 914, "height": 2134, "halfLight": true},
+    {"name": "door_water", "kind": "man", "side": "-v", "u": 6000, "width": 914, "height": 2134, "halfLight": false}
+  ],
+  "windows": [
+    {"side": "-v", "first": -6467, "last": 1867, "count": 6, "width": 914, "sill": 3500, "height": 610},
+    {"side": "+v", "first": -6550, "last": -2050, "count": 4, "width": 914, "sill": 3500, "height": 610}
+  ],
+  "louvres": [
+    {"side": "-v", "at": -6000, "width": 1829, "sill": 600, "height": 1219},
+    {"side": "-v", "at": -2600, "width": 1829, "sill": 600, "height": 1219},
+    {"side": "+u", "at": 0, "width": 1829, "sill": 3050, "height": 1219},
+    {"side": "-u", "at": 0, "width": 1829, "sill": 3050, "height": 1219}
+  ],
+  "wallPacks": [
+    {"name": "light_door_main", "over": "door_main", "gap": 150}
+  ],
+  "sconces": [
+    {"name": "light_sconce_yard", "door": "door_yard", "at": "hinge", "beyond": 150, "height": 1980},
+    {"name": "light_sconce_water", "door": "door_water", "at": "latch", "beyond": 150, "height": 1980}
+  ],
+  "poleLights": [
+    {"name": "light_pad", "side": "+v", "at": -8300, "out": 4200, "height": 4600, "arm": [900, 0], "aimAt": [-5000, 2050, 800]}
+  ],
+  "canopy": {"projection": 900, "rise": 250, "over": 300},
+  "transformers": {"side": "+v", "at": [-6200, -3800], "half": [915, 825], "height": 1650, "gap": 400,
+                   "pad": {"from": 250, "to": 2200, "uFrom": -7300, "uTo": -2700, "top": 150}},
+  "ridgeVents": {"at": [-4500, 1500], "size": [2400, 700, 300]},
+  "vaults": [{"side": "-v", "at": -2000, "out": 1200, "size": 1500, "top": 150}],
+  "apron": {"door": "door_main", "out": 2400, "margin": 300},
+  "stoop": {"size": [1200, 1200], "top": 20},
+  "snowGuards": {"pitch": 400, "inset": 600, "beyond": 500},
+  "sockets": {"intake": {"side": "-v", "at": -2000, "w": -1829},
+              "discharge": {"side": "+u", "at": 0, "w": -1829},
+              "label": {"w": 8000}},
+  "review": {
+    "figure": [8.0, 7.696, 0.0],
+    "detail": {"doors": [[2.8, 6.1, 2.4], [-5.0, 9.0, 0.4], 30],
+               "window": [[-5.05, 6.1, 3.8], [-1.2, 3.2, -1.4], 40],
+               "light": ["light:light_door_yard", [-0.9, 2.2, -0.9], 40],
+               "water_door": [[6.0, -6.1, 1.6], [2.0, -5.5, 0.2], 32]},
+    "photoFigure": [8.0, 7.7, 0.0], "figureIn": ["hero", "scale", "snow"], "bankOut": 9.0,
+    "photos": [
+      ["hero", [0.5, 0.5, 3.0], 55, 8, 28, 35, "day"],
+      ["water", [-1.0, -2.5, 2.4], 200, 9, 27, 35, "day"],
+      ["transformers", [-5.8, 7.6, 1.6], 100, 10, 15, 35, "day"],
+      ["high", [0.0, 0.0, 3.0], 35, 40, 34, 35, "day"],
+      ["doors", [2.8, 6.1, 2.2], 78, 6, 11, 40, "day"],
+      ["door_light", {"mean": ["light_door_yard", "light_sconce_yard"], "plus": [0.0, 0.25, -0.15]}, 75, -12, 3.6, 40, "day"],
+      ["scale", [3.0, 6.5, 2.0], 70, 5, 20, 35, "day"],
+      ["dusk", [0.5, 0.5, 3.0], 62, 7, 27, 35, "dusk"],
+      ["dusk_yard", [-2.0, 6.5, 1.8], 105, 8, 20, 30, "dusk"],
+      ["snow", [0.5, 0.5, 3.0], 40, 20, 28, 35, "snow"]
+    ]
+  },
+  "lights": {
+    "wallPack": {"kind": "spot", "kelvin": 4000, "lumens": 3000, "rangeM": 9, "coneDeg": 110, "schedule": "dusk"},
+    "canopy": {"kind": "spot", "kelvin": 4000, "lumens": 1500, "rangeM": 6, "coneDeg": 120, "schedule": "dusk"},
+    "sconce": {"kind": "point", "kelvin": 4000, "lumens": 800, "rangeM": 5, "coneDeg": 360, "schedule": "dusk"},
+    "pole": {"kind": "spot", "kelvin": 4000, "lumens": 6000, "rangeM": 12, "coneDeg": 110, "schedule": "dusk"},
+    "glow": {"kelvin": 3000, "schedule": "running"}
+  }
+}
