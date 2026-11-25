@@ -120,6 +120,12 @@ MODELS = {
                          "double": "sessellift_stern2_return"}, "hide": r"(top6_|top8_)"},
     "monta": {"return": {"quad": "monta_fg4_return", "triple": "monta_fg3_return", "double": "monta_fg2_return"},
               "hide": r"$^"},
+    # owner 2026-11-25: the top drives get the ramp too (the Monta's on its wide ramps)
+    "sessellift_drive": {"return": {"quad": "sessellift_fgq4_drive", "triple": "sessellift_fgt3_drive",
+                                    "double": "sessellift_fgd2_drive"},
+                         "hide": r"(bottom_|top6_|top8_|eq_|rocker_|yoke_|sheave_[lr][2-9])"},
+    "monta_drive": {"return": {"quad": "monta_fg4_drive", "triple": "monta_fg3_drive", "double": "monta_fg2_drive"},
+                    "hide": r"(top6_|top8_)"},
 }
 CHAIRS = {"quad": "sessellift_fgq4_chair", "triple": "sessellift_fgt3_chair", "double": "sessellift_fgd2_chair"}
 MODELS_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
@@ -161,7 +167,8 @@ def real_terminal(spec, terminal, variant, coll, mat, models_dir):
     frame by the terminal's `chair_unload` socket: one chair at the unload point, one arriving, one crossing the line
     at the far end of the wheel and one leaving. None if the models are not on disk."""
     mdl = MODELS[terminal]
-    aid = mdl["return"][variant]
+    width = variant.split("_")[0]                    # quad_wide: the quad's terminal and chairs
+    aid = mdl["return"][width]
     objs = _import_fbx(os.path.join(models_dir, aid + ".fbx"), coll, mat)
     if objs is None:
         return None
@@ -179,7 +186,7 @@ def real_terminal(spec, terminal, variant, coll, mat, models_dir):
     wheel_u = spec["terminals"][terminal]["wheelU"] / 1000
     # (u, v, heading about w): travelling +u up the line, crossing the line toward -v, travelling -u back down
     for u, v, turn in ((-0.4, 0.0, 0.0), (-9.0, 0.0, 0.0), (wheel_u + g2, -g2, math.pi / 2), (-6.0, -2 * g2, math.pi)):
-        ch = _import_fbx(os.path.join(models_dir, CHAIRS[variant] + ".fbx"), coll, mat)
+        ch = _import_fbx(os.path.join(models_dir, CHAIRS[width] + ".fbx"), coll, mat)
         if ch is None:
             break
         _move(ch, Matrix.Translation(frame.b((u, v, rope))) @ Matrix.Rotation(turn, 4, "Z"))

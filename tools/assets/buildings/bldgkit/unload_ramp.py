@@ -1,7 +1,8 @@
-"""A fixed-grip chair's timber unload ramp at its top return terminal, from its spec (task 4.50 phase 4; unloadramp.json).
+"""A fixed-grip chair's timber unload ramp at its top terminal, from its spec (task 4.50 phase 4; unloadramp.json).
 
-The owner's rules (2026-11-24): a top return terminal whose unload stands 5 ft or more over the ground gets this ramp
-(under 5 ft an earth mound of the same plan, graded by the game; a top drive gets none); it clips into the terrain so
+The owner's rules (2026-11-24): a top terminal whose unload stands 5 ft or more over the ground gets this ramp
+(under 5 ft an earth mound of the same plan, graded by the game; owner 2026-11-25: a top drive as well as a top return,
+the Monta drive, whose A-frame's feet stand through the deck either side, on its own wider ramps, `set` wide); it clips into the terrain so
 ramp and ground meet smoothly, so the ski-off ramp has no railings or walls (the level deck has a guard rail round the
 hut bay and along the return side's outer edge, and a 2x4 lip marks every other edge: the ramp's two sides and the rear
 edge, owner 2026-11-24); it is double wide, like the photos: one deck across
@@ -98,8 +99,10 @@ def _copy(x):
 
 
 def terminals(spec):
-    """The spec's terminal styles (its table less the note)."""
-    return [k for k in spec["terminals"] if not k.startswith("_")]
+    """The terminal styles this ramp serves: its table less the note, those of the ramp's own `set` (standard, or the
+    Monta drive's wide ramps)."""
+    s = spec.get("set", "standard")
+    return [k for k, t in spec["terminals"].items() if not k.startswith("_") and t.get("set", "standard") == s]
 
 
 class Plan:
@@ -154,6 +157,9 @@ def _solids(spec, pl):
         t = spec["terminals"][name]
         out += [(mm(c[0]), mm(c[1]), pl.vc - mm(c[2]), pl.vc + mm(c[2]), 1e9, name) for c in t["through"]]
         out += [(mm(c[0]), mm(c[1]), pl.vc - mm(c[2]), pl.vc + mm(c[2]), mm(c[3]), name) for c in t.get("under", [])]
+        for c in t.get("pairs", []):                 # a foot each side of the centreline (the Monta drive's A-frame)
+            out += [(mm(c[0]), mm(c[1]), pl.vc + mm(c[2]), pl.vc + mm(c[3]), 1e9, name),
+                    (mm(c[0]), mm(c[1]), pl.vc - mm(c[3]), pl.vc - mm(c[2]), 1e9, name)]
     return out
 
 
@@ -309,8 +315,14 @@ def _lip(spec, pl, lod, st, mb, tbox, a, P):
         edges = [(-pl.A, pl.v_far + ret, pl.v_out)]
     else:                                            # the step along the centreline between them stays plain
         edges = [(-pl.A, pl.vc, pl.v_out), (-pl.Dn, pl.v_far + ret, pl.vc)]
+    keep = 2 * mm(spec["keepClear"])                 # and it parts round a terminal at the edge (the Sessellift drive's ladder)
+    solids = _solids(spec, pl)
     for u, v0, v1 in edges:
-        for s0, s1 in _minus([(v0, v1)], -mh, mh):
+        spans = _minus([(v0, v1)], -mh, mh)
+        for so in solids:
+            if so[0] < u + w + keep and so[1] > u - keep:
+                spans = _minus(spans, so[2] - keep, so[3] + keep)
+        for s0, s1 in spans:
             if s1 - s0 < 0.3:
                 continue
             tbox((u, s0, 0.0), (u + w, s1, t), st["lip"], skip=("-2",))   # kept clear of the terminals, as a beam
@@ -606,6 +618,19 @@ def build(spec, lod, asset_id=None):
                    and m_[3] > s_[2] - keep and m_[4] < s_[4] + keep)
         if hits:
             a.problems.append(f"{hits} post(s) or beam(s) within {spec['keepClear']} mm of the {name} terminal")
+    # the operator's own places keep clear of every terminal's steel and concrete: the hut's opening, the pedestal
+    # (its 0.4 m base) and the walkway's strip, 0.3 m round each (owner 2026-11-25: the Monta drive's feet)
+    if bay:
+        pd = spec["pedestal"]
+        pu_, pv_ = mm(pd["u"]), v_out + mm(pd["v"])
+        places = [("the hut's opening", holes[-1]), ("the pedestal", (pu_ - 0.2, pu_ + 0.2, pv_ - 0.2, pv_ + 0.2))]
+        if pl.walk:
+            places.append(("the walkway", (B, B + L, v_out, v_out + pl.walkW + pl.flare * L)))
+        for what, (u0_, u1_, v0_, v1_) in places:
+            for s_ in solids:
+                if s_[0] < u1_ + 0.3 and s_[1] > u0_ - 0.3 and s_[2] < v1_ + 0.3 and s_[3] > v0_ - 0.3:
+                    a.problems.append(f"the {s_[5]} terminal stands within 0.3 m of {what}")
+                    break
     if pl.walk:
         wk, cl = pl.walk, pl.walk["cleats"]
         if pl.slope > wk["slopeMax"] + 1e-9:

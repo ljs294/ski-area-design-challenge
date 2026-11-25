@@ -99,7 +99,7 @@ namespace MountainPlanner.App
         /// </summary>
         public static string BuildUphill(TerrainEditSession session, LocalFrame frame, MountainPlanner.World.Lifts.LiftModelSet models,
                                          float x, float z, float length, string name, string catalogId = LiftCatalogIds.SesselliftFgq4,
-                                         LiftDrive? drive = null)
+                                         LiftDrive? drive = null, double topRaise = 0)
         {
             var heights = session.Pipeline.Heights;
             var a = frame.ToAlbers(x, z);
@@ -126,12 +126,13 @@ namespace MountainPlanner.App
                                (float)Math.Round(x + ux * (length + on), 1), (float)Math.Round(z + uy * (length + on), 1) };
             var report = new StringBuilder();
             report.AppendFormat(CultureInfo.InvariantCulture, "ends slid {0:F0} ft down and {1:F0} ft up to stand (LF-08); ", back / 0.3048, on / 0.3048);
-            BuildLift(session, frame, models, line, name, report, catalogId, drive);
+            BuildLift(session, frame, models, line, name, report, catalogId, drive, topRaise);
             return report.ToString();
         }
 
         static void BuildLift(TerrainEditSession session, LocalFrame frame, MountainPlanner.World.Lifts.LiftModelSet models, float[] liftLine,
-                              string name, StringBuilder report, string catalogId = LiftCatalogIds.SesselliftFgq4, LiftDrive? drive = null)
+                              string name, StringBuilder report, string catalogId = LiftCatalogIds.SesselliftFgq4, LiftDrive? drive = null,
+                              double topRaise = 0)
         {
             var history = session.History;
             var heights = session.Pipeline.Heights;
@@ -145,8 +146,10 @@ namespace MountainPlanner.App
 
             // The one build path every lift takes (round 3): pads, towers, the envelope, the clearing. The terminals stand at
             // their ground; where the review suggests a level (LT34), it's taken as a player would (Page Up), a few rounds.
-            var built = LiftBuild.Build(type, after, b.X, b.Y, t.X, t.Y, TowerStance.Leaned);
-            double handB = 0, handT = 0;
+            // topRaise (task 4.50 slice 2, -extratopraise): the top set higher by hand, as Page Up would (the unload ramp's demo).
+            var built = topRaise != 0 ? LiftBuild.Build(type, after, b.X, b.Y, t.X, t.Y, TowerStance.Leaned, null, 0, topRaise)
+                                      : LiftBuild.Build(type, after, b.X, b.Y, t.X, t.Y, TowerStance.Leaned);
+            double handB = 0, handT = topRaise;
             for (int round = 0; round < 8 && (built.SuggestedBottomMetres != 0 || built.SuggestedTopMetres != 0); round++)
             {
                 handB += built.SuggestedBottomMetres;

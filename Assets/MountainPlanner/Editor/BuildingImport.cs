@@ -31,8 +31,17 @@ namespace MountainPlanner.Editor
         public const string SetName = "BuildingModels";
         public const string Palette = "building_palette.png";
         public const string TrimPath = "Assets/MountainPlanner/Art/Lifts/Textures/lift_trim.png";
-        /// <summary>The buildings brought into the game so far (phase 6 slice 1: the owner's pump house and garage).</summary>
-        public static readonly string[] Ids = { "bldg_pumphouse", "bldg_garage" };
+        /// <summary>The buildings brought into the game so far: slice 1 the owner's pump house and garage; slice 2 every lift
+        /// terminal's extras (the three huts, the three unload ramps, the operator's pedestal and the three stop gates).</summary>
+        public static readonly string[] Ids =
+        {
+            "bldg_pumphouse", "bldg_garage",
+            "bldg_hut_large", "bldg_hut_small", "bldg_hut_mini",
+            "bldg_ramp_quad", "bldg_ramp_triple", "bldg_ramp_double",
+            "bldg_ramp_quad_wide", "bldg_ramp_triple_wide", "bldg_ramp_double_wide",
+            "bldg_op_pedestal", "bldg_stop_gate_sessellift", "bldg_stop_gate_stern", "bldg_stop_gate_monta",
+            "bldg_stop_gate_sessellift_drive", "bldg_stop_gate_monta_drive",
+        };
         const float Tolerance = 0.001f;
 
         [MenuItem("Mountain Planner/Import Buildings")]
@@ -47,11 +56,22 @@ namespace MountainPlanner.Editor
             var assets = (JObject)built["assets"];
 
             foreach (string sub in new[] { "Models", "Textures", "Materials", "Prefabs", "Resources" }) Directory.CreateDirectory(Path.Combine(Root, sub));
+            // An FBX's bytes change with every export (its object ids), so an unchanged building keeps the file it has: each
+            // import records the build's mesh digests and sockets (Models/imported.json), and copies only what changed.
+            string recordPath = Path.Combine(Root, "Models", "imported.json");
+            var record = File.Exists(recordPath) ? JObject.Parse(File.ReadAllText(recordPath)) : new JObject();
             foreach (string id in Ids)
             {
                 var info = (JObject)assets[id] ?? throw new System.InvalidOperationException($"{report} has no {id}: build it first");
-                File.Copy(Path.Combine(Source, (string)info["fbx"]), Path.Combine(Root, "Models", (string)info["fbx"]), true);
+                string dst = Path.Combine(Root, "Models", (string)info["fbx"]);
+                string signature = Signature(info);
+                bool known = record[id] != null;
+                if (File.Exists(dst) && (known ? (string)record[id] == signature : !ForceCopy))
+                    Debug.Log($"[BuildingImport] {id}: unchanged, kept");
+                else File.Copy(Path.Combine(Source, (string)info["fbx"]), dst, true);
+                record[id] = signature;
             }
+            File.WriteAllText(recordPath, record.ToString(Newtonsoft.Json.Formatting.Indented) + "\n");
             File.Copy(Path.Combine(Source, "textures", "lift_palette.png"), Path.Combine(Root, "Textures", Palette), true);
             AssetDatabase.Refresh();
             ConfigurePalette($"{Root}/Textures/{Palette}");
@@ -81,6 +101,22 @@ namespace MountainPlanner.Editor
             EditorUtility.SetDirty(set);
             AssetDatabase.SaveAssets();
             Debug.Log($"[BuildingImport] {prefabs.Count} building prefabs → {SetPath}");
+        }
+
+        /// <summary>Copy every FBX even when its record is missing (a record-less FBX already in place is otherwise kept as
+        /// it is: the slice 1 buildings, imported before the record).</summary>
+        public static bool ForceCopy;
+
+        /// <summary>What an import must match to keep an FBX: every level's mesh digests and the sockets (buildings.json).</summary>
+        static string Signature(JObject info)
+        {
+            var lods = (JArray)info["lods"];
+            var parts = new List<string>();
+            foreach (var lod in lods) parts.Add(lod["digest"]?.ToString(Newtonsoft.Json.Formatting.None) ?? "");
+            parts.Add(info["sockets"]?.ToString(Newtonsoft.Json.Formatting.None) ?? "");
+            using var sha = System.Security.Cryptography.SHA1.Create();
+            var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(string.Join("|", parts)));
+            return System.BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
 
         static void ConfigurePalette(string path)

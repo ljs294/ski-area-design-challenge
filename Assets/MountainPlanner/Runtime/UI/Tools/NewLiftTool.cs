@@ -584,6 +584,9 @@ namespace MountainPlanner.UI.Tools
             return _works;
         }
 
+        // Task 4.50 slice 2: how far the top stands over its ground (a fixed grip's unload ramp at 5 ft and up).
+        double TopRaise => _built != null ? TerminalExtras.UnloadRaise(Type, _built.TopPad) : 0;
+
         void BuildReview()
         {
             float run = Vector2.Distance(_bottomXz, _topXz), rise = _topZ - _bottomZ;
@@ -596,7 +599,7 @@ namespace MountainPlanner.UI.Tools
                      Type.Detachable ? "LC-04: slope length over the rope speed, plus the ramps out of and into the stations (LT41)" : "LC-04: slope length over the rope speed")
                 .Add("Capacity", LiftSummary.Capacity(Type),
                      Type.Detachable ? "LC-03 v2: seats × 3,600 ÷ the loading interval (LT41)" : "LC-03")
-                .Add("Cost", LiftCostSummary.Cost(Type, run, rise, works), LiftCostSummary.Rule(Type, run, rise, works))
+                .Add("Cost", LiftCostSummary.Cost(Type, run, rise, works, TopRaise), LiftCostSummary.Rule(Type, run, rise, works, TopRaise))
                 .Reserved("Network", "NW-12: No way down", ReviewModel.NetworkSlot);
             // NW-04: the lift as if built, in the network of everything else (task P3-10); a first lift alone has no way down.
             NetworkCheck.Fill(_review, NetworkCheck.Warnings(_ctx.History.Document,

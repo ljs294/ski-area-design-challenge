@@ -324,6 +324,9 @@ namespace MountainPlanner.Presentation.Lifts
             // LD9: the top row the rope picked (its exit already the solve's), shown in place of the first.
             if (Rope.Type.Top.Head != null && Rope.Type.Top.Head != type.Top.Head) driveRig?.ShowHead(Rope.Type.Top.Head);
             type = Rope.Type;
+            // Task 4.50 slice 2: each terminal's hut (and a fixed grip's top return's gate, pedestal and ramp), with the row shown.
+            PlaceExtras(type, ret, drive, Height, ground, frame, bottom, top, livery);
+            _spawning = PartRope;
             Part(2);
 
             // Towers: the base level on its pier, the mast sections and head along the mast's axis (leaned down the line

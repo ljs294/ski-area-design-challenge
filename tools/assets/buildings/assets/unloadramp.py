@@ -8,7 +8,7 @@ from bldgkit import unload_ramp
 
 KIND = "unload_ramp"
 SPEC = "unloadramp.json"
-VARIANTS = ("quad", "triple", "double")
+VARIANTS = ("quad", "triple", "double", "quad_wide", "triple_wide", "double_wide")
 
 
 def variant(name):

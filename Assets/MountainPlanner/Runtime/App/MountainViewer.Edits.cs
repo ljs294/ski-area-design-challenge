@@ -204,8 +204,12 @@ namespace MountainPlanner.App
                     int driveAt = Array.IndexOf(args, "-extradrive");
                     LiftDrive? extraDrive = driveAt >= 0 && driveAt + 1 < args.Length
                         ? (args[driveAt + 1] == "bottom" ? LiftDrive.Bottom : LiftDrive.Top) : (LiftDrive?)null;
+                    // -extratopraise <ft>: its top set that much higher by hand (task 4.50 slice 2: the unload ramp at 5 ft and up).
+                    int raiseAt = Array.IndexOf(args, "-extratopraise");
+                    double extraRaise = raiseAt >= 0 && raiseAt + 1 < args.Length
+                        ? double.Parse(args[raiseAt + 1], CultureInfo.InvariantCulture) * 0.3048 : 0;
                     Debug.Log("[StyleTile] extra " + StyleTile.BuildUphill(_edits, _resort.Frame, Lifts, v[0], v[1], v.Length > 2 ? v[2] : 650,
-                                                                          "Check " + extraType, extraType, extraDrive));
+                                                                          "Check " + extraType, extraType, extraDrive, extraRaise));
                 }
                 while (!_edits.Applying.IsCompleted) yield return null;
             }

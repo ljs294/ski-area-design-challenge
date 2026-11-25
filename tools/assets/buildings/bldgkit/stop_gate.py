@@ -50,6 +50,8 @@ def pick(spec, terminal, ramps=None):
     depths, reach = [], []
     for width in ramps["variants"]:
         rs = unload_ramp.pick(ramps, width)
+        if terminal not in unload_ramp.terminals(rs):   # only the ramps that serve this terminal (its set)
+            continue
         g = unload_ramp.gate_at(rs, terminal)
         depths.append(-g["foot"])
         reach.append(g["window"][1] - g["at"][0])
