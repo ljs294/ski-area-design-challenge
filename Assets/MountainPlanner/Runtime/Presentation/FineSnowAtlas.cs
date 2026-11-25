@@ -82,6 +82,7 @@ namespace MountainPlanner.Presentation
             var tiles = new FineTiles(layout);
             Tiles = tiles; LayoutHash = layout.Hash(); FineMetres = layout.FineMetres;
             int n = tiles.Count;
+            _stateStaged = null;
             _depth = new ushort[n][]; _state = new byte[n][]; _dirty = new bool[n]; _uploaded = new bool[n]; _slotVersion = new int[n];
             SlotsThisFrame = Mathf.Clamp(8192 / (tiles.TileFine * tiles.TileFine), 1, SlotsPerFrame);
             if (n == 0) return true;
@@ -133,7 +134,7 @@ namespace MountainPlanner.Presentation
             Destroy(_lift); Destroy(_stateTex); Destroy(_page);
             if (_stripLift != null) for (int k = 0; k < Strips; k++) { Destroy(_stripLift[k]); Destroy(_stripState[k]); }
             _lift = _stateTex = _page = null; _stripLift = _stripState = null;
-            Tiles = null; LayoutHash = 0; _queue.Clear(); _drawing = false;
+            Tiles = null; LayoutHash = 0; _queue.Clear(); _drawing = false; _stateStaged = null;
         }
 
         bool _drawing;
@@ -148,6 +149,12 @@ namespace MountainPlanner.Presentation
             _state[listed] ??= new byte[cells * 4];
             System.Array.Copy(depth, offset, _depth[listed], 0, cells);
             System.Buffer.BlockCopy(state, offset * 4, _state[listed], 0, cells * 4);
+            if (_stateStaged != null && listed < _stateStaged.Length)
+            {
+                _stateStaged[listed] ??= new byte[cells * 4];
+                System.Buffer.BlockCopy(state, offset * 4, _stateStaged[listed], 0, cells * 4);
+                _galleryWrote[listed] = _gallery.width > 0 && GallerySlot(listed);
+            }
             TilesTaken++;
             int t = Tiles.Tiles[listed], tx = t % Tiles.TilesX, ty = t / Tiles.TilesX;
             for (int dy = -1; dy <= 1; dy++)
@@ -158,6 +165,61 @@ namespace MountainPlanner.Presentation
                     int s = Tiles.Slot[y * Tiles.TilesX + x];
                     if (s >= 0 && _depth[s] != null) Queue(s);
                 }
+        }
+
+        Rect _gallery;
+        int _galleryPasses, _galleryMoguls;
+        // The gallery only (never in play): each slot's state as the worker staged it, and which slots the gallery wrote on, so
+        // a new window, or none, puts back what the last one overwrote (p4-08-findings R21).
+        byte[][] _stateStaged;
+        bool[] _galleryWrote;
+
+        /// <summary>Task 4.08 PR B, <c>-snowtypes</c> (SurfaceStates.ShowTypeGallery): the fine cells with a block inside the
+        /// window take the gallery's type, ungroomed, <paramref name="moguls"/>, <paramref name="passes"/> since the last grooming. A window before it is put back
+        /// as the worker staged it; an empty window clears the gallery.</summary>
+        public void ShowTypeGallery(Rect window, int passes, int moguls = 0)
+        {
+            _gallery = window;
+            _galleryPasses = Mathf.Clamp(passes / 4, 0, 255);
+            _galleryMoguls = Mathf.Clamp(moguls, 0, 255);
+            if (Tiles == null) return;
+            if (_stateStaged == null || _stateStaged.Length != Tiles.Count)
+            {
+                _stateStaged = new byte[Tiles.Count][];
+                _galleryWrote = new bool[Tiles.Count];
+                for (int s = 0; s < Tiles.Count; s++)
+                    if (_state[s] != null) _stateStaged[s] = (byte[])_state[s].Clone();
+            }
+            for (int s = 0; s < Tiles.Count; s++)
+            {
+                if (_state[s] == null) continue;
+                bool was = _galleryWrote[s];
+                if (was && _stateStaged[s] != null) System.Buffer.BlockCopy(_stateStaged[s], 0, _state[s], 0, _state[s].Length);
+                _galleryWrote[s] = window.width > 0 && GallerySlot(s);
+                if (was || _galleryWrote[s]) Queue(s);
+            }
+        }
+
+        bool GallerySlot(int s)
+        {
+            int T = Tiles.TileFine, t = Tiles.Tiles[s];
+            int gx0 = t % Tiles.TilesX * T, gy0 = t / Tiles.TilesX * T;
+            byte[] st = _state[s];
+            bool any = false;
+            for (int j = 0; j < T; j++)
+                for (int i = 0; i < T; i++)
+                {
+                    int k = (j * T + i) * 4;
+                    if ((st[k] & Simulation.FineStagingRing.Owned) == 0) continue;
+                    int type = SurfaceStates.GalleryType(_gallery, _ring.xMin + (gx0 + i + 0.5f) * FineMetres, _ring.yMin + (gy0 + j + 0.5f) * FineMetres);
+                    if (type == 0) continue;
+                    st[k] = (byte)(Simulation.FineStagingRing.Owned | type);
+                    st[k + 1] = (byte)_galleryMoguls;
+                    st[k + 2] = (byte)_galleryPasses;
+                    st[k + 3] = 0;
+                    any = true;
+                }
+            return any;
         }
 
         void Queue(int s)

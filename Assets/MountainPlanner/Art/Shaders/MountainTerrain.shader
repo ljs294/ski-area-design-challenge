@@ -123,6 +123,7 @@ Shader "MountainPlanner/Terrain"
         StructuredBuffer<int> _TrailPages;
         float4 _TrailRect;           // local x and z of lattice point (0, 0), then the page table's first tile column and row
         float4 _TrailParams;         // x on, y and z the page table's width and depth in tiles
+        float _CordLightOff;         // Task 4.08 G1, dev only (-lookshots cord=off): 1 leaves out the corduroy's groove light
 
         // The north-west of the four points round xz and the weights towards the others; false where no trail reaches.
         bool TrailCell(float2 xz, out int at, out float2 f)
@@ -159,6 +160,18 @@ Shader "MountainPlanner/Terrain"
             float4 a = TrailUnpack(_TrailPoints[at]), b = TrailUnpack(_TrailPoints[at + 1]);
             float4 c = TrailUnpack(_TrailPoints[at + 65]), d = TrailUnpack(_TrailPoints[at + 66]);
             return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+        }
+
+        // The same, and the offset across the trail (m) from the same four points, at full float precision (finding #11).
+        float4 TrailAt(float2 xz, out float offset)
+        {
+            int at;
+            float2 f;
+            offset = 0;
+            if (!TrailCell(xz, at, f)) return 0;
+            TrailPoint pa = _TrailPoints[at], pb = _TrailPoints[at + 1], pc = _TrailPoints[at + 65], pd = _TrailPoints[at + 66];
+            offset = lerp(lerp(pa.offset, pb.offset, f.x), lerp(pc.offset, pd.offset, f.x), f.y);
+            return lerp(lerp(TrailUnpack(pa), TrailUnpack(pb), f.x), lerp(TrailUnpack(pc), TrailUnpack(pd), f.x), f.y);
         }
 
         // The trail being painted and the brush (task 08): TrailPaint.hlsl, shared with the snow shell and the cliffs.
@@ -209,7 +222,7 @@ Shader "MountainPlanner/Terrain"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_fragment _ WX_AIR WX_VEIL   // task 4.06: the weather's fog while something's in the air; only its snow-line veil while the screen pass draws the air (WeatherView)
-            #pragma multi_compile_fragment _ WX_GLINT   // task 4.06: the bluebird's sparkle, only near the ground
+            #pragma multi_compile_fragment _ SNOW_SPARKLE   // task 4.08 PR B: the snow's twinkle in direct sun (WeatherView; was 4.06's WX_GLINT)
             #pragma multi_compile_local _ _SNOW_SHELL   // task 4.07 PR A3 round 3: the snow shell over the ground (TerrainTiles)
             #pragma target 4.5
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
@@ -221,6 +234,7 @@ Shader "MountainPlanner/Terrain"
             #include "Haze.hlsl"
             #include "FarShadow.hlsl"
             #include "InfoLayers.hlsl"
+            #include "SnowLighting.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings
@@ -607,7 +621,8 @@ Shader "MountainPlanner/Terrain"
                 // The shell is only where the snow is deeper than ShellMinMetres (thinner snow stays painted on the ground,
                 // so the shell's edge meets white ground), and never over the cover-map overlay.
                 if (_ShellDebug > 0.5) return half4(0, 1, 1, 1);   // -shelldebug: the shell variant ran here
-                clip(SnowLiftAt(i.positionWS) - ShellMinMetres);
+                float shellLift = SnowLiftAt(i.positionWS);
+                clip(shellLift - ShellMinMetres);
                 clip(0.5 - _Overlay);
                 #else
                 if (_ShellDebug > 0.5) return half4(1, 0, 1, 1);   // -shelldebug: the plain variant ran on a debug material
@@ -621,7 +636,19 @@ Shader "MountainPlanner/Terrain"
                 float4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_mp_control_linear_clamp, cuv);
                 // A built trail (task 07): graded faces are fresh earth, not the rock the cover gives anything this steep;
                 // the bench and gentle faces are groomed in winter (full snow) and mown in summer.
-                float4 trail = TrailAt(i.positionWS.xz);
+                float trailU;
+                float4 trail = TrailAt(i.positionWS.xz, trailU);
+                // Task 4.08 PR B: the offset across the trail comes with the same four points, and its screen derivatives (the
+                // across-trail direction, no extra reads) are taken here, outside every branch (p4-08-findings R17).
+                float2 gradU;
+                float trailUPerPixel;
+                {
+                    float2 dx = ddx(i.positionWS.xz), dy = ddy(i.positionWS.xz);
+                    float du_x = ddx(trailU), du_y = ddy(trailU);
+                    float det = dx.x * dy.y - dx.y * dy.x;
+                    gradU = abs(det) > 1e-8 ? float2(du_x * dy.y - du_y * dx.y, du_y * dx.x - du_x * dy.x) / det : float2(1, 0);
+                    trailUPerPixel = abs(du_x) + abs(du_y);
+                }
                 float onTrail = saturate(trail.r);
                 float earth = onTrail * smoothstep(0.08, 0.4, abs(trail.g));
                 float earthFace = earth * smoothstep(0.35, 0.7, trail.a);
@@ -768,49 +795,63 @@ Shader "MountainPlanner/Terrain"
                         best = max(best, heights[k]);
                     }
                 }
+                // Task 4.08 PR B (SN-13 v3): the snow's surface by its type (SnowSurfaceAt: the fine trail cells on the trails,
+                // the 8 m snow elsewhere). Here only its tint, a few percent at most; how it takes the light (shine, sparkle,
+                // softness) is SnowLighting.hlsl's, with the rest of the light below.
+                SnowSurface snowLook = (SnowSurface)0;
+                [branch] if (weights[0] > 0.004)
+                {
+                    // Task 4.08 B1b (R4): the look's types meet along a wandering line (SnowBorderWarp), a few metres wide.
+                    float2 wander = SnowBorderWarp(i.positionWS.xz);
+                    snowLook = SnowSurfaceAt(i.positionWS + float3(wander.x, 0, wander.y), SnowTypeEdgeMetres);
+                    albedos[0].rgb *= snowLook.tint;
+                }
                 // Built trails (task 07). Groomed snow: the snow's own grain mostly smoothed away, then dense corduroy
-                // (owner, SK20): ridges 1 in (25 mm) apart along the trail (lines of constant offset), a sine profile while
-                // a ridge spans at least 2 pixels, then, as they shrink below that, the ridges' averaged light: darker where
-                // the sun crosses them, brighter where it runs along them. The seams between 15 ft groomer passes stay, faint.
+                // (owner, SK20): ridges 1 in (25 mm) apart along the trail (lines of constant offset).
                 // Task 4.25 PR B: the corduroy follows the simulation's grooming (SnowCorduroyAt): full where it says machine
-                // groomed, fading as skiers wear it to packed powder and hard pack, none on powder; and from far away the
-                // passes read a little stronger, so a groomed trail shows from the air.
+                // groomed, fading as skiers wear it to packed powder and hard pack, none on powder.
+                // Task 4.08 G1 (owner 2026-11-25, SK3 v2, SK20 v2): it reads from far away, as groomed runs do in photos.
+                // The ridges take the sun as two sloped faces with their own shade (SnowLighting.hlsl): darker toward the sun
+                // and in a raking sun, a little brighter with the sun behind the eye. Close up one ridge at a time while a
+                // ridge spans 2 pixels or more, then their mean. The groomers' passes (Pacing.GroomPassMm, 5.5 m, in
+                // _TrailParams.w) each have their own depth and a slight turn, so they show as bands in the sun and alike under
+                // cloud; where two meet, a 0.3 m strip has no ridges, a line of the other tone, at its true share of the pixel.
+                // Only the light changes (cordSun on the sun's, cordSky on the sky's, below), never the snow's colour.
                 // The derivatives come first, under the trail geometry's own test (smooth across a 2x2 quad), and only
                 // then the simulation's weight, which can change from pixel to pixel inside a trail.
-                [branch] if (groomed > 0.01 && weights[0] > 0.004)
+                // Task 4.08 PR B: the offset and its screen derivatives are taken at the top, outside every branch (R17).
+                float cordSun = 1, cordSky = 1;
+                [branch] if (onTrail > 0.01 && weights[0] > 0.004)
                 {
-                    float u = TrailOffsetAt(i.positionWS.xz);
-                    // The across-trail direction from the offset's screen derivatives (no extra texture reads).
-                    float2 dx = ddx(i.positionWS.xz), dy = ddy(i.positionWS.xz);
-                    float du_x = ddx(u), du_y = ddy(u);
-                    float cycles = u / 0.0254;
-                    float perPixel = fwidth(cycles);
-                    float seamWidth = max(0.06, fwidth(u) * 0.75);
-                    float cord = groomed * SnowCorduroyAt(i.positionWS);
+                    float u = trailU;
+                    float3 acrossWS = normalize(float3(gradU.x, 0, gradU.y) + float3(1e-5, 0, 0));
+                    float uPerPixel = trailUPerPixel;
+                    float cord = groomed * SnowCorduroyAt(i.positionWS);   // at the point itself: grooming's edges stay straight
                     if (cord > 0.01)
                     {
-                    float det = dx.x * dy.y - dx.y * dy.x;
-                    float2 gradU = abs(det) > 1e-8 ? float2(du_x * dy.y - du_y * dx.y, du_y * dx.x - du_x * dy.x) / det : float2(1, 0);
-                    float3 acrossWS = normalize(float3(gradU.x, 0, gradU.y) + float3(1e-5, 0, 0));
                     normals[0] = normalize(lerp(normals[0], n, 0.6 * cord));
-                    float fine = (1 - smoothstep(0.25, 0.5, perPixel)) * cord;   // individual ridges, while 2+ px each
-                    float wave = sin(cycles * 6.2831853);
-                    normals[0] = normalize(normals[0] + acrossWS * cos(cycles * 6.2831853) * 0.5 * fine);
-                    albedos[0].rgb *= 1 - 0.06 * fine * (0.5 + 0.5 * wave);
-                    // The averaged ridges: the mean of the light on both ridge flanks against the flat surface's.
-                    float far = (1 - fine) * cord;
-                    Light ridgeSun = GetMainLight();
-                    float3 plus = normalize(normals[0] + acrossWS * 0.5), minus = normalize(normals[0] - acrossWS * 0.5);
-                    float flat0 = max(saturate(dot(normals[0], ridgeSun.direction)), 0.05);
-                    float avg = 0.5 * (saturate(dot(plus, ridgeSun.direction)) + saturate(dot(minus, ridgeSun.direction)));
-                    albedos[0].rgb *= lerp(1, clamp(avg / flat0, 0.85, 1.05), far);
-                    smooths[0] = lerp(smooths[0], smooths[0] * 0.7, far);
-                    float lane = u / 4.572;
-                    float seam = 1 - smoothstep(0, seamWidth, abs(frac(lane + 0.5) - 0.5) * 4.572);
-                    float shade = Hash12(int2((int)floor(lane + 1000), 7)) - 0.5;
-                    float farRead = saturate(far / max(cord, 1e-3));   // 0 near (single ridges), 1 far (averaged)
-                    albedos[0].rgb *= (1 + lerp(0.015, 0.04, farRead) * shade * cord) * (1 - lerp(0.03, 0.07, farRead) * seam * cord);
-                    albedos[0].rgb *= lerp(1, lerp(1.03, 1.05, farRead), cord);
+                    float3 cordLight = GetMainLight().direction;
+                    float3 cordEye = normalize(GetWorldSpaceViewDir(i.positionWS));
+                    // The passes, one down the trail's middle: this pixel's, the nearer join, and the pass across it.
+                    float passWidth = _TrailParams.w > 0.5 ? _TrailParams.w : 5.5;
+                    float lane = u / passWidth + 0.5, inPass = frac(lane);
+                    float toJoin = (0.5 - abs(inPass - 0.5)) * passWidth;
+                    float passNo = floor(lane), nextPass = passNo + (inPass < 0.5 ? -1 : 1);
+                    float vary = 1 - smoothstep(0.15, 0.35, uPerPixel / passWidth);
+                    float spill = saturate((uPerPixel / 2 - toJoin) / max(uPerPixel, 1e-4));   // the pixel's share past the join's line
+                    float ridges = cord * (1 - CordStripCover(toJoin, uPerPixel, CordJoinMetres));
+                    float depthHere, depthThere;
+                    float far = lerp(CorduroyPassSun(n, acrossWS, cordLight, cordEye, passNo, vary, depthHere),
+                                     CorduroyPassSun(n, acrossWS, cordLight, cordEye, nextPass, vary, depthThere), spill);
+                    // Close up, single ridges: a sine across the trail with its own shade (no turn: the ridges run with the
+                    // trail's lines), handing over to their mean as a ridge shrinks under 2 pixels.
+                    float cycles = u / CordSpacingMetres, perCycle = uPerPixel / CordSpacingMetres;
+                    float fine = 1 - smoothstep(0.25, 0.5, perCycle);
+                    float k = CordSlope(depthHere);
+                    normals[0] = normalize(normals[0] - acrossWS * (cos(cycles * 6.2831853) * 1.5707963 * k * fine * ridges));
+                    float near = 1 - CorduroyShade(cycles, perCycle, n, acrossWS, cordLight, k) * (1 - CordBounce);
+                    cordSun = lerp(1, lerp(far, near, fine), ridges);
+                    cordSky = 1 - CordSkyLoss * ridges * lerp(depthHere, depthThere, spill);
                     }
                 }
                 // Summer: the bench is seeded and mown, a fresher, more even green; the faces fresh earth, stonier in cut.
@@ -839,16 +880,18 @@ Shader "MountainPlanner/Terrain"
                 if (crown >= 0 && weights[1] > 0.004)
                     albedos[1].rgb = lerp(weights[2] > 0.004 ? albedos[2].rgb : albedos[1].rgb * float3(0.75, 0.9, 0.7), albedos[1].rgb, 0.4);
                 float3 albedo = 0, normal = 0;
-                float total = 0, smooth = 0;
+                float total = 0, smooth = 0, snowShare = 0;
                 [unroll] for (int m = 0; m < 8; m++)
                 {
                     float w = max(heights[m] - best + _HeightBlend, 0);
+                    if (m == 0) snowShare = w;
                     albedo += albedos[m].rgb * w;
                     normal += normals[m] * w;
                     smooth += smooths[m] * w;
                     total += w;
                 }
                 albedo /= total;
+                snowShare /= total;
                 // Task 4.28, a check's view (-moisturemap): the moisture map itself, straw for dry through green to blue for wet.
                 if (_GroundMoistureParams.y > 0.5)
                 {
@@ -862,6 +905,10 @@ Shader "MountainPlanner/Terrain"
                 WeatherSurface(normal, smooth, n, i.positionWS);   // task 4.06: flat light under a closed deck, wet ground in the rain
 
                 Light sun = MainLightWithFarShadow(i.positionWS);
+                // the grooves shade only the direct sun: under a closing deck it goes, as the sun disc does (snowIn.sunDisc)
+                cordSun = CorduroyUnderCloud(cordSun, _WxCloud.x * saturate(_WxParams.x));
+                if (_CordLightOff > 0.5) { cordSun = 1; cordSky = 1; }   // dev only: the A/B pictures
+                sun.shadowAttenuation *= lerp(1, cordSun, snowShare);   // Task 4.08 G1: the corduroy's own shade (above)
                 float3 view = normalize(GetWorldSpaceViewDir(i.positionWS));
                 float ndl = saturate(dot(normal, sun.direction));
                 float3 h = normalize(sun.direction + view);
@@ -870,6 +917,7 @@ Shader "MountainPlanner/Terrain"
                 // (1 m heightmap); creases also take a little off the sun.
                 half crease = 1 - 0.45 * saturate(fineBelow / 1.5);
                 half skyLight = TerrainSkyVisibility(i.positionWS) * crease;
+                skyLight *= lerp(1, cordSky, snowShare);   // Task 4.08 G1: the sky the corduroy's grooves don't see
                 // The crowns hide most of the sky from the ground below them (P2-09), and past the shadow cascades,
                 // where trees cast no shadows of their own, some of the sun too.
                 float under = saturate(crown);
@@ -878,8 +926,42 @@ Shader "MountainPlanner/Terrain"
                 sun.shadowAttenuation *= 1 - 0.5 * under * farFade;
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation * lerp(1, crease, 0.5) + SampleSH(normal) * skyLight)
                            + sun.color * spec * sun.shadowAttenuation;
-                // Task 4.06: the bluebird's sparkle on fresh snow, last (WX_GLINT), so its sums don't keep the layers' registers.
-                lit += sun.color * (WeatherGlint(i.positionWS, normal, h, albedo) * sun.shadowAttenuation);
+                // Task 4.08 PR B (SN-13 v3): the snow's own light. On the shell (snow 5 cm deep and more) the whole of it:
+                // softness, shine and sparkle by type (SnowLighting.hlsl). Painted snow thinner than that keeps the plain light
+                // and takes the sparkle alone. Last, so its sums don't keep the layers' registers.
+                [branch] if (snowShare > 0.01)
+                {
+                    float eyeDist = distance(i.positionWS, _WorldSpaceCameraPos);
+                    #if defined(_SNOW_SHELL)
+                    SnowLitInput snowIn;
+                    snowIn.albedo = albedo;
+                    snowIn.normalDetail = normal;
+                    snowIn.normalSmooth = n;
+                    float shineFade = smoothstep(ShellMinMetres, ShellMinMetres + 0.10, shellLift);
+                    // The mirror is the ground's wide shape, not the mesh's facets (R12: a tight highlight on lidar facets tore).
+                    [branch] if (snowLook.sheen * shineFade > 0.01 && smoothShade <= 0.01)
+                    {
+                        float2 gWide = HeightGradient(i.uv);
+                        snowIn.normalSmooth = normalize(lerp(n, normalize(float3(-gWide.x - i.liftSlope.x, 1, -gWide.y - i.liftSlope.y)), 0.85));
+                    }
+                    snowIn.view = view;
+                    snowIn.sunDir = sun.direction;
+                    snowIn.sunLight = sun.color * sun.shadowAttenuation;
+                    snowIn.sunCrease = lerp(1, crease, 0.5);
+                    snowIn.sunDisc = 1 - smoothstep(0.5, 0.9, _WxCloud.x) * saturate(_WxParams.x);
+                    snowIn.ambient = SampleSH(normal) * skyLight;
+                    snowIn.skyLight = SampleSH(float3(0, 1, 0));
+                    snowIn.skyVis = skyLight;
+                    snowIn.positionWS = i.positionWS;
+                    snowIn.dist = eyeDist;
+                    snowIn.px = footprint;
+                    snowIn.shineFade = shineFade;
+                    float3 snowShine, snowTwinkle;
+                    lit = lerp(lit, SnowLit(snowLook, snowIn, snowShine, snowTwinkle), snowShare);
+                    #else
+                    lit += sun.color * (SnowSparkle(i.positionWS, normal, h, eyeDist, snowLook.density, snowLook.grain) * snowLook.sparkle * snowShare * sun.shadowAttenuation);
+                    #endif
+                }
                 // The earth's lines, on the ground and on the snow shell alike (owner, 2026-11-17: the real ground's contours show
                 // through the snow). earthY is the earth's height under the pixel, so a line is where the bare earth's is.
                 lit = ApplyContours(lit, i.earthY, ContourElevation(i.uv, i.earthY));

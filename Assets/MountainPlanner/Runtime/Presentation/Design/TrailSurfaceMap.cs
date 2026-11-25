@@ -30,6 +30,9 @@ namespace MountainPlanner.Presentation.Design
         /// <summary>Points a page side: a tile and one more.</summary>
         public const int PageSide = TrailSurface.Side + 1;
         const int PagePoints = PageSide * PageSide;
+        /// <summary>One groomer pass across the snow (metres), GO-16 v2's: the corduroy draws its passes this wide (Task 4.08 G1,
+        /// SK3 v2; the terrain shader's _TrailParams.w).</summary>
+        public static float PassMetres => Simulation.Pacing.Default.GroomPassMm / 1000f;
 
         static readonly int PointsId = Shader.PropertyToID("_TrailPoints"), PagesId = Shader.PropertyToID("_TrailPages"),
                             RectId = Shader.PropertyToID("_TrailRect"), ParamsId = Shader.PropertyToID("_TrailParams");
@@ -230,7 +233,8 @@ namespace MountainPlanner.Presentation.Design
             // The local position of lattice point (0, 0): column c is c metres east of it, row r r metres south.
             var (x0, z0) = _frame.ToLocal(new AlbersPoint(_lattice.X(0), _lattice.Y(0)));
             Shader.SetGlobalVector(RectId, new Vector4((float)x0, (float)z0, _tableC0, _tableR0));
-            Shader.SetGlobalVector(ParamsId, new Vector4(1, _tableW, _tableH, 0));
+            // w: one groomer pass across the snow (Task 4.08 G1, SK3 v2): the corduroy's passes are the simulation's own.
+            Shader.SetGlobalVector(ParamsId, new Vector4(1, _tableW, _tableH, PassMetres));
             LastSplit = string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "shapes {0:F1}, fields {1:F1} over {2:N0} points in {3} blocks, {4} of {5} pages sent{6}, pack and send {7:F1}",
                 shapesMs, fieldsMs, _surface.PointsRedrawn, _surface.Redrawn.Count, send.Count, _slots.Count, whole ? " (buffer grown)" : "", packMs);

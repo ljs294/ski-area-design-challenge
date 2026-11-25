@@ -172,6 +172,75 @@ namespace MountainPlanner.Tests
             finally { states.Dispose(); }
         }
 
+        /// <summary>The probe's look (pass 4) at one point: tint r and b, the shine's gloss, track depth.</summary>
+        static Color LookAt(float x, float z)
+        {
+            var px = Draw(4, x - 0.5f, z - 0.5f, 1);
+            return px[(Size / 2) * Size + Size / 2];
+        }
+
+        [Test]
+        public void TheLookFollowsEachCellsType()
+        {
+            // Task 4.08 PR B (SN-13 v2): on the run the fine cell's own type (the whale's machine made), off it the 8 m snow's.
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) Assert.Ignore("needs a graphics device (not -nographics)");
+            var states = Painted(out _, out _);
+            try
+            {
+                var mm = SnowLooks.Rows[(int)SnowType.MM];
+                var whale = LookAt(WhaleX, WhaleZ);
+                Say($"[look] whale: tint r {whale.r:F3} b {whale.g:F3}, gloss {whale.b:F3}, tracks {whale.a:F3}");
+                Assert.That(whale.b, Is.EqualTo(mm.Gloss).Within(0.01f), "machine made's gloss on the whale");
+                Assert.That(whale.g / whale.r, Is.EqualTo(mm.Tint.z / mm.Tint.x).Within(0.01f), "and its touch of blue");
+                Assert.That(whale.a, Is.EqualTo(mm.Tracks).Within(0.01f), "and its track depth");
+                int ci = (int)((WhaleX - 120 - Ring.xMin) / SurfaceStates.CellMetres), cj = (int)((WhaleZ - Ring.yMin) / SurfaceStates.CellMetres);
+                float x = Ring.xMin + (ci + 0.5f) * SurfaceStates.CellMetres, z = Ring.yMin + (cj + 0.5f) * SurfaceStates.CellMetres;
+                int type = states.ConditionsAt(ci, cj).Type;
+                var off = LookAt(x, z);
+                var row = SnowLooks.Rows[type];
+                Say($"[look] off the run: {(SnowType)type}, gloss {off.b:F3} (row {row.Gloss:F2}), tracks {off.a:F3}");
+                Assert.That(type, Is.Not.EqualTo((int)SnowType.MM));
+                Assert.That(off.b, Is.EqualTo(row.Gloss).Within(0.01f), "the 8 m cell's type there");
+                Assert.That(off.a, Is.EqualTo(row.Tracks).Within(0.01f));
+            }
+            finally { states.Dispose(); }
+        }
+
+        [Test]
+        public void TheTypeGalleryStripesTheScreenOnly()
+        {
+            // Task 4.08 PR B, -snowtypes: the eleven types in stripes on the screen's copy; the worker's snow keeps its own.
+            var states = Painted(out var world, out _);
+            try
+            {
+                var window = new Rect(WhaleX - 55, WhaleZ - 55, 110, 110);
+                int oi = (int)((WhaleX - 120 - Ring.xMin) / SurfaceStates.CellMetres), oj = (int)((WhaleZ - Ring.yMin) / SurfaceStates.CellMetres);
+                var outside = states.ConditionsAt(oi, oj);
+                states.ShowTypeGallery(window, 400);
+                for (int f = 0; f < 400 && (states.TilesWaiting > 0 || states.Fine.SlotsWaiting > 0); f++) states.Sync();
+                int checkedStripes = 0;
+                for (int k = 0; k < 11; k++)
+                {
+                    float x = window.xMin + (k + 0.5f) * window.width / 11;
+                    var st = states.Fine.StateAt(x, WhaleZ + 30);
+                    if (st.Type < 0) continue;   // this stripe misses the run
+                    Assert.That(st.Type, Is.EqualTo(k + 1), $"stripe {k} on the run");
+                    Assert.That(st.Passes, Is.EqualTo(400));
+                    Assert.That(st.Groomed, Is.False);
+                    checkedStripes++;
+                }
+                int ci = (int)((window.xMin + 2 - Ring.xMin) / SurfaceStates.CellMetres), cj = (int)((WhaleZ - Ring.yMin) / SurfaceStates.CellMetres);
+                Assert.That(states.ConditionsAt(ci, cj).Type, Is.EqualTo((int)SnowType.P), "the first stripe off the run, powder");
+                Assert.That(checkedStripes, Is.GreaterThan(1), "the run crosses stripes");
+                Assert.That(states.ConditionsAt(oi, oj), Is.EqualTo(outside), "outside the window the snow keeps its own bytes");
+                int mm = 0;
+                for (int f = 0; f < world.FineSnow.Cells; f++) if (world.FineSnow.Type[f] == (byte)SnowType.MM) mm++;
+                Assert.That(mm, Is.GreaterThan(0), "the worker's whale is still machine made");
+                Say($"[gallery] {checkedStripes} stripes on the run checked; the worker keeps {mm} machine made cells");
+            }
+            finally { states.Dispose(); }
+        }
+
         [Test]
         public void TheSkiersStandOnTheDrawnFineSnow()
         {

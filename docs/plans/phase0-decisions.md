@@ -694,3 +694,14 @@ TD-06 v2 and TD-07 in [p3-02-design-rules.md](p3-02-design-rules.md) §4.2.
 | R10 | **Demo finding F2:** the list's scroll bar is low-key: a faint thin thumb, no track or arrows, firmer under the pointer |
 | R11 | **Popularity (owner, after the demo):** Analysis › Trails and Lifts get a Popularity column, a whole number 0–100 from the guests; "—" until 4.12/4.17 fill it |
 | R12 | **After the demo:** a column's title opens its sort and filter menu; the Filter toggle became Clear filters, greyed until something is sorted or filtered, and it clears sorts too; every scroll bar in the game shares the one low-key style (Base.uss) |
+
+## Phase 4 task 08, snow look (corduroy from far away): decided 2026-11-25
+
+**Context:** the owner asked for the groomed texture to read from further away. Plan v7 step G1
+([p4-08-findings.md](p4-08-findings.md), round 4) answers it with photos of real groomed runs; the owner kept the plan's
+three guesses. These replace two of task 07's style-tile decisions.
+
+| # | Decision |
+|---|---|
+| SK3 v2 | **Groomer lanes are the groomers' own passes:** 5.5 m, read from `Pacing.GroomPassMm` (GO-16 v2), so the screen and the grooming simulation agree; replaces SK3's 15 ft. The ridges stay about 1 in |
+| SK20 v2 | **Corduroy has the real amount of contrast, from its light:** the grooves shade the direct sun (strong toward the sun and in a raking sun, faint with the sun behind the eye); each pass has its own depth and turn, so passes read as bands; a 0.3 m join strip shows as a line to about 300 m. Under a closed deck it is faint, with the joins still showing. Replaces SK20's "faint groomer lanes" and the flat brightening |

@@ -82,5 +82,27 @@ Shader "Hidden/MountainPlanner/Tests/SnowProbe"
             float4 Frag(Varyings v) : SV_Target { float3 p = World(v.uv); return float4(p.x, p.z, 0, 1); }
             ENDHLSL
         }
+
+        // Task 4.08 PR B (SnowLooksTests): pass 4 the look SnowSurfaceAt gives (tint r and b, the shine's gloss, track depth); pass 5
+        // the finish (corduroy, moguls, passes / 1020, the fine cells' share).
+        Pass
+        {
+            Name "Look"
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            float4 Frag(Varyings v) : SV_Target { SnowSurface s = SnowSurfaceAt(World(v.uv)); return float4(s.tint.r, s.tint.b, s.gloss, s.tracks); }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "Finish"
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            float4 Frag(Varyings v) : SV_Target { SnowSurface s = SnowSurfaceAt(World(v.uv)); return float4(s.corduroy, s.moguls, s.passes / 1020, s.owned); }
+            ENDHLSL
+        }
     }
 }

@@ -163,6 +163,12 @@ namespace MountainPlanner.Presentation
             Snow.CopyMillimetres(mm, offset, x, y, width, height, mark: false);
             for (int j = 0; j < height; j++)
                 System.Buffer.BlockCopy(surface, surfaceOffset + j * width * 4, Surface, ((y + j) * Snow.Width + x) * 4, width * 4);
+            if (_surfaceStaged != null)
+            {
+                for (int j = 0; j < height; j++)
+                    System.Buffer.BlockCopy(surface, surfaceOffset + j * width * 4, _surfaceStaged, ((y + j) * Snow.Width + x) * 4, width * 4);
+                if (_gallery.width > 0) GalleryCells(x, y, width, height);
+            }
             int key = (y / Tile) * 65536 + x / Tile;
             if (_tilesQueued.Add(key)) _tiles.Enqueue(new RectInt(x, y, width, height));
             int seen = (y / Tile) * ((Snow.Width + Tile - 1) / Tile) + x / Tile;
@@ -171,6 +177,64 @@ namespace MountainPlanner.Presentation
 
         /// <summary>Tiles still waiting for the GPU.</summary>
         public int TilesWaiting => _tiles.Count;
+
+        Rect _gallery;
+        byte[] _surfaceStaged;   // the gallery only (never in play): the surface as the worker staged it, to put back (R21)
+
+        /// <summary>
+        /// Task 4.08 PR B, the <c>-snowtypes</c> capture: the eleven snow types side by side in stripes across x inside
+        /// <paramref name="window"/> (local metres), on the screen only (the simulation's snow is untouched; a tile it sends
+        /// later is striped again). On the trails' fine cells too, with <paramref name="passes"/> since the last grooming, so
+        /// the tracks show by type, and <paramref name="moguls"/> (0-255); no corduroy, so the type's own look shows.
+        /// </summary>
+        public void ShowTypeGallery(Rect window, int passes, int moguls = 0)
+        {
+            Rect old = _gallery;
+            _surfaceStaged ??= (byte[])Surface.Clone();
+            _gallery = window;
+            int w = Snow.Width, h = Snow.Height;
+            for (int ty = 0; ty < h; ty += Tile)
+                for (int tx = 0; tx < w; tx += Tile)
+                {
+                    int tw = Mathf.Min(Tile, w - tx), th = Mathf.Min(Tile, h - ty);
+                    // The window before this one goes back to the snow the worker staged (R21), then the new stripes.
+                    bool was = old.width > 0 && old.Overlaps(new Rect(_ring.xMin + tx * CellMetres, _ring.yMin + ty * CellMetres, tw * CellMetres, th * CellMetres));
+                    if (was)
+                        for (int j = 0; j < th; j++)
+                            System.Buffer.BlockCopy(_surfaceStaged, ((ty + j) * w + tx) * 4, Surface, ((ty + j) * w + tx) * 4, tw * 4);
+                    bool now = window.width > 0 && GalleryCells(tx, ty, tw, th);
+                    if (!was && !now) continue;
+                    int key = (ty / Tile) * 65536 + tx / Tile;
+                    if (_tilesQueued.Add(key)) _tiles.Enqueue(new RectInt(tx, ty, tw, th));
+                }
+            Fine.ShowTypeGallery(window, passes, moguls);
+        }
+
+        /// <summary>The gallery off: every cell back to the snow the worker staged.</summary>
+        public void ClearTypeGallery() => ShowTypeGallery(default, 0);
+
+        /// <summary>The gallery's type (1-11) at local x, or 0 outside it.</summary>
+        internal static int GalleryType(Rect window, float x, float z)
+        {
+            if (window.width <= 0 || !window.Contains(new Vector2(x, z))) return 0;
+            return 1 + Mathf.Clamp(Mathf.FloorToInt((x - window.xMin) / window.width * 11), 0, 10);
+        }
+
+        bool GalleryCells(int x, int y, int width, int height)
+        {
+            bool any = false;
+            for (int j = y; j < y + height; j++)
+                for (int i = x; i < x + width; i++)
+                {
+                    int type = GalleryType(_gallery, _ring.xMin + (i + 0.5f) * CellMetres, _ring.yMin + (j + 0.5f) * CellMetres);
+                    if (type == 0) continue;
+                    int k = (j * Snow.Width + i) * 4;
+                    Surface[k] = (byte)type;
+                    Surface[k + 2] = 0;   // fresh: no dulling with age
+                    any = true;
+                }
+            return any;
+        }
 
         /// <summary>The surface's bytes at a cell (type, quality ÷ 4, age, density ÷ 4): the Snow conditions map's.</summary>
         public (byte Type, byte Quality, byte Age, byte Density) ConditionsAt(int x, int y)
