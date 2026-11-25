@@ -8,9 +8,9 @@ namespace MountainPlanner.Presentation.Guests
 {
     /// <summary>
     /// LO-02 on screen (task 4.13, the owner's priority): where each skier in a lift's line stands. A line is as wide as
-    /// the carrier's seats (a double two, a quad four, a carpet one), 3 ft a column and 7 ft a row (a skier on skis is
-    /// about 1.7 m long: LO-02's 2.5 ft would stack skis through each other), and folds back and forth in passes of at most
-    /// <see cref="PassMetres"/> with a 1 m aisle between them, starting at the load point and running away from the lift.
+    /// the carrier's seats (a double two, a quad four, a carpet one), 3 ft a column and <see cref="RowMetres"/> a row (a
+    /// skier on skis is about 1.7 m long: LO-02's 2.5 ft would stack skis through each other), and winds away from the
+    /// load point as one ribbon (task 4.26 BB26, <c>LineLayout.Ribbon.cs</c>), folding back on itself in round hairpins.
     ///
     /// It never runs into anything. A free-space grid of <see cref="CellMetres"/> cells round each bottom station blocks
     /// every lift terminal (plus a margin), every lift's line (its chairs and towers), uncleared forest, ground steeper than
@@ -19,9 +19,9 @@ namespace MountainPlanner.Presentation.Guests
     /// load point, then the rest go in blocks of the same size in turn, so no lift takes the whole base.
     ///
     /// A line grows as long as it needs to (owner, 2026-11-10, demo finding 2: "lines should grow as long as they need to,
-    /// to hold every guest in them"). Where a fold meets a tree, a steep patch or another line it turns there and steers
-    /// round it; where it is boxed in it strings out single file along the shortest free way to open ground and folds
-    /// again there; with no open ground in reach its walkway goes on through trees or steep ground (never a terminal, a
+    /// to hold every guest in them"). Where a fold meets a tree, a steep patch or another line it bends round it; where it
+    /// is boxed in it narrows to single file along the shortest free way to open ground and widens again there; with no
+    /// open ground in reach it goes on through trees or steep ground (never a terminal, a
     /// lift's line or a run). The design build lays the first <see cref="InitialSlots"/> places of each line;
     /// <see cref="Grow"/> adds <see cref="GrowSlots"/> more when a line nears its end, and places only ever append, so a
     /// skier's place never moves and the tail visibly extends.
@@ -34,8 +34,6 @@ namespace MountainPlanner.Presentation.Guests
         public const float ColumnMetres = 0.9144f;   // 3 ft
         /// <summary>Task 4.26 BB26 (owner, 2026-11-24: "the skiers can stand closer together"): 1.8 m a row (was 7 ft).</summary>
         public const float RowMetres = 1.8f;
-        public const float AisleMetres = 1f;
-        public const float PassMetres = 12f;
         public const float CellMetres = 0.5f;
         /// <summary>Steeper than this nobody stands in a line (35%: the drawn resort's mid-mountain lifts had no room at 25%).</summary>
         public const float MaxGrade = 0.35f;
@@ -53,7 +51,7 @@ namespace MountainPlanner.Presentation.Guests
         public const float TreeClearanceMetres = 1.25f;
         /// <summary>How far a walkway looks for open ground through a gap, metres of path.</summary>
         public const float MaxWalkMetres = 150f;
-        const int WalkSearchCells = 12_000, SoftWalkSteps = 800;
+        const int WalkSearchCells = 12_000;
 
         /// <summary>A lift as the layout sees it: its bottom (where the line is), its top, its seats and its terminals' size.</summary>
         public struct LiftInput
@@ -106,31 +104,30 @@ namespace MountainPlanner.Presentation.Guests
 
         /// <summary>Task 4.26 BB4: how many columns line <paramref name="line"/> stands in (place d·seats + c is row d, column c).</summary>
         /// <summary>Task 4.26 BB4: how many stretches line <paramref name="line"/> has (rows across, then single file, ...).</summary>
-        public int SectionCount(int line) => _ribbons != null ? (line >= 0 && line < _ribbons.Length && _ribbons[line] != null ? _ribbons[line].SectionRows.Count : 0) : _snakes != null && line >= 0 && line < _snakes.Length && _snakes[line] != null ? _snakes[line].SectionRows.Count : 0;
+        public int SectionCount(int line) => RibbonOf(line)?.SectionRows.Count ?? 0;
 
         /// <summary>Task 4.26 BB4: stretch <paramref name="k"/> of line <paramref name="line"/>: its rows, and whether it is single file.</summary>
         public void Section(int line, int k, out int rows, out bool file)
         {
-            if (_ribbons != null) { var r = _ribbons[line]; rows = r.SectionRows[k]; file = r.SectionFile[k]; return; }
-            var s = _snakes[line];
-            rows = s.SectionRows[k]; file = s.SectionFile[k];
+            var r = _ribbons[line];
+            rows = r.SectionRows[k]; file = r.SectionFile[k];
         }
 
-        public int SeatsOf(int line) => _ribbons != null ? (line >= 0 && line < _ribbons.Length && _ribbons[line] != null ? _ribbons[line].Seats : 1) : _snakes != null && line >= 0 && line < _snakes.Length && _snakes[line] != null ? _snakes[line].Seats : 1;
+        public int SeatsOf(int line) => RibbonOf(line)?.Seats ?? 1;
+
+        /// <summary>Line <paramref name="line"/>'s ribbon, or null when it has none.</summary>
+        Ribbon RibbonOf(int line) => _ribbons != null && line >= 0 && line < _ribbons.Length ? _ribbons[line] : null;
 
         public int Capacity(int lift) => LiftSlots.IsCreated && lift >= 0 && lift < LiftSlots.Length ? LiftSlots[lift].y : 0;
 
         /// <summary>Whether lift <paramref name="lift"/>'s line can still grow (it has a line, and room was found last time).</summary>
-        public bool CanGrow(int lift) => _ribbons != null
-            ? lift >= 0 && lift < _ribbons.Length && _ribbons[lift] != null && !_ribbons[lift].Done && _ribbons[lift].Out.Count < MaxSlots
-            : _snakes != null && lift >= 0 && lift < _snakes.Length && _snakes[lift] != null
-                                         && !_snakes[lift].Done && _snakes[lift].Placed.Count < MaxSlots;
+        public bool CanGrow(int lift) => RibbonOf(lift) is Ribbon r && !r.Done && r.Out.Count < MaxSlots;
 
         // ================= the ground =================
 
         // A cell's state: not looked at yet, open, soft (trees or steep: a walkway may cross it when nothing else is
-        // left), taken by a line, or hard (a terminal, a lift's line, a run: never).
-        const byte Unknown = 0, Open = 1, Soft = 2, Claimed = 3, Hard = 4;
+        // left), or hard (a terminal, a lift's line, a run: never). A line's own ground is in the ribbons' claims.
+        const byte Unknown = 0, Open = 1, Soft = 2, Hard = 4;
 
         sealed class Grid
         {
@@ -154,69 +151,10 @@ namespace MountainPlanner.Presentation.Guests
                 return v;
             }
 
-            public bool Free(int i, int j) => State(i, j) == Open;
-            public bool Passable(int i, int j) { byte s = State(i, j); return s == Open || s == Soft; }
-            public void Claim(int i, int j) => _cells[Key(i, j)] = Claimed;
-        }
-
-        /// <summary>One lift's line as it is laid: a serpentine in a frame of its own, one row at a time.</summary>
-        sealed class Snake
-        {
-            public int Lift;
-            public Vector2 Load;                    // the load point (the bound's centre)
-            public Vector2 Origin, Along, Across;   // Along: the way the passes run; Across: the side the passes step to
-            public int Seats;
-            public float Width;
-            public int Pass;          // which pass the next row is on
-            public float U;           // the next row's distance along, metres
-            public int Direction = 1; // +1 along, −1 back
-            public int RowsOnPass;
-            /// <summary>Task 4.26 BB4: how many folds turned after fewer than <see cref="MinFoldRows"/> rows (a zigzag).</summary>
-            public int ShortFolds;
-            public bool Done;
-            public Vector2 Tail, TailDir;   // the last place laid, and the way the line was going there
-            public int Turns, WalkPlaces, SoftPlaces;
-            /// <summary>The last search for a gap found none: don't search again until the line is on open ground.</summary>
-            public bool WalkFailed;
-            /// <summary>
-            /// No open ground in reach: its folds stand on trees or steep ground too (never a hard block), so the line stays
-            /// folded at its lift rather than strung out single file through the woods.
-            /// </summary>
-            public bool SoftGround;
-            public bool Fits(Grid grid, int i, int j) => SoftGround ? grid.Passable(i, j) : grid.Free(i, j);
-            public readonly List<Vector3> Placed = new List<Vector3>();
-            public readonly List<Vector2> Faces = new List<Vector2>();
-            /// <summary>Task 4.26 BB4: the line's centre, front first (row centres and walkway points), and which points are
-            /// walkway (single file). The places skiers stand on (<see cref="Out"/>) are laid along it in lanes.</summary>
-            public readonly List<Vector2> Path = new List<Vector2>();
-            public readonly List<bool> PathNarrow = new List<bool>();
-            /// <summary>Per point of <see cref="Path"/>: the way to it is a jump to a new fold (nobody stands on it).</summary>
-            public readonly List<bool> PathGap = new List<bool>();
-            /// <summary>Per point of <see cref="Path"/>: the way its row's line runs on (zero where none was laid there).</summary>
-            public readonly List<Vector2> PathDir = new List<Vector2>();
-            /// <summary>The next point added to <see cref="Path"/> ends a jump.</summary>
-            public bool NextGap;
-            /// <summary>The throat's length along <see cref="Path"/>, metres: its rows stay square to the lift.</summary>
-            public float ThroatLength;
-            /// <summary>The u the current pass started at (a row's centre, or the corner it turned at).</summary>
-            public float PassStartU;
-            /// <summary>The places as drawn: row d's column c is entry d·Seats + c (lanes along the smoothed path).</summary>
-            public readonly List<Vector3> Out = new List<Vector3>();
-            /// <summary>How many rows of <see cref="Out"/> have been laid (or passed over), lane place by lane place.</summary>
-            public int Depth;
-            public readonly List<Vector2> OutFaces = new List<Vector2>();
-            /// <summary>Task 4.26 BB4: the line's stretches, front first: how many rows each holds, and whether it is single
-            /// file (a walkway, where the lanes take turns along one centre) or rows across.</summary>
-            public readonly List<int> SectionRows = new List<int>();
-            public readonly List<bool> SectionFile = new List<bool>();
-
-            public float V => Pass * (Width + AisleMetres) + Width * 0.5f;
-            public Vector2 Point(float u, float v) => Origin + Along * u + Across * v;
         }
 
         IReadOnlyList<LiftInput> _lifts;
         Grid[] _grids;
-        Snake[] _snakes;
         Func<float, float, float> _ground;
 
         // ================= building =================
@@ -276,100 +214,9 @@ namespace MountainPlanner.Presentation.Guests
                 int me = i;
                 grids[i] = new Grid((x, z) => Reason(x, z, me));
             }
-            if (UseRibbon) layout.BuildRibbons(lifts);
-            else layout.BuildSnakes(lifts);
+            layout.BuildRibbons(lifts);
             layout.Diagnose(lifts, Reason);
             return layout;
-        }
-
-        /// <summary>The old serpentine grid's lines (until the owner approves the ribbons, task 4.26 BB26).</summary>
-        void BuildSnakes(IReadOnlyList<LiftInput> lifts)
-        {
-            var layout = this;
-            var grids = _grids;
-            var snakes = layout._snakes = new Snake[lifts.Count];
-            // The throat first, for every lift: the line's front rows run straight back from the load point under the
-            // terminal (its load lane is always the way in), so the fold starts clear of the terminal and can turn any
-            // way from there. Without it a line could only leave the terminal straight back, and trees right behind it
-            // left a lift no line at all with open ground beside it (drawn resort, first capture).
-            var throats = new List<Vector3>[lifts.Count];
-            var starts = new Vector2[lifts.Count];
-            for (int i = 0; i < lifts.Count; i++)
-            {
-                var l = lifts[i];
-                if (!l.Built || l.Seats < 1) continue;
-                var up = l.Top - l.Bottom;
-                var u = up.sqrMagnitude > 1e-6f ? up.normalized : Vector2.up;
-                var back = -u;
-                var side = new Vector2(back.y, -back.x);
-                var load = l.Bottom + new Vector2(u.y, -u.x) * l.LoadSide;   // under the loaded rope
-                float width = l.Seats * ColumnMetres;
-                // Past the terminal's back by half the line's width, so a fold turned sideways clears its corner.
-                int rows = Mathf.Max(1, Mathf.CeilToInt((Mathf.Max(0, l.Behind) + TerminalMarginMetres + width * 0.5f) / RowMetres));
-                throats[i] = new List<Vector3>(rows * l.Seats);
-                for (int k = 0; k < rows; k++)
-                {
-                    var centre = load + back * (RowMetres * (k + 0.5f));
-                    for (float du = -RowMetres * 0.5f + CellMetres * 0.5f; du < RowMetres * 0.5f; du += CellMetres)
-                        for (float dv = -width * 0.5f + CellMetres * 0.5f; dv < width * 0.5f; dv += CellMetres)
-                        {
-                            var q = centre + back * du + side * dv;
-                            foreach (var g in grids) g.Claim(Grid.Cell(q.x), Grid.Cell(q.y));
-                        }
-                    for (int c = 0; c < l.Seats; c++)
-                    {
-                        var q = centre + side * (-width * 0.5f + ColumnMetres * (c + 0.5f));
-                        throats[i].Add(new Vector3(q.x, layout.Height(q), q.y));
-                    }
-                }
-                starts[i] = load + back * (RowMetres * rows);
-            }
-            for (int i = 0; i < lifts.Count; i++)
-            {
-                if (throats[i] == null) continue;
-                var l = lifts[i];
-                var up = l.Top - l.Bottom;
-                var back = -(up.sqrMagnitude > 1e-6f ? up.normalized : Vector2.up);
-                snakes[i] = layout.Choose(l, i, grids[i], starts[i]);
-                snakes[i].Placed.AddRange(throats[i]);
-                for (int k = 0; k < throats[i].Count; k++) snakes[i].Faces.Add(-back);
-                int throatRows = throats[i].Count / Math.Max(1, l.Seats);
-                var load = l.Bottom + new Vector2(-back.y, back.x) * l.LoadSide;
-                for (int k = 0; k < throatRows; k++) AddPath(snakes[i], load + back * (RowMetres * (k + 0.5f)), false, back);
-                snakes[i].ThroatLength = RowMetres * Math.Max(0, throatRows - 1);
-                // A fold turned off the throat starts beside it. Task 4.26 BB4: the line bends round onto it when the corner's
-                // ground is free (taken then from every other line); a jump there left an empty gap at the line's front.
-                if (Vector2.Dot(snakes[i].Along, back) < 0.999f)
-                {
-                    var first = snakes[i];
-                    var lastRow = starts[i] - back * (RowMetres * 0.5f);
-                    var firstRow = first.Point(0, first.V);
-                    if (layout.Corner(i, lastRow, back, firstRow, first.Along, first.Seats, claim: false)) layout.Corner(i, lastRow, back, firstRow, first.Along, first.Seats, claim: true);
-                    else first.NextGap = true;
-                }
-                snakes[i].Tail = starts[i] - back * (RowMetres * 0.5f);
-                snakes[i].TailDir = back;
-            }
-
-            // Turns: everyone's first places, then blocks of the same size, round and round, up to the first places.
-            bool any = true;
-            while (any)
-            {
-                any = false;
-                for (int i = 0; i < snakes.Length; i++)
-                {
-                    var s = snakes[i];
-                    if (s == null || s.Done) continue;
-                    // Laid a little past the first places: the last few metres of a line wait for the next to be smoothed.
-                    int initial = InitialSlots + Margin(s);
-                    int target = Math.Min(initial, s.Placed.Count + FirstSlots);
-                    while (!s.Done && s.Placed.Count < target)
-                        if (!layout.NextRow(s, grids[i], claim: true)) s.Done = true;
-                    if (!s.Done && s.Placed.Count < initial) any = true;
-                }
-            }
-            for (int i = 0; i < snakes.Length; i++) if (snakes[i] != null) layout.LayTo(snakes[i], grids[i], InitialSlots);
-            layout.Rebuild();
         }
 
         /// <summary>A line with little room says why: what covers the ground in the 40 m behind its load point.</summary>
@@ -403,28 +250,21 @@ namespace MountainPlanner.Presentation.Guests
         /// <summary>How lift <paramref name="lift"/>'s line was laid (logs, captures): its places and how it found them.</summary>
         public string Describe(int lift)
         {
-            if (_ribbons != null)
-            {
-                var r = lift >= 0 && lift < _ribbons.Length ? _ribbons[lift] : null;
-                if (r == null) return "no line";
-                return $"{r.Out.Count} places ({r.Reframes} turns round something, {r.WalkPlaces} on walkways in {r.Walks}, " +
-                       $"{r.SoftPlaces} through trees or steep ground, {r.Length:F0} m of line){(r.Done ? ", no more ground in reach" : "")}";
-            }
-            var s = _snakes != null && lift >= 0 && lift < _snakes.Length ? _snakes[lift] : null;
-            if (s == null) return "no line";
-            return $"{s.Placed.Count} places ({s.Turns} turns round something, {s.WalkPlaces} on walkways, " +
-                   $"{s.SoftPlaces} through trees or steep ground){(s.Done ? ", no more ground in reach" : "")}";
+            var r = RibbonOf(lift);
+            if (r == null) return "no line";
+            return $"{r.Out.Count} places ({r.Reframes} turns round something, {r.WalkPlaces} on walkways in {r.Walks}, " +
+                   $"{r.SoftPlaces} through trees or steep ground, {r.Length:F0} m of line){(r.Done ? ", no more ground in reach" : "")}";
         }
 
         /// <summary>Lift <paramref name="lift"/>'s places on walkways through gaps, and through trees or steep ground (tests, logs).</summary>
-        public int WalkwayPlaces(int lift) => _ribbons != null ? (lift >= 0 && lift < _ribbons.Length ? _ribbons[lift]?.WalkPlaces ?? 0 : 0) : _snakes != null && lift >= 0 && lift < _snakes.Length ? _snakes[lift]?.WalkPlaces ?? 0 : 0;
+        public int WalkwayPlaces(int lift) => RibbonOf(lift)?.WalkPlaces ?? 0;
         /// <summary>Task 4.26 BB4: how often a line's centre doubled straight back on itself (it never should), and the
         /// first time, described.</summary>
         public int Reversals
         {
             get
             {
-                if (_ribbons == null) return _reversals;
+                if (_ribbons == null) return 0;
                 int n = 0;
                 for (int i = 0; i < _ribbons.Length; i++)
                     if (_ribbons[i] != null)
@@ -436,7 +276,6 @@ namespace MountainPlanner.Presentation.Guests
                 return n;
             }
         }
-        int _reversals;
         public string FirstReversal { get; private set; }
 
         /// <summary>Task 4.26 BB4 probe: the ground lift <paramref name="lift"/>'s line sees at (x, z): '.' open, 't' trees or
@@ -449,12 +288,11 @@ namespace MountainPlanner.Presentation.Guests
             {
                 case Open: return '.';
                 case Soft: return 't';
-                case Claimed: return 'o';
                 default: return '#';
             }
         }
 
-        public int SoftPlaces(int lift) => _ribbons != null ? (lift >= 0 && lift < _ribbons.Length ? _ribbons[lift]?.SoftPlaces ?? 0 : 0) : _snakes != null && lift >= 0 && lift < _snakes.Length ? _snakes[lift]?.SoftPlaces ?? 0 : 0;
+        public int SoftPlaces(int lift) => RibbonOf(lift)?.SoftPlaces ?? 0;
 
         /// <summary>
         /// Lays up to <see cref="GrowSlots"/> more places on lift <paramref name="lift"/>'s line (the renderer calls it when
@@ -463,44 +301,19 @@ namespace MountainPlanner.Presentation.Guests
         public bool Grow(int lift)
         {
             if (!CanGrow(lift)) return false;
-            if (_ribbons != null)
-            {
-                var r = _ribbons[lift];
-                int had = r.Out.Count;
-                Extend(r, Math.Min(MaxSlots, had + GrowSlots));
-                if (r.Out.Count == had) return false;
-                Rebuild();
-                return true;
-            }
-            var s = _snakes[lift];
-            int before = s.Placed.Count, target = Math.Min(MaxSlots, before + GrowSlots);
-            while (!s.Done && s.Placed.Count < target)
-                if (!NextRow(s, _grids[lift], claim: true)) s.Done = true;
-            if (s.Placed.Count == before) return false;
-            int was = s.Out.Count;
-            LayTo(s, _grids[lift], Math.Min(MaxSlots, was + GrowSlots));
+            var r = _ribbons[lift];
+            int had = r.Out.Count;
+            Extend(r, Math.Min(MaxSlots, had + GrowSlots));
+            if (r.Out.Count == had) return false;
             Rebuild();
-            return s.Out.Count > was;
-        }
-
-        /// <summary>Task 4.26: lays the line's places (<see cref="Lay"/>), and more rows while it has fewer than <paramref name="target"/>.</summary>
-        void LayTo(Snake s, Grid grid, int target)
-        {
-            Lay(s);
-            for (int round = 0; round < 64 && !s.Done && s.Out.Count < target && s.Placed.Count < MaxSlots; round++)
-            {
-                int more = Math.Min(MaxSlots, s.Placed.Count + s.Seats * 4);
-                while (!s.Done && s.Placed.Count < more)
-                    if (!NextRow(s, grid, claim: true)) s.Done = true;
-                Lay(s);
-            }
+            return true;
         }
 
         void Rebuild()
         {
-            int count = _ribbons?.Length ?? _snakes.Length;
-            List<Vector3> OutOf(int i) => _ribbons != null ? _ribbons[i]?.Out : _snakes[i]?.Out;
-            List<Vector2> FacesOf(int i) => _ribbons != null ? _ribbons[i]?.OutFaces : _snakes[i]?.OutFaces;
+            int count = _ribbons.Length;
+            List<Vector3> OutOf(int i) => _ribbons[i]?.Out;
+            List<Vector2> FacesOf(int i) => _ribbons[i]?.OutFaces;
             int total = 0;
             for (int i = 0; i < count; i++) total += OutOf(i)?.Count ?? 0;
             if (Slots.IsCreated) Slots.Dispose();
@@ -520,64 +333,13 @@ namespace MountainPlanner.Presentation.Guests
             }
         }
 
-        // ================= lanes (task 4.26 BB4) =================
+        // ================= places (task 4.26 BB4) =================
 
-        /// <summary>The line's smoothed centre is sampled this often, metres.</summary>
+        /// <summary>The line's centre is sampled this often, metres.</summary>
         const float SampleMetres = 0.1f;
-        /// <summary>The sharpest corner that is rounded in full (tan of half its turn): sharper ones round less.</summary>
-        const float MaxTanHalf = 2.5f;
-        /// <summary>Task 4.26 BB4: the widest a walkway's corner is rounded, metres.</summary>
-        const float NarrowCornerMetres = 0.5f;
-
-        /// <summary>
-        /// Adds a point to the line's centre. Points on in a straight line replace the last one (a pass is two points), a
-        /// point no further along <paramref name="dir"/> than the last is skipped, and a repeat only marks the last as walkway.
-        /// A point after <see cref="Snake.NextGap"/> ends a jump (to a new fold's first row) that nobody stands on.
-        /// </summary>
-        static void AddPath(Snake s, Vector2 q, bool narrow, Vector2? dir, Vector2? rowDir = null)
-        {
-            var keep = rowDir ?? dir ?? Vector2.zero;
-            bool gap = s.NextGap;
-            s.NextGap = false;
-            int n = s.Path.Count;
-            if (n > 0)
-            {
-                var last = s.Path[n - 1];
-                var d = q - last;
-                if (d.sqrMagnitude < 1e-6f) { if (narrow) s.PathNarrow[n - 1] = true; if (keep != Vector2.zero) s.PathDir[n - 1] = keep; return; }
-                if (!gap && dir.HasValue && Vector2.Dot(d, dir.Value) <= 0.01f) return;
-                if (!gap && n > 1 && s.PathNarrow[n - 1] == narrow && !s.PathGap[n - 1])
-                {
-                    var e = last - s.Path[n - 2];
-                    float cross = e.x * d.y - e.y * d.x;
-                    if (Mathf.Abs(cross) <= 1e-4f * e.magnitude * d.magnitude && Vector2.Dot(e, d) > 0) { s.Path[n - 1] = q; s.PathDir[n - 1] = keep; return; }
-                }
-            }
-            s.Path.Add(q);
-            s.PathNarrow.Add(narrow);
-            s.PathGap.Add(gap && n > 0);
-            s.PathDir.Add(keep);
-        }
-
-        /// <summary>The widest a corner of the line's centre is rounded: the U-turn round a pass's end is a half circle.</summary>
         /// <summary>The nearest a lane's next place stands to its last in a straight line, metres (round a tight loop).</summary>
         const float MinLaneGapMetres = 0.8f;
 
-        static float CornerRadius(Snake s) => (s.Width + AisleMetres) * 0.5f;
-
-        /// <summary>How far short of the line's end its places are final, metres (at most).</summary>
-        static float Holdback(Snake s) => s.Width * 0.5f + CornerRadius(s) * MaxTanHalf + RowMetres;
-
-        /// <summary>The planner's extra places, laid past the places wanted so that those are final.</summary>
-        static int Margin(Snake s) => (Mathf.CeilToInt((Holdback(s) + PassMetres + s.Width + AisleMetres) / RowMetres) + 2) * s.Seats;
-
-        readonly List<Vector2> _fine = new List<Vector2>();
-        readonly List<byte> _fineKind = new List<byte>();
-        readonly List<Vector2> _fineDir = new List<Vector2>();
-        readonly List<Vector2> _gapEndDir = new List<Vector2>(), _loneDir = new List<Vector2>();
-        readonly List<Vector2> _centre = new List<Vector2>();
-        readonly List<byte> _sampleKind = new List<byte>();
-        readonly List<float> _gapEnds = new List<float>(), _gapStarts = new List<float>(), _lone = new List<float>();
         /// <summary>The half-metre cells every line's places stand on (no two places share one).</summary>
         readonly Dictionary<long, Vector2> _taken = new Dictionary<long, Vector2>();
 
@@ -595,260 +357,6 @@ namespace MountainPlanner.Presentation.Guests
             return true;
         }
         static long CellKey(Vector2 p) => ((long)Mathf.FloorToInt(p.x / CellMetres) << 32) ^ (uint)Mathf.FloorToInt(p.y / CellMetres);
-        const byte KindRow = 0, KindNarrow = 1, KindGap = 2;
-
-        /// <summary>
-        /// Lays the places skiers stand on along the line's centre (task 4.26 BB4, owner 2026-11-23: "the lines should bend
-        /// naturally when they need to change direction"). The centre's corners are rounded (a pass's end turns in a half
-        /// circle across the aisle), and each column walks its own lane at a constant offset from it, so a lane never
-        /// crosses another and a skier moving up one row only walks forward along its lane. A row is laid when every lane
-        /// keeps a row's length from its last place, so round a bend the outer lanes hold more than the inner, and the rows
-        /// square up where the line jumps to a new fold. On a walkway the line is single file, a row's length apart, the
-        /// lanes taking turns (the one with fewest first). Place d·seats + c is lane c's d-th.
-        /// Nobody stands on a jump to a new fold (its ground wasn't looked at), and its corners stay sharp. Places only ever
-        /// append: those laid depend only on the centre up to them, and the last few metres wait until the line goes on
-        /// (or has ended).
-        /// </summary>
-        void Lay(Snake s)
-        {
-            int n = s.Path.Count;
-            if (n < 2) return;
-            int seats = s.Seats;
-            float rmax = CornerRadius(s);
-            _fine.Clear(); _fineKind.Clear(); _fineDir.Clear();
-            float run = 0;
-            _fine.Add(s.Path[0]); _fineKind.Add(KindRow); _fineDir.Add(s.PathDir[0]);
-            void To(Vector2 p, byte kind, Vector2 dir = default)
-            {
-                float len = (p - _fine[_fine.Count - 1]).magnitude;
-                if (len < 1e-5f) { if (dir != Vector2.zero) _fineDir[_fineDir.Count - 1] = dir; return; }
-                run += len;
-                _fine.Add(p); _fineKind.Add(kind); _fineDir.Add(dir);
-            }
-            byte SegKind(int k) => s.PathGap[k] ? KindGap : s.PathNarrow[k] || s.PathNarrow[k - 1] ? KindNarrow : KindRow;
-            // How far along the last corner may still reach back, and whether it is final.
-            float lastIn = 0, lastOut = 0;
-            bool lastFinal = true;
-            for (int k = 1; k < n; k++)
-            {
-                byte kind = SegKind(k);
-                if (k == n - 1) { To(s.Path[k], kind, s.PathDir[k]); break; }
-                var a = s.Path[k] - s.Path[k - 1];
-                var b = s.Path[k + 1] - s.Path[k];
-                float la = a.magnitude, lb = b.magnitude;
-                var ua = la > 1e-6f ? a / la : Vector2.zero; var ub = lb > 1e-6f ? b / lb : Vector2.zero;
-                float turn = Mathf.Acos(Mathf.Clamp(Vector2.Dot(ua, ub), -1f, 1f));
-                // Task 4.26 BB4: a centre doubling straight back has no corner to round. Its half-turn is float π/2, a
-                // hair past the true one, so its tangent came out hugely negative and put the corner kilometres away
-                // (and the sampling below never got there: out of memory).
-                bool back = turn > Mathf.PI - 1e-3f;
-                if (back && !s.PathGap[k] && !s.PathGap[k + 1] && _reversals++ == 0)
-                {
-                    var sb = new System.Text.StringBuilder($"lift {s.Lift} point {k} of {n}:");
-                    for (int j = Math.Max(0, k - 3); j <= Math.Min(n - 1, k + 3); j++)
-                        sb.Append($" [{j} ({s.Path[j].x:F2},{s.Path[j].y:F2}){(s.PathNarrow[j] ? " narrow" : "")}{(s.PathGap[j] ? " gap" : "")} dir ({s.PathDir[j].x:F2},{s.PathDir[j].y:F2})]");
-                    FirstReversal = sb.ToString();
-                }
-                bool sharp = s.PathGap[k] || s.PathGap[k + 1] || turn < 1e-3f || back || la <= 1e-6f || lb <= 1e-6f;
-                float tanHalf = sharp ? 0 : Mathf.Tan(turn * 0.5f);
-                // A walkway's corner is a tight one: one skier wide, rounded like a row's it cut into the trees beside a gap.
-                float cap = sharp ? 0 : Mathf.Min(la * 0.5f, (s.PathNarrow[k] ? NarrowCornerMetres : rmax) * Mathf.Min(tanHalf, MaxTanHalf));
-                float t = sharp ? 0 : Mathf.Min(cap, lb * 0.5f);
-                var start = s.Path[k] - ua * t;
-                To(start, kind, t > 0 ? Vector2.zero : s.PathDir[k]);
-                // Final once the last piece is long enough for the full corner even if a U-turn pulls its end back.
-                if (k == n - 2) { lastIn = run - (cap - t); lastFinal = (lb - s.Width * 0.5f) * 0.5f >= cap - 1e-4f; }
-                if (t > 0)
-                {
-                    float rho = t / tanHalf;
-                    float sign = ua.x * ub.y - ua.y * ub.x >= 0 ? 1f : -1f;
-                    var centre = start + new Vector2(-ua.y, ua.x) * (sign * rho);
-                    var from = start - centre;
-                    int steps = Mathf.Max(2, Mathf.CeilToInt(turn * rho / 0.05f));
-                    byte arcKind = s.PathNarrow[k] ? KindNarrow : KindRow;
-                    for (int q = 1; q <= steps; q++) To(centre + Rotate(from, sign * turn * q / steps * Mathf.Rad2Deg), arcKind);
-                }
-                if (k == n - 2) lastOut = run;
-            }
-            float total = run;
-            float safe;
-            if (s.Done) safe = total;
-            else
-            {
-                float tail = total - Holdback(s);   // short of the end by a U-turn's pull-back and the next corner
-                safe = n == 2 ? tail : lastFinal ? Mathf.Max(lastOut, tail) : Mathf.Min(lastIn, tail);
-            }
-            if (safe <= 0 && !s.Done) return;
-
-            // Even samples along it.
-            _centre.Clear(); _sampleKind.Clear(); _gapEnds.Clear(); _gapStarts.Clear(); _lone.Clear(); _gapEndDir.Clear(); _loneDir.Clear();
-            {
-                float carry = 0, acc = 0;
-                _centre.Add(_fine[0]); _sampleKind.Add(_fine.Count > 1 ? _fineKind[1] : KindRow);
-                for (int k = 1; k < _fine.Count; k++)
-                {
-                    var a = _fine[k - 1]; var b = _fine[k];
-                    float len = (b - a).magnitude, at = SampleMetres - carry;
-                    // A piece longer than a line can reach is a fault (it would be sampled forever): passed over, and noted.
-                    if (!(len <= 2 * MaxReachMetres)) { FirstReversal ??= $"lift {s.Lift}: a piece {len} m long at fine point {k} of {_fine.Count}"; _reversals++; continue; }
-                    while (at <= len + 1e-6f) { _centre.Add(a + (b - a) * (at / len)); _sampleKind.Add(_fineKind[k]); at += SampleMetres; }
-                    carry = len - (at - SampleMetres);
-                    acc += len;
-                    // Where a jump ends, as a sample position: a new fold's first row stands exactly there.
-                    if (_fineKind[k] == KindGap && (k + 1 >= _fine.Count || _fineKind[k + 1] != KindGap)) { _gapEnds.Add(acc / SampleMetres); _gapEndDir.Add(_fineDir[k]); }
-                    // A fold of one row between two jumps: its row stands there, facing the way the jump came.
-                    if (_fineKind[k] == KindGap && k + 1 < _fine.Count && _fineKind[k + 1] == KindGap) { _lone.Add(acc / SampleMetres); _loneDir.Add(_fineDir[k]); }
-                    if (_fineKind[k] != KindGap && k + 1 < _fine.Count && _fineKind[k + 1] == KindGap) _gapStarts.Add(acc / SampleMetres);
-                }
-            }
-            int m = _centre.Count;
-            if (m < 2) return;
-            float width = s.Width;
-
-            // Lane c's point at sample position x (fractional), and its way on (the way after x, at a jump's end); the
-            // centre itself for c < 0 (a file).
-            void Point(int c, float x, out Vector2 p, out Vector2 tangent, bool after = false, Vector2 rowDir = default)
-            {
-                // Task 4.26 BB4: m - 1.0001 is m - 1 in floats past 16,384 samples (a line 1.6 km round), which read past the end.
-                float fi = Mathf.Clamp(float.IsNaN(x) ? 0 : x, 0, m - 1);
-                int i0 = Math.Min(m - 2, Mathf.FloorToInt(fi));
-                var cp = Vector2.Lerp(_centre[i0], _centre[i0 + 1], fi - i0);
-                int t0 = after ? Mathf.Min(m - 2, Mathf.CeilToInt(fi)) : i0;
-                // A row the planner laid on its own (a fold's first after a jump) runs the way the planner laid it.
-                tangent = rowDir != Vector2.zero ? rowDir.normalized : (_centre[t0 + 1] - _centre[t0]).normalized;
-                if (c < 0) { p = cp; return; }
-                p = cp + new Vector2(tangent.y, -tangent.x) * (-width * 0.5f + ColumnMetres * (c + 0.5f));
-            }
-            // Each lane its own places: a row's length (straight-line, so a lane looping round a tight corner doesn't count
-            // its loop) from its last. Round a bend the outer lanes take more places than the inner; the rows square up
-            // again where the line jumps to a new fold. A file (a walkway) takes the next place from the centre a row's
-            // length from its last skier and gives it to the lane with the fewest, so the lanes come out even.
-            const float Tolerance = 1e-3f;
-            var lanes = new List<Vector2>[seats];
-            var faces = new List<Vector2>[seats];
-            var single = new List<bool>[seats];   // the place is in a single file
-            var placed = new Vector2[seats];
-            var prevDist = new float[seats];   // walked along the lane since its last place, metres
-            var walkedFrom = new Vector2[seats];
-            for (int c = 0; c < seats; c++) { lanes[c] = new List<Vector2>(); faces[c] = new List<Vector2>(); single[c] = new List<bool>(); }
-            // A skier faces the one ahead in its lane when that one stands close (round a tight bend too), else the way
-            // the line runs back to its front.
-            void Put(int c, Vector2 p, Vector2 tangent, bool file = false)
-            {
-                single[c].Add(file);
-                var face = -tangent;
-                if (lanes[c].Count > 0)
-                {
-                    var toward = lanes[c][lanes[c].Count - 1] - p;
-                    float gap = toward.magnitude;
-                    if (gap >= 0.9f * MinLaneGapMetres && gap <= 1.5f * RowMetres) face = toward / gap;
-                }
-                lanes[c].Add(p); faces[c].Add(face); placed[c] = p; walkedFrom[c] = p; prevDist[c] = 0;
-            }
-            void Square(float x, bool after, Vector2 rowDir = default)
-            {
-                for (int c = 0; c < seats; c++) { Point(c, x, out var p, out var t, after, rowDir); Put(c, p, t); }
-            }
-            Vector2 fileLast = default;
-            bool inFile = false, jumped = false;
-            int gapAt = 0, gapFrom = 0, loneAt = 0;
-            Square(0, false);
-            for (int k = 1; k < m; k++)
-            {
-                if (k * SampleMetres > safe) break;
-                byte kind = _sampleKind[k];
-                if (kind == KindGap)
-                {
-                    // Where a jump begins: each lane's last place may stand right at its end.
-                    if (!jumped && !inFile)
-                    {
-                        while (gapFrom < _gapStarts.Count && _gapStarts[gapFrom] < k - 1 - Tolerance) gapFrom++;
-                        if (gapFrom < _gapStarts.Count && _gapStarts[gapFrom] <= k)
-                            for (int c = 0; c < seats; c++)
-                            {
-                                Point(c, _gapStarts[gapFrom], out var q, out var tq);
-                                if ((q - placed[c]).magnitude >= RowMetres - Tolerance) Put(c, q, tq);
-                            }
-                    }
-                    while (loneAt < _lone.Count && _lone[loneAt] <= k) { Square(_lone[loneAt], false, _loneDir[loneAt]); loneAt++; }
-                    jumped = true;
-                    continue;
-                }
-                if (kind == KindNarrow)
-                {
-                    if (!inFile) { Point(-1, k - 1, out fileLast, out _); inFile = true; }
-                    Point(-1, k, out var cp, out var tan);
-                    if (jumped || (cp - fileLast).magnitude >= RowMetres - Tolerance)
-                    {
-                        int least = 0;
-                        for (int c = 1; c < seats; c++) if (lanes[c].Count < lanes[least].Count) least = c;
-                        Put(least, cp, tan, true);
-                        fileLast = cp;
-                        for (int c = 0; c < seats; c++) { placed[c] = cp; walkedFrom[c] = cp; prevDist[c] = 0; }
-                    }
-                    jumped = false;
-                    continue;
-                }
-                inFile = false;
-                if (jumped)
-                {
-                    // Just where the jump ended: the new fold's first row, square to it (as the planner laid it).
-                    float x = k;
-                    bool atJump = false;
-                    Vector2 rowDir = default;
-                    while (gapAt < _gapEnds.Count && _gapEnds[gapAt] <= k) { x = _gapEnds[gapAt]; rowDir = _gapEndDir[gapAt]; atJump = true; gapAt++; }
-                    Square(x, atJump, rowDir);
-                    jumped = false;
-                    continue;
-                }
-                // A row's length walked along the lane, so a skier stepping up to the next place follows the lane round a bend
-                // (a straight row's length on a tight U-turn's inner lane spanned the whole turn, and the step cut across
-                // the other lanes). Never nearer its last place than MinLaneGapMetres in a straight line, so a lane
-                // that loops round a tight corner doesn't crowd itself.
-                for (int c = 0; c < seats; c++)
-                {
-                    Point(c, k, out var p, out _);
-                    float before = prevDist[c];
-                    float walked = before + (p - walkedFrom[c]).magnitude;
-                    walkedFrom[c] = p;
-                    prevDist[c] = walked;
-                    if (walked < RowMetres - Tolerance) continue;
-                    float frac = before >= RowMetres - Tolerance || walked - before < 1e-6f ? 1f : Mathf.Clamp01((RowMetres - before) / (walked - before));
-                    Point(c, k - 1 + frac, out var q, out var tq);
-                    if ((q - placed[c]).magnitude < MinLaneGapMetres) { Point(c, k, out q, out tq); if ((q - placed[c]).magnitude < MinLaneGapMetres) continue; }
-                    Put(c, q, tq);
-                    if (frac < 1f) { prevDist[c] = (p - q).magnitude; walkedFrom[c] = p; }
-                }
-            }
-
-            // Rows of places: row d is every lane's d-th place. Those not laid before are added, unless one of them stands
-            // nearer than MinPlaceMetres to another place, any line's: that row is passed over.
-            int depth = int.MaxValue;
-            for (int c = 0; c < seats; c++) depth = Math.Min(depth, lanes[c].Count);
-            for (int d = s.Depth; d < depth && s.Out.Count + seats <= MaxSlots; d++)
-            {
-                s.Depth = d + 1;
-                bool clear = true;
-                for (int c = 0; c < seats && clear; c++)
-                {
-                    clear = Free(lanes[c][d]);
-                    for (int e = 0; e < c && clear; e++) clear = (lanes[e][d] - lanes[c][d]).sqrMagnitude >= MinPlaceMetres * MinPlaceMetres;
-                }
-                if (!clear) continue;
-                bool file = false;
-                for (int c = 0; c < seats; c++)
-                {
-                    var p = lanes[c][d];
-                    s.Out.Add(new Vector3(p.x, Height(p), p.y));
-                    s.OutFaces.Add(faces[c][d]);   // toward the front of the line, along its lane
-                    _taken[CellKey(p)] = p;
-                    file |= single[c][d];
-                }
-                int last = s.SectionRows.Count - 1;
-                if (last >= 0 && s.SectionFile[last] == file) s.SectionRows[last]++;
-                else { s.SectionRows.Add(1); s.SectionFile.Add(file); }
-            }
-        }
 
         float Height(Vector2 p)
         {
@@ -856,609 +364,11 @@ namespace MountainPlanner.Presentation.Guests
             return float.IsNaN(y) ? 0 : y;
         }
 
-        /// <summary>
-        /// Picks the line's first heading: straight back from the lift first, then turned 45° and 90° either way, each with
-        /// its passes stepping to either side. The one that lays the most rows (tried without claiming) wins; ties keep the
-        /// earlier, so the straight-back line is preferred when it fits.
-        /// </summary>
-        Snake Choose(LiftInput l, int lift, Grid grid, Vector2 start)
-        {
-            var up = l.Top - l.Bottom;
-            var u = up.sqrMagnitude > 1e-6f ? up.normalized : Vector2.up;
-            var back = -u;
-            Snake best = null;
-            int bestRows = int.MinValue;
-            bool bestLays = false;
-            foreach (float turn in new[] { 0f, 45f, -45f, 90f, -90f })
-            {
-                var along = Rotate(back, turn);
-                foreach (int sideSign in new[] { 1, -1 })
-                {
-                    var across = new Vector2(along.y, -along.x) * sideSign;
-                    var trial = NewSnake(l, lift, along, across, start, turn);
-                    int rows = 0;
-                    while (rows < 60 && NextRow(trial, grid, claim: false)) rows++;
-                    bool lays = rows > 0;
-                    rows -= ShortFoldCost * trial.ShortFolds;   // task 4.26 BB4: a zigzag of short folds reads as clumps
-                    if (Better(lays, rows, bestLays, bestRows))
-                    {
-                        bestRows = rows; bestLays = lays;
-                        best = NewSnake(l, lift, along, across, start, turn);
-                    }
-                }
-            }
-            return best;
-        }
-
-        /// <summary>
-        /// Task 4.26 BB4: whether a first heading that <paramref name="lays"/> rows (or none) and scores
-        /// <paramref name="score"/> beats the best so far. One that lays nothing (its first row doesn't fit) never beats one
-        /// that lays rows: their short folds' cost took those below nothing, and a line headed where it couldn't stand jumped
-        /// from its throat to wherever it steered (lift 0 at the drawn resort). Ties keep the earlier.
-        /// </summary>
-        internal static bool Better(bool lays, int score, bool bestLays, int bestScore) =>
-            lays != bestLays ? lays : score > bestScore;
-
-        static Snake NewSnake(LiftInput l, int lift, Vector2 along, Vector2 across, Vector2 start, float turn)
-        {
-            int seats = Math.Max(1, l.Seats);
-            float width = seats * ColumnMetres;
-            // The line's first row stands just behind the load point, centred on it: the origin is the corner of the
-            // first pass, half a line's width to the near side.
-            return new Snake
-            {
-                Lift = lift, Seats = seats, Width = width, Along = along, Across = across, Load = l.Bottom,
-                // A fold turned off the throat starts beside it, not on its last row (which is already taken).
-                Origin = start - across * (width * 0.5f) + along * (RowMetres * 0.5f + width * 0.5f * Mathf.Abs(Mathf.Sin(turn * Mathf.Deg2Rad))),
-            };
-        }
-
-        /// <summary>A fresh fold whose first row is centred on <paramref name="centre"/>, its passes running along <paramref name="along"/>.</summary>
-        static Snake FrameAt(Snake s, Vector2 centre, Vector2 along, Vector2 across) => new Snake
-        {
-            Lift = s.Lift, Seats = s.Seats, Width = s.Width, Load = s.Load, SoftGround = s.SoftGround,
-            Along = along, Across = across, Origin = centre - across * (s.Width * 0.5f),
-        };
-
-        /// <summary>
-        /// Lays the next row (or, boxed in, a stretch of walkway). On this pass if it fits and the pass isn't full; else
-        /// across the aisle onto the next pass going the other way (the turn's elbow and the next pass's first row must be
-        /// free). A trial (<paramref name="claim"/> false) stops there. Laying for real it then steers round whatever is in
-        /// the way, then walks through a gap to open ground, then, with nothing open in reach, through trees or steep
-        /// ground. Returns false only when the line can't go on at all.
-        /// </summary>
-        bool NextRow(Snake s, Grid grid, bool claim)
-        {
-            bool passFull = s.Direction > 0 ? s.U > PassMetres - RowMetres * 0.5f : s.U < RowMetres * 0.5f;
-            if (!passFull && RowFree(s, s.U, s.V, grid))
-            {
-                PlaceRow(s, s.U, s.V, claim);
-                s.U += s.Direction * RowMetres;
-                s.RowsOnPass++;
-                return true;
-            }
-            // Turn: the aisle between this pass and the next, at the pass's end, must be free, and the next pass's first row.
-            if (s.RowsOnPass > 0 && s.Pass < 64)
-            {
-                float endU = s.U - s.Direction * RowMetres;
-                float nextV = s.V + s.Width + AisleMetres;
-                if (StripFree(s, endU, s.V + s.Width * 0.5f, nextV - s.Width * 0.5f, grid) && RowFree(s, endU, nextV, grid))
-                {
-                    // Task 4.26 BB4: a pass cut short (something across its way, like a corridor between trees running the
-                    // other way): folding on here zigzags in folds a row or two long, clumps that don't read as a line. When
-                    // a fresh fold (straight down the corridor) lays clearly more, the line steers there instead.
-                    if (claim && !passFull && s.RowsOnPass < MinFoldRows)
-                    {
-                        int keep = Score(Trial(s), grid);
-                        int had = s.Placed.Count;
-                        if (Steer(s, grid, s.Tail, s.TailDir, commit: false, allowSoft: false, out var frame, out int fresh)
-                            && fresh >= keep + SteerMarginRows && Commit(s, grid, frame) && s.Placed.Count > had) return true;
-                    }
-                    if (claim)
-                    {
-                        // Task 4.26: the line's centre turns across the aisle in a half circle, where its outer lane still
-                        // stands on the end row (half a row past its centre), never back past where the pass began. The
-                        // pass must be long enough for the bend (a short fold packs a tight spot and stays square) and the
-                        // ground the bend stands on free (or the line's own); else the turn stays square, on the two rows,
-                        // and nobody stands in the aisle.
-                        float uc = endU + s.Direction * Mathf.Min(0f, RowMetres * 0.5f - s.Width * 0.5f);
-                        if ((uc - s.PassStartU) * s.Direction < 0) uc = s.PassStartU;
-                        if (s.RowsOnPass * RowMetres >= 2f * CornerRadius(s) + RowMetres && BendFree(s, grid, uc, nextV))
-                        {
-                            var dirNow = s.Along * s.Direction;
-                            var corner = s.Point(uc, s.V);
-                            if (s.Path.Count > 1 && !s.PathGap[s.Path.Count - 1] && Vector2.Dot(s.Path[s.Path.Count - 1] - corner, dirNow) > 0) { s.Path.RemoveAt(s.Path.Count - 1); s.PathNarrow.RemoveAt(s.PathNarrow.Count - 1); s.PathGap.RemoveAt(s.PathGap.Count - 1); s.PathDir.RemoveAt(s.PathDir.Count - 1); }
-                            AddPath(s, corner, false, null);
-                            AddPath(s, s.Point(uc, nextV), false, null);
-                            ClaimBend(s, uc, nextV);
-                            s.PassStartU = uc;
-                        }
-                        else
-                        {
-                            s.NextGap = true;
-                            s.PassStartU = endU;
-                        }
-                    }
-                    if (s.RowsOnPass < MinFoldRows) s.ShortFolds++;
-                    s.Pass++;
-                    s.Direction = -s.Direction;
-                    s.U = endU;
-                    PlaceRow(s, s.U, s.V, claim);
-                    s.U += s.Direction * RowMetres;
-                    s.RowsOnPass = 1;
-                    return true;
-                }
-            }
-            // Task 4.26 BB4: at the pass's end with no room to fold beside it but the way ahead free (a corridor between
-            // trees): the line runs straight on, rows across, and folds a whole pass later where there's room, instead of
-            // zigzagging in folds a few rows long. The pass starts afresh here, heading the way the line goes.
-            if (passFull && s.RowsOnPass > 0 && RowFree(s, s.U, s.V, grid))
-            {
-                s.Origin += s.Along * s.U;
-                s.Along *= s.Direction;
-                s.Direction = 1;
-                s.U = 0;
-                s.PassStartU = 0;
-                PlaceRow(s, 0, s.V, claim);
-                s.U = RowMetres;
-                s.RowsOnPass++;
-                return true;
-            }
-            if (!claim) return false;
-            // Each way on must lay someone, or the line has ended (a true here always means a new place).
-            int before = s.Placed.Count;
-            if (Steer(s, grid, s.Tail, s.TailDir, commit: true, allowSoft: false) && s.Placed.Count > before) return true;
-            if (!s.WalkFailed)
-            {
-                if (Walk(s, grid) && s.Placed.Count > before) return true;
-                s.WalkFailed = true;   // the same search from the same pocket would find nothing again (and costs ~100 ms)
-            }
-            // Nothing open in reach: fold on over trees or steep ground, right here (finding 2 follow-up, 2026-11-10: a
-            // single-file walkway 180 m through the woods didn't read as the lift's line).
-            if (!s.SoftGround)
-            {
-                s.SoftGround = true;
-                if (Steer(s, grid, s.Tail, s.TailDir, commit: true, allowSoft: true) && s.Placed.Count > before) return true;
-            }
-            // Hemmed in by hard blocks (terminals, lift lines, runs) even so: a walkway out through whatever soft ground there is.
-            SoftWalk(s, grid);
-            return s.Placed.Count > before;
-        }
-
-        /// <summary>Task 4.26 BB4: a fold shorter than this many rows is a zigzag; each costs a heading this many rows.</summary>
-        const int MinFoldRows = 3, ShortFoldCost = 4;
-
-        static readonly float[] SteerTurns = { 0f, 45f, -45f, 90f, -90f, 135f, -135f };
-
-        /// <summary>
-        /// Steers round what is in the way: from <paramref name="from"/>, a new fold headed straight on, then 45°, 90° and
-        /// 135° either way, its passes stepping to either side, its first row a row or so off. The one that lays the most
-        /// rows (tried, up to 12) wins; ties keep the earlier. With <paramref name="commit"/> it becomes the line's frame and
-        /// its first row is laid.
-        /// </summary>
-        bool Steer(Snake s, Grid grid, Vector2 from, Vector2 dir, bool commit, bool allowSoft) => Steer(s, grid, from, dir, commit, allowSoft, out _, out _);
-
-        bool Steer(Snake s, Grid grid, Vector2 from, Vector2 dir, bool commit, bool allowSoft, out Snake chosen, out int score)
-        {
-            if (dir.sqrMagnitude < 1e-6f) dir = (from - s.Load).sqrMagnitude > 1e-6f ? (from - s.Load).normalized : Vector2.down;
-            dir = dir.normalized;
-            Snake best = null;
-            int bestRows = int.MinValue;
-            float reach = MaxReachMetres * MaxReachMetres;
-            foreach (float turn in SteerTurns)
-            {
-                var h = Rotate(dir, turn).normalized;
-                foreach (int side in new[] { 1, -1 })
-                {
-                    var across = new Vector2(h.y, -h.x) * side;
-                    foreach (float d in new[] { RowMetres, RowMetres * 1.5f, RowMetres + s.Width * 0.5f, RowMetres * 2.5f })
-                    {
-                        var centre = from + h * d;
-                        if ((centre - s.Load).sqrMagnitude > reach) continue;
-                        var trial = FrameAt(s, centre, h, across);
-                        if (!RowFree(trial, 0, trial.V, grid) || !GapClear(grid, from, centre, allowSoft)) continue;
-                        int rows = 0;
-                        while (rows < 12 && NextRow(trial, grid, claim: false)) rows++;
-                        if (rows == 0) break;   // nothing laid this way
-                        rows -= ShortFoldCost * trial.ShortFolds;
-                        if (rows > bestRows) { bestRows = rows; best = FrameAt(s, centre, h, across); }
-                        break;   // the nearest start that fits, for this heading and side
-                    }
-                }
-            }
-            chosen = best;
-            score = bestRows;
-            if (best == null) return false;
-            return !commit || Commit(s, grid, best);
-        }
-
-        /// <summary>Task 4.26 BB4: how much more a fresh fold must lay than folding on before a short pass steers to it.</summary>
-        const int SteerMarginRows = 2;
-
-        /// <summary>Task 4.26 BB4: the line's frame and progress as they stand, for a trial (it lays nobody).</summary>
-        static Snake Trial(Snake s) => new Snake
-        {
-            Lift = s.Lift, Seats = s.Seats, Width = s.Width, Load = s.Load, SoftGround = s.SoftGround,
-            Origin = s.Origin, Along = s.Along, Across = s.Across, Pass = s.Pass, U = s.U, Direction = s.Direction,
-            RowsOnPass = s.RowsOnPass, PassStartU = s.PassStartU, Tail = s.Tail, TailDir = s.TailDir,
-        };
-
-        /// <summary>Task 4.26 BB4: the rows a trial lays (up to 12), less the zigzag's cost (as <see cref="Steer"/> scores).</summary>
-        int Score(Snake trial, Grid grid)
-        {
-            int rows = 0;
-            while (rows < 12 && NextRow(trial, grid, claim: false)) rows++;
-            return rows - ShortFoldCost * trial.ShortFolds;
-        }
-
-        /// <summary>Makes <paramref name="best"/> (a frame <see cref="Steer"/> chose) the line's own and lays its first row.</summary>
-        bool Commit(Snake s, Grid grid, Snake best)
-        {
-            // Its first row, laid here (never through NextRow, which would steer again if it somehow didn't fit); the frame
-            // stays as it was if it doesn't.
-            if (!RowFree(best, 0, best.V, grid)) return false;
-            s.Origin = best.Origin; s.Along = best.Along; s.Across = best.Across;
-            s.Pass = 0; s.U = 0; s.Direction = 1; s.RowsOnPass = 0; s.PassStartU = 0;
-            s.Turns++;
-            s.WalkFailed = false;   // open ground again: a gap may help next time
-            s.NextGap = true;   // task 4.26: the way from the old tail to this row is a jump
-            PlaceRow(s, 0, s.V, claim: true);
-            s.U = RowMetres;
-            s.RowsOnPass = 1;
-            return true;
-        }
-
-        /// <summary>
-        /// Boxed in: the shortest way over open cells (8-connected, at most <see cref="MaxWalkMetres"/> of path) to ground
-        /// where a fold fits, laid single file, a skier every row's length, then the fold there.
-        /// </summary>
-        bool Walk(Snake s, Grid grid)
-        {
-            float reach = MaxReachMetres * MaxReachMetres;
-            float disc = Mathf.Max(s.Width, RowMetres) * 0.5f + 0.5f;
-            var parent = new Dictionary<long, long>();
-            var depth = new Dictionary<long, int>();
-            var queue = new Queue<(int, int)>();
-            float r0 = Mathf.Max(s.Width, RowMetres) * 0.5f + 1f, leave = r0 + CellMetres;
-            int rc = Mathf.CeilToInt(r0 / CellMetres);
-            int ti = Grid.Cell(s.Tail.x), tj = Grid.Cell(s.Tail.y);
-            for (int dj = -rc; dj <= rc; dj++)
-                for (int di = -rc; di <= rc; di++)
-                {
-                    int i = ti + di, j = tj + dj;
-                    if ((Grid.Centre(i, j) - s.Tail).magnitude > r0 || !grid.Free(i, j)) continue;
-                    long k = Key(i, j);
-                    if (parent.ContainsKey(k)) continue;
-                    parent[k] = long.MinValue; depth[k] = 0;
-                    queue.Enqueue((i, j));
-                }
-            int maxDepth = Mathf.CeilToInt(MaxWalkMetres / CellMetres), visited = 0;
-            while (queue.Count > 0 && visited < WalkSearchCells)
-            {
-                var (i, j) = queue.Dequeue();
-                visited++;
-                long key = Key(i, j);
-                int dep = depth[key];
-                var c = Grid.Centre(i, j);
-                if (dep >= 4 && (dep & 1) == 0 && OpenDisc(grid, c, disc))
-                {
-                    var dir = (c - s.Tail).normalized;
-                    if (Steer(s, grid, c, dir, commit: false, allowSoft: false, out var frame, out _))
-                    {
-                        // The path back to the tail, laid front (the tail's end) first.
-                        var path = new List<Vector2>();
-                        for (long at = key; at != long.MinValue; at = parent[at]) path.Add(Grid.Centre((int)(at >> 32), (int)(uint)at));
-                        path.Reverse();
-                        float since = 0;
-                        int laid = 0;
-                        var prev = s.Tail;
-                        foreach (var p in path)
-                        {
-                            since += (p - prev).magnitude;
-                            ClaimAround(p);
-                            AddPath(s, p, true, null);
-                            if (since >= RowMetres) { s.Placed.Add(new Vector3(p.x, Height(p), p.y)); s.Faces.Add(Toward(prev - p, -dir)); s.WalkPlaces++; laid++; since = 0; }
-                            prev = p;
-                        }
-                        var end = path[path.Count - 1];
-                        if (laid == 0) { s.Placed.Add(new Vector3(end.x, Height(end), end.y)); s.Faces.Add(Toward(path.Count > 1 ? path[path.Count - 2] - end : -dir, -dir)); s.WalkPlaces++; }
-                        s.TailDir = path.Count > 1 ? (end - path[path.Count - 2]).normalized : dir;
-                        s.Tail = end;
-                        // Task 4.26 BB4: the fold the search found there (steering afresh from the walkway's last step, another
-                        // way, often found none, and the next search walked back: walkways zigzagging on themselves).
-                        if (!Commit(s, grid, frame)) Steer(s, grid, end, s.TailDir, commit: true, allowSoft: false);
-                        return true;
-                    }
-                }
-                if (dep >= maxDepth) continue;
-                for (int n = 0; n < 8; n++)
-                {
-                    int ni = i + Ni[n], nj = j + Nj[n];
-                    long nk = Key(ni, nj);
-                    if (parent.ContainsKey(nk) || !grid.Free(ni, nj)) continue;
-                    if ((Grid.Centre(ni, nj) - s.Load).sqrMagnitude > reach) continue;
-                    // Task 4.26 BB4: a walkway keeps half a metre off every line's ground (it threaded the metre-wide aisles
-                    // between its own folds, and crossed them), except where it steps off its own tail.
-                    if ((Grid.Centre(ni, nj) - s.Tail).sqrMagnitude > leave * leave && NextToALine(grid, ni, nj)) continue;
-                    parent[nk] = key; depth[nk] = dep + 1;
-                    queue.Enqueue((ni, nj));
-                }
-            }
-            return false;
-        }
-
         static readonly int[] Ni = { 1, 0, -1, 0, 1, -1, -1, 1 }, Nj = { 0, 1, 0, -1, 1, 1, -1, -1 };
 
-        static bool NextToALine(Grid grid, int i, int j)
-        {
-            for (int n = 0; n < 4; n++) if (grid.State(i + Ni[n], j + Nj[n]) == Claimed) return true;   // the four beside it
-            return false;
-        }
         static long Key(int i, int j) => ((long)i << 32) ^ (uint)j;
 
-        /// <summary>
-        /// No open ground in reach: the walkway goes on through trees or steep ground (never a terminal, a lift's line, a
-        /// run or another line), away from the lift, until a fold fits again. Returns whether it laid anyone.
-        /// </summary>
-        bool SoftWalk(Snake s, Grid grid)
-        {
-            float reach = MaxReachMetres * MaxReachMetres;
-            float disc = Mathf.Max(s.Width, RowMetres) * 0.5f + 0.5f;
-            var away = (s.Tail - s.Load).sqrMagnitude > 1f ? (s.Tail - s.Load).normalized : s.TailDir.normalized;
-            int h = Octant(away);
-            // Out of the tail's own row first: the nearest way off it (away from the lift first) onto ground a walkway may cross.
-            float r0 = Mathf.Max(s.Width, RowMetres) * 0.5f + 0.5f;
-            int ci = 0, cj = 0;
-            bool start = false;
-            foreach (int turn in new[] { 0, 1, -1, 2, -2, 3, -3, 4 })
-            {
-                int d = ((h + turn) % 8 + 8) % 8;
-                var q = s.Tail + new Vector2(Oi[d], Oj[d]).normalized * r0;
-                ci = Grid.Cell(q.x); cj = Grid.Cell(q.y);
-                if ((q - s.Load).sqrMagnitude <= reach && grid.Passable(ci, cj) && GapClear(grid, s.Tail, q, allowSoft: true)) { h = d; start = true; break; }
-            }
-            if (!start) return false;
-            float since = RowMetres;   // the first step off the row is someone's place
-            int placed = 0;
-            for (int step = 0; step < SoftWalkSteps; step++)
-            {
-                // One cell on: straight, then 45° and 90° either way (cells, so the walkway never steps on itself).
-                int next = -1;
-                foreach (int turn in new[] { 0, 1, -1, 2, -2 })
-                {
-                    int d = ((h + turn) % 8 + 8) % 8;
-                    int ni = ci + Oi[d], nj = cj + Oj[d];
-                    if ((Grid.Centre(ni, nj) - s.Load).sqrMagnitude > reach || !grid.Passable(ni, nj)) continue;
-                    next = d;
-                    break;
-                }
-                if (next < 0) break;
-                // Take this cell and the two beside it (across the way on), then step.
-                foreach (var g in _grids)
-                {
-                    g.Claim(ci, cj);
-                    g.Claim(ci + Oi[(next + 2) % 8], cj + Oj[(next + 2) % 8]);
-                    g.Claim(ci + Oi[(next + 6) % 8], cj + Oj[(next + 6) % 8]);
-                }
-                ci += Oi[next]; cj += Oj[next]; h = next;
-                since += (next & 1) == 1 ? CellMetres * 1.4142f : CellMetres;
-                var pos = Grid.Centre(ci, cj);
-                var heading = new Vector2(Oi[h], Oj[h]).normalized;
-                s.Tail = pos; s.TailDir = heading;
-                AddPath(s, pos, true, null);
-                if (since >= RowMetres)
-                {
-                    s.Placed.Add(new Vector3(pos.x, Height(pos), pos.y));
-                    s.Faces.Add(-heading);
-                    s.SoftPlaces++; placed++; since = 0;
-                }
-                if (placed > 0 && OpenDisc(grid, pos + heading * (disc + 0.5f), disc)
-                    && Steer(s, grid, pos, heading, commit: true, allowSoft: true)) return true;
-            }
-            return placed > 0;
-        }
-
-        // The eight ways round a cell, counter-clockwise from east.
-        static readonly int[] Oi = { 1, 1, 0, -1, -1, -1, 0, 1 }, Oj = { 0, 1, 1, 1, 0, -1, -1, -1 };
-        static int Octant(Vector2 v) => ((int)Mathf.Round(Mathf.Atan2(v.y, v.x) / (Mathf.PI / 4f)) % 8 + 8) % 8;
-
-        /// <summary>Takes a walkway's cell and its neighbours, on every lift's grid, so no line stands in it.</summary>
-        void ClaimAround(Vector2 p)
-        {
-            int ci = Grid.Cell(p.x), cj = Grid.Cell(p.y);
-            for (int dj = -1; dj <= 1; dj++)
-                for (int di = -1; di <= 1; di++)
-                    foreach (var g in _grids) g.Claim(ci + di, cj + dj);
-        }
-
-        static bool OpenDisc(Grid grid, Vector2 c, float r)
-        {
-            // The centre and eight points round the rim first: most spots fail there, cheaply.
-            if (!grid.Free(Grid.Cell(c.x), Grid.Cell(c.y))) return false;
-            for (int d = 0; d < 8; d++)
-            {
-                var q = c + new Vector2(Oi[d], Oj[d]).normalized * (r - CellMetres * 0.5f);
-                if (!grid.Free(Grid.Cell(q.x), Grid.Cell(q.y))) return false;
-            }
-            int rc = Mathf.CeilToInt(r / CellMetres), ci = Grid.Cell(c.x), cj = Grid.Cell(c.y);
-            for (int dj = -rc; dj <= rc; dj++)
-                for (int di = -rc; di <= rc; di++)
-                {
-                    if ((Grid.Centre(ci + di, cj + dj) - c).sqrMagnitude > r * r) continue;
-                    if (!grid.Free(ci + di, cj + dj)) return false;
-                }
-            return true;
-        }
-
-        /// <summary>Whether the way from the tail to a new fold's first row crosses nothing (another line is fine to pass).</summary>
-        static bool GapClear(Grid grid, Vector2 a, Vector2 b, bool allowSoft)
-        {
-            float len = (b - a).magnitude;
-            for (float t = CellMetres; t < len; t += CellMetres)
-            {
-                var p = a + (b - a) * (t / len);
-                byte st = grid.State(Grid.Cell(p.x), Grid.Cell(p.y));
-                if (st == Hard || (st == Soft && !allowSoft)) return false;
-            }
-            return true;
-        }
-
-        /// <summary>The ground a rounded U-turn at <paramref name="uc"/> stands on, in the line's frame (along, across).</summary>
-        static void BendBox(Snake s, float uc, float nextV, out float a0, out float a1, out float v0, out float v1)
-        {
-            a0 = -(CornerRadius(s) + RowMetres * 0.5f); a1 = Mathf.Max(s.Width, RowMetres) * 0.5f;
-            v0 = s.V - s.Width * 0.5f; v1 = nextV + s.Width * 0.5f;
-        }
-
-        /// <summary>Task 4.26: whether a rounded U-turn's ground is free, or already the line's (or another's: never looked at).</summary>
-        static bool BendFree(Snake s, Grid grid, float uc, float nextV)
-        {
-            BendBox(s, uc, nextV, out float a0, out float a1, out float v0, out float v1);
-            var box = new BoxCells(s, uc + a0 * s.Direction, uc + a1 * s.Direction, v0, v1);
-            while (box.Next())
-                if (!s.Fits(grid, box.I, box.J) && grid.State(box.I, box.J) != Claimed) return false;
-            return true;
-        }
-
-        /// <summary>
-        /// Task 4.26 BB4: the ground each lane walks from the throat's last row onto the first fold's first row (a straight
-        /// way per lane, a quarter metre at a time). Without <paramref name="claim"/>: whether it is all open or a line's (the
-        /// throat's own). With it: takes the open cells on every other lift's grid (this line lays its first fold there yet).
-        /// </summary>
-        bool Corner(int lift, Vector2 lastRow, Vector2 back, Vector2 firstRow, Vector2 along, int seats, bool claim)
-        {
-            float width = seats * ColumnMetres;
-            var sideA = new Vector2(back.y, -back.x);
-            var sideB = new Vector2(along.y, -along.x);
-            var grid = _grids[lift];
-            for (int c = 0; c < seats; c++)
-            {
-                float off = -width * 0.5f + ColumnMetres * (c + 0.5f);
-                var a = lastRow + sideA * off;
-                var b = firstRow + sideB * off;
-                int steps = Mathf.Max(1, Mathf.CeilToInt((b - a).magnitude / (CellMetres * 0.5f)));
-                for (int t = 0; t <= steps; t++)
-                {
-                    var q = Vector2.Lerp(a, b, t / (float)steps);
-                    int i = Grid.Cell(q.x), j = Grid.Cell(q.y);
-                    if (!claim)
-                    {
-                        byte st = grid.State(i, j);
-                        if (st != Open && st != Claimed) return false;
-                        continue;
-                    }
-                    for (int g = 0; g < _grids.Length; g++) if (g != lift && _grids[g].State(i, j) == Open) _grids[g].Claim(i, j);
-                }
-            }
-            return true;
-        }
-
-        /// <summary>Takes a rounded U-turn's ground on every other lift's grid (this line lays its own rows there yet).</summary>
-        void ClaimBend(Snake s, float uc, float nextV)
-        {
-            BendBox(s, uc, nextV, out float a0, out float a1, out float v0, out float v1);
-            var box = new BoxCells(s, uc + a0 * s.Direction, uc + a1 * s.Direction, v0, v1);
-            while (box.Next())
-                for (int g = 0; g < _grids.Length; g++) if (g != s.Lift) _grids[g].Claim(box.I, box.J);
-        }
-
-        static bool RowFree(Snake s, float u, float v, Grid grid)
-        {
-            float half = s.Width * 0.5f;
-            float reach = MaxReachMetres * MaxReachMetres;
-            var box = new BoxCells(s, u - RowMetres * 0.5f, u + RowMetres * 0.5f, v - half, v + half);
-            while (box.Next())
-            {
-                if ((Grid.Centre(box.I, box.J) - s.Load).sqrMagnitude > reach) return false;
-                if (!s.Fits(grid, box.I, box.J)) return false;
-            }
-            return true;
-        }
-
-        static bool StripFree(Snake s, float u, float v0, float v1, Grid grid)
-        {
-            var box = new BoxCells(s, u - RowMetres * 0.5f, u + RowMetres * 0.5f, v0, v1);
-            while (box.Next())
-                if (!s.Fits(grid, box.I, box.J)) return false;
-            return true;
-        }
-
-        /// <summary>
-        /// Task 4.26 BB4: the cells of a box in a line's frame (u0..u1 along it, v0..v1 across): every cell whose centre lies
-        /// in it, at any angle. Sampled every half metre, a box at an angle missed cells in a lattice (walkways and other
-        /// lines found the holes); sampled finer, it spilled into the aisle beside it and the line couldn't fold.
-        /// </summary>
-        struct BoxCells
-        {
-            readonly Vector2 _origin, _along, _across;
-            readonly float _u0, _u1, _v0, _v1;
-            readonly int _i0, _i1, _j1;
-            int _i, _j;
-            public int I => _i;
-            public int J => _j;
-
-            public BoxCells(Snake s, float u0, float u1, float v0, float v1) : this(s.Origin, s.Along, s.Across, u0, u1, v0, v1) { }
-
-            public BoxCells(Vector2 origin, Vector2 along, Vector2 across, float u0, float u1, float v0, float v1)
-            {
-                _origin = origin; _along = along; _across = across;
-                _u0 = Mathf.Min(u0, u1); _u1 = Mathf.Max(u0, u1); _v0 = Mathf.Min(v0, v1); _v1 = Mathf.Max(v0, v1);
-                var a = origin + along * _u0 + across * _v0; var b = origin + along * _u1 + across * _v0;
-                var c = origin + along * _u0 + across * _v1; var d = origin + along * _u1 + across * _v1;
-                _i0 = Grid.Cell(Mathf.Min(Mathf.Min(a.x, b.x), Mathf.Min(c.x, d.x)));
-                _i1 = Grid.Cell(Mathf.Max(Mathf.Max(a.x, b.x), Mathf.Max(c.x, d.x)));
-                int j0 = Grid.Cell(Mathf.Min(Mathf.Min(a.y, b.y), Mathf.Min(c.y, d.y)));
-                _j1 = Grid.Cell(Mathf.Max(Mathf.Max(a.y, b.y), Mathf.Max(c.y, d.y)));
-                _i = _i0 - 1; _j = j0;
-            }
-
-            public bool Next()
-            {
-                while (true)
-                {
-                    if (++_i > _i1) { _i = _i0; if (++_j > _j1) return false; }
-                    var d = Grid.Centre(_i, _j) - _origin;
-                    float u = Vector2.Dot(d, _along), v = Vector2.Dot(d, _across);
-                    if (u >= _u0 && u < _u1 && v >= _v0 && v < _v1) return true;
-                }
-            }
-        }
-
-        void PlaceRow(Snake s, float u, float v, bool claim)
-        {
-            if (!claim) return;
-            float half = s.Width * 0.5f;
-            if (s.SoftGround)
-            {
-                var c0 = s.Point(u, v);
-                if (_grids[s.Lift].State(Grid.Cell(c0.x), Grid.Cell(c0.y)) == Soft) s.SoftPlaces += s.Seats;
-            }
-            // The cells it covers are taken, on every lift's grid, so no other line ever stands on them (every cell, at
-            // any angle: task 4.26 BB4).
-            var box = new BoxCells(s, u - RowMetres * 0.5f, u + RowMetres * 0.5f, v - half, v + half);
-            while (box.Next())
-                foreach (var g in _grids) g.Claim(box.I, box.J);
-            // Front of the line first: column 0 is on the side the line came from on this pass, so the snake reads
-            // as one queue folding back on itself.
-            for (int c = 0; c < s.Seats; c++)
-            {
-                float dv = -half + ColumnMetres * (c + 0.5f);
-                var p = s.Point(u, v + dv);
-                s.Placed.Add(new Vector3(p.x, Height(p), p.y));
-                s.Faces.Add(-s.Along * s.Direction);   // back the way the pass came: toward the front of the line
-            }
-            s.Tail = s.Point(u, v);
-            s.TailDir = s.Along * s.Direction;
-            AddPath(s, s.Tail, false, s.RowsOnPass > 0 ? s.TailDir : (Vector2?)null, s.TailDir);
-        }
-
         static Vector2 Toward(Vector2 v, Vector2 otherwise) => v.sqrMagnitude > 1e-6f ? v.normalized : otherwise;
-
-        static Vector2 Rotate(Vector2 v, float degrees)
-        {
-            float r = degrees * Mathf.Deg2Rad, c = Mathf.Cos(r), s = Mathf.Sin(r);
-            return new Vector2(v.x * c - v.y * s, v.x * s + v.y * c);
-        }
 
         /// <summary>The runs' centrelines in 4 m buckets, so "is this on a run" costs a few lookups.</summary>
         sealed class RunIndex

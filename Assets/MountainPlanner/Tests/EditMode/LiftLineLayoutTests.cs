@@ -138,19 +138,6 @@ namespace MountainPlanner.Tests
             AssertNoSharedGround(layout, 1);
         }
 
-        // Task 4.26 BB4 (owner, 2026-11-23, lift 0 at the drawn resort): the line jumped from its throat to a fold 4 m away,
-        // an empty gap at its front. Its first heading was one whose first row didn't fit (it laid nothing, scored 0), chosen
-        // over headings that lay rows but scored below 0 for their short folds.
-        [Test]
-        public void AFirstHeadingThatLaysNothingNeverBeatsOneThatLaysRows()
-        {
-            Assert.IsTrue(LineLayout.Better(true, -3, false, 0), "rows in short folds beat nothing");
-            Assert.IsFalse(LineLayout.Better(false, 0, true, -3), "nothing never beats rows");
-            Assert.IsTrue(LineLayout.Better(true, 5, true, 3), "more rows win");
-            Assert.IsFalse(LineLayout.Better(true, 3, true, 3), "ties keep the earlier heading");
-            Assert.IsTrue(LineLayout.Better(false, 0, false, int.MinValue), "with nothing laid anywhere, the first heading stands");
-        }
-
         // Task 4.26 BB4: the drawn resort ran out of memory laying a line whose centre doubled straight back (its corner
         // came out kilometres away). Corridors of many widths, lengths and angles, and patchy forests: every line grows long,
         // its centre never doubles back, and every place stands in reach.
