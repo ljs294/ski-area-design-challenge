@@ -40,7 +40,8 @@ namespace MountainPlanner.App
             _editKeys = Array.IndexOf(args, "-testedit") >= 0;
             int bench = Array.IndexOf(args, "-testbench");
             int timing = Array.IndexOf(args, "-editbench");
-            bool styleTile = Array.IndexOf(args, "-styletile") >= 0 || Array.IndexOf(args, "-liftbench") >= 0 || DrawnResortWanted(args);
+            bool styleTile = Array.IndexOf(args, "-styletile") >= 0 || Array.IndexOf(args, "-liftbench") >= 0 || DrawnResortWanted(args)
+                             || Array.IndexOf(args, Presentation.Buildings.DevBuildingPlacement.Flag) >= 0;   // 4.50: placed once the ground is ready
             // A loaded save with terrain edits needs the session too, to lay them over the mountain.
             bool saved = OpenDesign.Current != null && !OpenDesign.Current.History.Terrain.IsEmpty;
             // UI captures arm the trail tools (task 08), which need the ground's session ready when they do.
@@ -211,6 +212,7 @@ namespace MountainPlanner.App
             int liftBench = Array.IndexOf(args, "-liftbench");
             if (liftBench >= 0 && liftBench + 1 < args.Length && int.TryParse(args[liftBench + 1], out int want)) yield return BuildBenchLifts(want);
             if (DrawnResortWanted(args)) yield return BuildDrawnResort();
+            Presentation.Buildings.DevBuildingPlacement.FromArgs(args, _resort.Root.transform, _resort.Surface, () => _layers != null && _layers.SnowOn ? _layers.SiteSnow : 0);   // 4.50: -buildings (dev only)
         }
 
         /// <summary>True while the -liftbench lifts are being built: the benchmark and captures wait for them.</summary>

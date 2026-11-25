@@ -1,0 +1,11 @@
+{
+  "_about": "The lift operator's outdoor pedestal with a phone (task 4.50 phase 4; bldgkit/op_pedestal.py builds it; owner 2026-11-24). A steel post with a control head (stop and slow buttons) and a weatherproof phone box, standing on the unload ramp's hut bay beside the unload point (the ramp's `pedestal` socket). Our own design: no maker's name or mark on it. Frame in the builder's docstring. Millimetres.",
+  "id": "bldg_op_pedestal",
+  "catalog": {"name": "Operator pedestal with phone", "category": "lift_extras"},
+  "height": 1050,
+  "post": 100,
+  "base": 300,
+  "head": {"width": 360, "depth": 220, "back": 260, "front": 140, "stop": [70, 35], "slow": [40, 15]},
+  "phone": {"width": 240, "depth": 130, "height": 320, "bottom": 600},
+  "review": {"ground": 0.0, "figure": [0.0, 0.75, 0.0], "detail": {"head": ["light:stop", [0.9, 1.3, 0.5], 35]}}
+}

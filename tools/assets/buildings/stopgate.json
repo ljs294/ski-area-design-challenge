@@ -1,0 +1,17 @@
+{
+  "_about": "A fixed-grip chair's stop gate at its top return terminal (task 4.50 phase 4; bldgkit/stop_gate.py builds it; owner 2026-11-24: copy the real ones from the photo survey). A slim white post on the ramp past the unload, on the lift's centreline, and a thin dark bar (1 in square) from its top along the lift line out under the chair turning round the far side of the wheel, below the seat, with a proximity switch at the pivot. One model per terminal style (`variants`), each for every chair width: unload_ramp.gate_at places it, and the post stands well inside the circle the turning chairs' inner ends sweep (unloadramp.json `gate.postClear`); pick() sets the post's depth to the ramp's surface under it (for the deepest chair width; `post.buryMax` the most another width may bury its foot). `bar.height` is unloadramp.json's gate: 250 mm under the chair's lowest point. No sign (owner, 2026-11-24). Our own design: no maker's name or mark on it. Millimetres.",
+  "common": {
+    "id": "bldg_stop_gate",
+    "catalog": {"name": "Stop gate", "category": "lift_extras"},
+    "bar": {"height": 129, "size": 25, "length": 3000},
+    "post": {"size": 60, "above": 100, "plate": [200, 12], "buryMax": 60},
+    "brace": {"size": 20, "reach": 180, "drop": 90},
+    "switch": [70, 60, 80],
+    "review": {"figure": [1.2, 0.9, 0.0], "detail": {"pivot": ["light:pivot", [0.6, 0.5, 0.3], 35]}}
+  },
+  "variants": {
+    "sessellift": {"id": "bldg_stop_gate_sessellift", "catalog": {"name": "Stop gate (Sessellift)", "category": "lift_extras"}},
+    "stern": {"id": "bldg_stop_gate_stern", "catalog": {"name": "Stop gate (Sessellift Stern)", "category": "lift_extras"}},
+    "monta": {"id": "bldg_stop_gate_monta", "catalog": {"name": "Stop gate (Monta)", "category": "lift_extras"}}
+  }
+}
