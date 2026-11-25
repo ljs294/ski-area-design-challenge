@@ -14,7 +14,7 @@ import numpy as np
 N, T = 4, 256
 SIZE = N * T
 TILES = ["plain", "paint", "galvanised", "grating", "checker", "concrete", "panel", "rubber", "seat", "gloss", "roof_rib",
-         "belt", "ribbed"]   # append only: a tile keeps its slot
+         "belt", "ribbed", "planks"]   # append only: a tile keeps its slot
 TILE = {name: i for i, name in enumerate(TILES)}
 CLASS_TILE = {
     "galvanised": "galvanised", "paint_grey": "paint", "paint_dark": "paint", "machined": "plain",
@@ -39,6 +39,17 @@ def _noise(name, sigma):
     f = np.fft.fftfreq(T)
     fx, fy = np.meshgrid(f, f)
     kernel = np.exp(-2 * (np.pi * sigma) ** 2 * (fx ** 2 + fy ** 2))
+    out = np.real(np.fft.ifft2(np.fft.fft2(white) * kernel))
+    return (out - out.mean()) / (out.std() + 1e-9)
+
+
+def _aniso(name, sx, sy):
+    """Periodic noise like _noise, filtered sx px across x and sy px along y (a grain running along y)."""
+    rng = np.random.default_rng(zlib.crc32(name.encode()))
+    white = rng.standard_normal((T, T))
+    f = np.fft.fftfreq(T)
+    fx, fy = np.meshgrid(f, f)
+    kernel = np.exp(-2 * np.pi ** 2 * ((sx * fx) ** 2 + (sy * fy) ** 2))
     out = np.real(np.fft.ifft2(np.fft.fft2(white) * kernel))
     return (out - out.mean()) / (out.std() + 1e-9)
 
@@ -102,6 +113,21 @@ def _tile(name):
         d = (y % 4) - 1.5
         rib = np.clip(1 - (d / 1.6) ** 2, 0, 1)
         return rib * 1.0 + _noise("ribd_h", 1.5) * 0.06, 1 + rib * 0.06 + _noise("ribd_b", 20) * 0.02, 1 - (1 - rib) * 0.25, 0.8
+    if name == "planks":   # timber deck boards running along y, 7 a metre (143 mm) across x with 6 mm gaps between them,
+        #                      grain along each board (shifted board to board), a tone per board, two butt joints a metre
+        bx = x * 7 / T
+        k = np.floor(bx).astype(int) % 7
+        gap = (bx - np.floor(bx)) < 1.5 * 7 / T
+        base = _aniso("plk_g", 0.7, 18)
+        grain = np.empty((T, T))
+        for kk in range(7):
+            m = k == kk
+            grain[m] = np.roll(base, 37 * kk, axis=0)[m]
+        joint = ((k == 1) & (np.abs(y - 90) < 1)) | ((k == 4) & (np.abs(y - 205) < 1))
+        tone = np.array([0.04, -0.03, 0.01, -0.05, 0.03, -0.01, 0.02])[k]
+        h = grain * 0.25 - gap * 2.0 - joint * 1.0
+        bright = 1 + tone + grain * 0.05 - gap * 0.4 - joint * 0.15
+        return h, bright, 1 - gap * 0.6 - joint * 0.4, 0.7
     raise KeyError(name)
 
 
