@@ -304,6 +304,8 @@ namespace MountainPlanner.App
                 if (Array.IndexOf(args, "-devpanel") >= 0) _help = true;   // task 4.12: open the panel for a capture
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
+                int lookShots = Array.IndexOf(args, "-lookshots");   // task 4.08 PR B: many snow-look pictures a run (MountainViewer.SnowTypes.cs)
+                if (lookShots >= 0 && lookShots + 2 < args.Length) StartCoroutine(RunLookShots(args[lookShots + 1], args[lookShots + 2]));
                 StartCoroutine(RunPhotoArguments(args));   // -photo, -photoshot (MountainViewer.Photo.cs)
                 StartTerrainEdits(args);   // -testedit, -testbench, -editbench (MountainViewer.Edits.cs, task P3-05)
                 StartTrailShots(args);     // -trailshots <folder> [-trailspot name] (MountainViewer.Trails.cs, task P3-08)
@@ -379,6 +381,7 @@ namespace MountainPlanner.App
                       $"active terrains {Terrain.activeTerrains.Length}, material {(TerrainMaterial != null ? TerrainMaterial.shader.name : "none")}, " +
                       $"time {(Lighting != null ? Lighting.Clock.Now.ToString() : "-")}, sun {(Lighting != null ? Lighting.CurrentLight.SunElevation : 0):F1}°");
             Debug.Log(BuildingLightsReport());
+            LogSnowTypesOnScreen();   // -snowtypes: where each stripe is on this picture
             ScreenCapture.CaptureScreenshot(path);
             yield return null;
             yield return null;
@@ -410,6 +413,7 @@ namespace MountainPlanner.App
             }
             // Task 4.08 PR A: a -paintwhale capture waits (up to 120 s) for the paint to be sent and its tiles drawn.
             for (float t = 0; !PaintWhaleSettled && t < 120; t += Time.unscaledDeltaTime) yield return null;
+            yield return ShowSnowTypes();   // task 4.08 PR B: -snowtypes, the types side by side (screen only)
             for (int i = 0; i < 90; i++) yield return null; // let LOD and shadows settle
         }
 

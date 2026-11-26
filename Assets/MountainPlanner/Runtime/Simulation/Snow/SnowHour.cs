@@ -625,7 +625,7 @@ namespace MountainPlanner.Simulation
         /// <summary>
         /// The 8 m cell's hour on its block: the net change shared (<see cref="FineSnow.ShareHour"/>, the loss by the weights
         /// <see cref="KeepPacked"/> filled), a dry hour's settling, a natural change of type or age passed to every fine
-        /// cell with snow (new snow clears the packing and the groomings; 6 in of it halves the moguls, SN-17), then the
+        /// cell with snow (new snow clears the packing, the groomings and the passes; 6 in of it halves the moguls, SN-17 v2), then the
         /// roll-up's density and type back on the 8 m cell. The 8 m water already equals the roll-up's.
         /// </summary>
         void FineHour(int b, int c, int swe0, int rho0, byte type0, byte age0, int snow, int snowDensity, int rain, int band)
@@ -641,13 +641,22 @@ namespace MountainPlanner.Simulation
             if (!fine.ShareHour(b, gain, density, loss, wgt)) fine.SeedBlock(f, b);   // never with the invariant held
             if (snow <= 0 && rain <= 0 && rho0 > 0) fine.Settle(b, (int)Math.Min(int.MaxValue, (long)p.Density * 1000 / rho0));
             byte type1 = f.Type[c], age1 = f.Age[c];
-            bool fresh = type1 != type0 && (type1 == (byte)SnowType.P || type1 == (byte)SnowType.WP);
+            // A powder reset is the cell's own new snow (SN-14 v2 rule 1: 0.1 in of water, which starts the 8 m age again), whether
+            // or not that changes the 8 m type: a lane skied lightly is still powder, and the next storm must clear its
+            // tracks too (task 4.08 PR B, p4-08-findings R18).
+            bool powder = type1 == (byte)SnowType.P || type1 == (byte)SnowType.WP;
+            bool fresh = powder && (type1 != type0 || (snow > 0 && age1 == 0));
             bool deep = snow > 0 && snowDensity > 0 && (long)snow * 1000 / snowDensity >= 152_400;
             for (int q = f0; q < f0 + bc; q++)
             {
                 if (fine.Swe[q] <= 0) continue;
                 if (type1 != type0 && type1 != 0) fine.Type[q] = type1;   // a bare 8 m cell has no type to pass on (task 4.25)
-                if (fresh) fine.Flags[q] = (byte)(fine.Flags[q] & ~(FineSnow.Packed | FineSnow.GroomMask));
+                if (fresh)   // a powder reset: unpacked, ungroomed and unskied (task 4.08 PR B, SN-17 v2: passes restart from 0)
+                {
+                    fine.Flags[q] = (byte)(fine.Flags[q] & ~(FineSnow.Packed | FineSnow.GroomMask));
+                    fine.Passes[q] = 0;
+                    fine.Type[q] = type1;
+                }
                 if (deep) fine.Moguls[q] = (byte)(fine.Moguls[q] / 2);
                 if (age1 < age0) fine.Age[q] = age1;
                 else if (age1 > age0) fine.Age[q] = (byte)Math.Min(255, fine.Age[q] + (age1 - age0));

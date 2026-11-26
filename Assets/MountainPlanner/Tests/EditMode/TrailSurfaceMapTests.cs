@@ -84,7 +84,7 @@ namespace MountainPlanner.Tests
             {
                 new[] { "_SNOW_SHELL" },
                 new[] { "_SNOW_SHELL", "INSTANCING_ON" },
-                new[] { "_SNOW_SHELL", "INSTANCING_ON", "_MAIN_LIGHT_SHADOWS_CASCADE", "WX_AIR", "WX_GLINT" },
+                new[] { "_SNOW_SHELL", "INSTANCING_ON", "_MAIN_LIGHT_SHADOWS_CASCADE", "WX_AIR", "SNOW_SPARKLE" },
                 new[] { "INSTANCING_ON" },
             };
             var failures = new System.Collections.Generic.List<string>();

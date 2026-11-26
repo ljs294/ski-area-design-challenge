@@ -65,6 +65,24 @@ namespace MountainPlanner.Tests
             w.JoinSnow();
         }
 
+        /// <summary>
+        /// Task 4.26 BB28 (found at 4.08 G1, 2026-11-25): a save made while tonight's plan holds its pieces of work (from the swing
+        /// shift's start to the morning) didn't reopen ("a piece's lane holds 2049"), so the game started its clock over. The
+        /// writer puts a piece's lane down as a byte and the reader took four. Saved with pieces, it reopens to the same.
+        /// </summary>
+        [Test]
+        public void GO09_ASaveWithTonightsPiecesReopens()
+        {
+            var w = OneRun(2);
+            To(w, 23);
+            Assert.That(w.GroomPieceCount, Is.GreaterThan(1), "tonight's plan holds pieces");
+            byte[] bytes = w.SaveState();
+            var back = TrailSnowWorldTests.Reopen(bytes);
+            Assert.That(back.GroomPieceCount, Is.EqualTo(w.GroomPieceCount), "the pieces as saved");
+            Assert.That(back.Hash(), Is.EqualTo(w.Hash()), "the restored state is the saved one");
+            Assert.That(back.SaveState(), Is.EqualTo(bytes), "saving again writes the same bytes");
+        }
+
         [Test]
         public void GO01_ANewResortHasNoGroomersAndGroomsNothing()
         {

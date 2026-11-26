@@ -246,6 +246,88 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void SL09_MogulsGrowByTheHoursPassesAndOutlastAPowderReset()
+        {
+            // SN-17 v2 (task 4.08 PR B): three passes an hour for a hundred hours grow the same moguls as 300 at once (the
+            // growth telescopes, so no fraction is lost), and new powder zeroes the passes but keeps the moguls.
+            var w = TrailSnowWorldTests.World(600, TrailSnowWorldTests.Layout(TrailSnowWorldTests.Run(11, 150_000, neverGroom: true)));
+            w.JoinSnow();
+            var fine = w.FineSnow;
+            var L = fine.Layout;
+            var passes = new int[Pacing.Default.WearBands];
+            passes[3] = 3;
+            for (int h = 0; h < 100; h++) w.ApplyWear(passes, 1);
+            int want = 300 * Pacing.Default.MogulsPerKPasses / 1000, bumped = 0, other = 0, probe = -1;
+            for (int f = 0; f < fine.Cells; f++)
+            {
+                if (L.Owner[f] != 0 || L.Lane[f] != 3 || fine.Swe[f] <= 0) continue;
+                if (fine.Moguls[f] == want) { bumped++; if (probe < 0) probe = f; }
+                else if (fine.Moguls[f] != 0) other++;
+            }
+            Say($"[SN-17 v2] {bumped} lane-3 cells at {want} moguls after 100 hours of 3 passes, {other} otherwise");
+            Assert.That(bumped, Is.GreaterThan(0), "the steep run grows moguls");
+            Assert.That(other, Is.Zero, "every bumped cell grew floor(300 x 0.128), hour by hour");
+
+            // The next storm's powder reset: unskied again, moguls kept (halved only under 6 in of it).
+            for (int f = 0; f < fine.Cells; f++) if (L.Owner[f] == 0) fine.Type[f] = (byte)SnowType.PP;
+            long end = w.FaceMs + 40 * SimWorld.DayMs;
+            int before = fine.Moguls[probe];
+            bool reset = false;
+            while (!reset && w.FaceMs < end)
+            {
+                int passes0 = fine.Passes[probe], moguls0 = fine.Moguls[probe];
+                w.Step(1);
+                w.JoinSnow();
+                if (fine.Type[probe] == (byte)SnowType.P || fine.Type[probe] == (byte)SnowType.WP)
+                {
+                    reset = true;
+                    Say($"[SN-17 v2] powder at face day {w.FaceMs / SimWorld.DayMs}: passes {passes0} -> {fine.Passes[probe]}, moguls {moguls0} -> {fine.Moguls[probe]}");
+                    Assert.That(fine.Passes[probe], Is.Zero, "a powder reset zeroes the passes");
+                    Assert.That(fine.Moguls[probe], Is.InRange(moguls0 / 2, moguls0), "and keeps the moguls (6 in halves them)");
+                }
+            }
+            Assert.That(reset, Is.True, "a storm came within 40 face days");
+            Assert.That(before, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void SL10_NewSnowClearsLightTracksOnPowderToo()
+        {
+            // p4-08-findings R18 (task 4.08 PR B): a lane skied only lightly is still powder (20 passes, under PackedPasses), so
+            // the next snow doesn't change its 8 m cell's type. The reset is the cell's own new snow all the same: the passes
+            // go back to 0, or the old tracks would show at once on the new powder.
+            var w = TrailSnowWorldTests.World(600, TrailSnowWorldTests.Layout(TrailSnowWorldTests.Run(11, 150_000, neverGroom: true)));
+            w.JoinSnow();
+            var fine = w.FineSnow;
+            var L = fine.Layout;
+            int probe = -1;
+            for (int f = 0; f < fine.Cells && probe < 0; f++)
+                if (L.Owner[f] == 0 && L.Lane[f] == 3 && fine.Swe[f] > 0) probe = f;
+            Assert.That(probe, Is.GreaterThanOrEqualTo(0), "a lane-3 cell with snow");
+            var light = new int[Pacing.Default.WearBands];
+            light[3] = 20;
+            Assert.That(20, Is.LessThan(Pacing.Default.PackedPasses), "light traffic: it stays powder");
+            int cleared = 0;
+            long end = w.FaceMs + 60 * SimWorld.DayMs;
+            while (cleared == 0 && w.FaceMs < end)
+            {
+                bool Powder() => fine.Type[probe] == (byte)SnowType.P || fine.Type[probe] == (byte)SnowType.WP;
+                if (Powder() && fine.Passes[probe] == 0 && (fine.Flags[probe] & FineSnow.Packed) == 0) w.ApplyWear(light, 1);
+                byte type0 = fine.Type[probe];
+                int passes0 = fine.Passes[probe];
+                bool powder0 = Powder();
+                w.Step(1);
+                w.JoinSnow();
+                if (powder0 && passes0 > 0 && fine.Passes[probe] == 0 && fine.Type[probe] == type0)
+                {
+                    cleared++;
+                    Say($"[R18] face day {w.FaceMs / SimWorld.DayMs}: {(SnowType)type0} stayed {(SnowType)fine.Type[probe]}, passes {passes0} -> 0");
+                }
+            }
+            Assert.That(cleared, Is.GreaterThan(0), "new snow on powder cleared the light tracks within 60 face days");
+        }
+
+        [Test]
         public void SL06_MachineMadeThawsToWetPowderAndPacksUnderTraffic()
         {
             var f = new SnowField(1, 1);

@@ -289,6 +289,189 @@ float SnowCorduroyAt(float3 positionWS)
     return lerp(a, b, f.y);
 }
 
+// Task 4.08 PR B (SN-13 v3's look table): the snow's type shows in how it takes the light, not in its colour. Three separate
+// things carry it (owner, 2026-11-24): shine, a glassy reflection of the sky and the sun (ice); sparkle, a twinkle across
+// the snow (powder, corn); and the surface itself, how softly the sun wraps it. The tints stay within a few percent of plain
+// snow and never above 1 (p4-08-findings R1, R15). The finish (groomed, skied, untouched) is drawn over the type. One row a
+// type (SnowType):
+// - SnowLookTint: rgb the tint over the snow layer's albedo, its family's colour; a how softly the sun wraps it (powder
+//   pillowy, ice crisp).
+// - SnowLookShine: x how much of the surface can shine; y how glassy the shine is (0 a broad glow, 1 near a mirror); z how
+//   much of the ground the shiny patches cover; w the faint mottle that survives from far away.
+// - SnowLookSparkle: x the twinkle's brightness; y the share of crystals that catch the sun; z the crystals' size (m);
+//   w 1 for new snow, pristine while under SnowFreshHours.
+// The surface itself is smooth for every type (owner, 2026-11-25: no textures; the types are told by colour and
+// reflectivity). Colour tells four families apart, at about a third of round 1's strength: fresh (powder) the brightest
+// white; packed and groomed a neutral white; hard and icy cooler, blue-grey; spring and wet a little darker and greyer.
+// Shine and sparkle tell the types apart inside a family.
+// - SnowLookTracks: how deep skis mark it: powder in full, ice nearly not at all.
+// Presentation/SnowLooks.cs holds the same rows (SnowLooksTests checks they match). Row 0 is the snow before the
+// simulation's types reach the screen.
+static const float4 SnowLookTint[12] =
+{
+    float4(1.000, 1.000, 1.000, 0.15),   // 0 none (before the field is on)
+    float4(1.000, 1.000, 1.000, 0.25),   // 1 powder (fresh): the whitest, pillowy
+    float4(0.985, 0.988, 0.992, 0.12),   // 2 packed powder (packed and groomed): a neutral white
+    float4(0.975, 0.980, 0.988, 0.10),   // 3 machine groomed (packed and groomed)
+    float4(0.950, 0.961, 0.980, 0.10),   // 4 hard packed (hard and icy): cooler, blue-grey
+    float4(0.980, 0.984, 0.992, 0.05),   // 5 icy (hard and icy): and it mirrors the sky
+    float4(0.917, 0.902, 0.883, 0.15),   // 6 corn (spring and wet): a little darker, warm grey
+    float4(0.962, 0.970, 0.984, 0.08),   // 7 frozen granular (hard and icy)
+    float4(0.930, 0.921, 0.908, 0.12),   // 8 loose granular (spring and wet)
+    float4(0.950, 0.948, 0.944, 0.10),   // 9 wet granular (spring and wet): the darkest, wet
+    float4(0.883, 0.871, 0.860, 0.18),   // 10 wet powder (spring and wet): heavy
+    float4(0.990, 0.995, 1.000, 0.10),   // 11 machine made (packed and groomed): bright, very even
+};
+static const float4 SnowLookShine[12] =
+{
+    float4(0.00, 0.30, 0.00, 0.00),   // 0
+    float4(0.00, 0.20, 0.00, 0.00),   // 1 powder: no shine at all
+    float4(0.04, 0.35, 0.30, 0.01),   // 2 packed powder: a trace
+    float4(0.05, 0.35, 0.40, 0.01),   // 3 machine groomed: a trace
+    float4(0.30, 0.50, 0.45, 0.02),   // 4 hard packed: a soft gloss at low angles
+    float4(1.00, 0.85, 0.75, 0.03),   // 5 icy: glassy patches over most of it
+    float4(0.00, 0.20, 0.00, 0.03),   // 6 corn: sparkles, never shines
+    float4(0.55, 0.60, 0.55, 0.03),   // 7 frozen granular: patchy shine
+    float4(0.00, 0.20, 0.00, 0.02),   // 8 loose granular
+    float4(0.30, 0.70, 1.00, 0.04),   // 9 wet granular: a wet gloss all over
+    float4(0.12, 0.55, 1.00, 0.02),   // 10 wet powder: a slight wet gloss
+    float4(0.03, 0.35, 0.30, 0.00),   // 11 machine made
+};
+static const float4 SnowLookSparkle[12] =
+{
+    float4(0.60, 0.50, 0.004, 0),   // 0
+    float4(1.00, 0.90, 0.003, 1),   // 1 powder: the most, fine and dense
+    float4(0.45, 0.50, 0.004, 0),   // 2 packed powder: some
+    float4(0.35, 0.40, 0.004, 0),   // 3 machine groomed: a little
+    float4(0.15, 0.20, 0.004, 0),   // 4 hard packed: little
+    float4(0.00, 0.00, 0.004, 0),   // 5 icy: none (it shines instead)
+    float4(1.30, 0.45, 0.030, 0),   // 6 corn: fewer than powder's, coarse and bold
+    float4(0.50, 0.30, 0.020, 0),   // 7 frozen granular: a few hard glints
+    float4(0.90, 0.60, 0.012, 0),   // 8 loose granular: sugary
+    float4(0.00, 0.00, 0.004, 0),   // 9 wet granular: none
+    float4(0.00, 0.00, 0.004, 1),   // 10 wet powder: none
+    float4(0.35, 0.60, 0.002, 0),   // 11 machine made: fine, some
+};
+static const float SnowLookTracks[12] = { 0.0, 1.0, 0.35, 0.30, 0.15, 0.03, 0.50, 0.05, 0.50, 0.50, 0.80, 0.80 };
+
+// Older snow loses its sparkle and goes a little duller (age in face hours, up to four face days).
+static const float SnowLookAgeHours = 96;
+// New snow is pristine for its first half face day: softer, more sparkle.
+static const float SnowFreshHours = 12;
+
+struct SnowSurface
+{
+    float3 tint;
+    float soft;                          // how softly the sun wraps it (0 crisp)
+    float sheen, gloss, patch, mottle;   // the shine: its amount, how glassy, the patches' cover, the far mottle
+    float sparkle, density, grain;       // the twinkle: brightness, share of crystals, their size (m; the heaviest type's)
+    float grainWeight;
+    float tracks;
+    float corduroy;   // as SnowCorduroyAt
+    float moguls;     // 0-1, the fine cells' (none off the trails)
+    float passes;     // the fine cells' passes since the last grooming or powder reset, weighted by their share (owned)
+    float owned;      // the share of the point the trail's own fine cells answer
+};
+
+void SnowLookAdd(inout SnowSurface s, int type, float age, float w)
+{
+    type = clamp(type, 0, 11);
+    float dull = saturate(age / SnowLookAgeHours);
+    float4 t = SnowLookTint[type], sh = SnowLookShine[type], sp = SnowLookSparkle[type];
+    // New snow, for its first half face day: pillowy, the crystals at their brightest.
+    float fresh = sp.w * (1 - saturate(age / SnowFreshHours));
+    s.tint += w * t.rgb * (1 - 0.03 * dull);
+    s.soft += w * (t.a + 0.10 * fresh);
+    s.sheen += w * sh.x;
+    s.gloss += w * sh.y;
+    s.patch += w * sh.z;
+    s.mottle += w * sh.w;
+    s.sparkle += w * sp.x * (1 - 0.8 * dull) * (1 + 0.25 * fresh);
+    s.density += w * sp.y;
+    // A crystal's size doesn't blend (two sizes blended would squeeze the pattern across a border, R14): the heaviest type's.
+    if (w > s.grainWeight) { s.grainWeight = w; s.grain = sp.z; }
+    s.tracks += w * SnowLookTracks[type];
+}
+
+void SnowLook8Add(inout SnowSurface s, int2 cell, float w, float corduroy)
+{
+    cell = clamp(cell, int2(0, 0), int2(_SnowDepthSize.xy) - 1);
+    float4 st = LOAD_TEXTURE2D(_SnowSurfaceMap, cell);
+    int type = (int)round(st.r * 255);
+    SnowLookAdd(s, type, st.b * 255, w);
+    s.corduroy += corduroy * w * (type == 3 ? 1.0 : type == 2 ? 0.45 : type == 4 ? 0.25 : 0.0);
+}
+
+// The snow's surface at a point: the look of its type, its corduroy, moguls and passes. On a trail's fine tiles a cell with
+// a block speaks for itself (its type, finish, moguls and passes) and a cell without one takes the 8 m snow's look; elsewhere
+// the four 8 m cells round the point blend bilinearly. Each fine cell is read once, and inside a trail, where the fine cells
+// answer everything, the 8 m snow isn't read at all (R16). The corduroy is SnowCorduroyAt's, unchanged.
+// edgeMetres: how wide the 8 m cells' blend is round their borders (the terrain passes SnowTypeEdgeMetres and a wandering
+// point, SnowBorderWarp, so a type's border is an irregular line a few metres wide, never an 8 m ramp or a square's
+// edge, R4); the fine cells keep their own bilinear blend, a cell wide.
+SnowSurface SnowSurfaceAt(float3 positionWS, float edgeMetres)
+{
+    SnowSurface s = (SnowSurface)0;
+    UNITY_BRANCH
+    if (_SnowDepthParams.w < 0.5)
+    {
+        SnowLookAdd(s, 0, 0, 1);
+        s.corduroy = 1;
+        return s;
+    }
+    float2 fst, origin;
+    float owned = 0, fine = 0;
+    UNITY_BRANCH
+    if (FineSlot(positionWS.xz, fst, origin))
+    {
+        fine = 1;
+        float2 fi = floor(fst), ff = fst - fi;
+        int2 t = int2(origin + fi);
+        float wq[4] = { (1 - ff.x) * (1 - ff.y), ff.x * (1 - ff.y), (1 - ff.x) * ff.y, ff.x * ff.y };
+        int2 dq[4] = { int2(0, 0), int2(1, 0), int2(0, 1), int2(1, 1) };
+        [unroll] for (int q = 0; q < 4; q++)
+        {
+            float4 fs = LOAD_TEXTURE2D(_FineStateAtlas, t + dq[q]);
+            int b0 = (int)round(fs.r * 255);
+            if ((b0 & 128) == 0) continue;
+            float passes = fs.b * 255 * 4;
+            if ((b0 & 64) != 0) s.corduroy += wq[q] * lerp(1.0, 0.25, saturate(passes / 800));   // FineCorduroyOf's
+            owned += wq[q];
+            SnowLookAdd(s, b0 & 15, fs.a * 255, wq[q]);
+            s.moguls += wq[q] * fs.g;
+            s.passes += wq[q] * passes;
+        }
+    }
+    s.owned = owned;
+    // The cells without a block: the 8 m snow's look in their share.
+    UNITY_BRANCH
+    if (owned < 0.999)
+    {
+        float rest = 1 - owned;
+        float2 st = SnowUV(positionWS.xz) * _SnowDepthSize.xy - 0.5;
+        int2 c = int2(floor(st));
+        float2 f = st - floor(st);
+        float cellMetres = 1 / (_SnowDepthRect.z * _SnowDepthSize.x);
+        UNITY_FLATTEN
+        if (edgeMetres < cellMetres)
+        {
+            f = saturate((f - 0.5) * (cellMetres / max(edgeMetres, 0.1)) + 0.5);
+            f = f * f * (3 - 2 * f);
+        }
+        SnowLook8Add(s, c, rest * (1 - f.x) * (1 - f.y), 1 - fine);
+        SnowLook8Add(s, c + int2(1, 0), rest * f.x * (1 - f.y), 1 - fine);
+        SnowLook8Add(s, c + int2(0, 1), rest * (1 - f.x) * f.y, 1 - fine);
+        SnowLook8Add(s, c + int2(1, 1), rest * f.x * f.y, 1 - fine);
+    }
+    return s;
+}
+
+// The plain blend (the 8 m cells' bilinear), as the probes read it.
+SnowSurface SnowSurfaceAt(float3 positionWS) { return SnowSurfaceAt(positionWS, 1e4); }
+
+// How wide a type's border is on the screen (m), round the wandering line SnowBorderWarp draws.
+static const float SnowTypeEdgeMetres = 3;
+
 // The conditions colour at a point, the types' colours blended by the same curve as the depth, then faded to bare by the
 // snow's cover, as the ground draws it (owner's demo 111, 2026-11-15: a few mm left by a thaw read as wet granular on
 // ground that looked bare). The readout says "Bare" below half cover (InfoLegend.SnowBareBelowMetres).

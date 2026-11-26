@@ -470,6 +470,9 @@ echo   4.08 snow look PR A: the trails' fine snow on screen, machine made snow, 
 echo     119 The fine snow and paint tests (.NET, then Unity's EditMode; close Unity first), then the drawn resort
 echo        on January 15 with a 26 ft machine made whale painted on a run, the view on it from the side. Rebuilds
 echo        the game.
+echo     120 The snow look tests (.NET, then Unity's EditMode; close Unity first), then the drawn resort on
+echo        January 13 with six groomers: the snow's colour by family and corduroy that reads from far away.
+echo        Rebuilds the game.
 echo   4.26 bug bash PR E: trail hover and a groomer's path (builds the game if there is none)
 echo     145 The hover and map tests, then the drawn resort on January 15 with two groomers: hover trails, then
 echo        Analysis, Grooming, Equipment and a groomer's card (only its path lit).
@@ -690,6 +693,7 @@ if /i "%CHOICE%"=="149" goto garbage426
 if /i "%CHOICE%"=="150" goto trees427
 if /i "%CHOICE%"=="154" goto grass428
 if /i "%CHOICE%"=="119" goto snowlook408a
+if /i "%CHOICE%"=="120" goto snowlook408b
 if /i "%CHOICE%"=="155" goto grass429
 if /i "%CHOICE%"=="156" goto grassb429
 if /i "%CHOICE%"=="157" goto cardb429
@@ -1549,6 +1553,38 @@ echo       Packed powder with corduroy, Machine groomed only after the third nig
 echo     - Skiers and groomers on the run stand on the snow they're drawn on, the whale's slopes too.
 pause
 start "" "%GAME%" -data "%SL408%" -notitle -offline -drawnresort -simto 01-15 -paintwhale 26 -whaleview
+pause
+goto menu
+
+:snowlook408b
+rem 4.08 PR B: the snow's colour by family (C1) and corduroy that reads from far away (G1).
+chcp 65001 >nul
+echo.
+echo   Part 1 (.NET, about a minute): fresh snow clears the corduroy, grooming makes packed powder then Machine
+echo   groomed, and a save made while tonight's grooming is planned opens again (BB28).
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~SnowLookSimTests|FullyQualifiedName~GroomingTests" --logger "console;verbosity=normal" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+echo.
+echo   Part 2 (Unity's EditMode, a few minutes; close Unity first): the corduroy's light against its C# twin (darker
+echo   toward the sun, faint under a closed deck, no line between passes) and each snow type's colour step.
+"%UNITY%" -batchmode -projectPath "%~dp0." -runTests -testPlatform EditMode -testFilter "CorduroyLightTests|SnowLitTests|SnowLooksTests" -testResults "%~dp0test-results\snowlook408b.xml" -logFile "%~dp0test-results\snowlook408b.log"
+findstr /r /c:"testcasecount=.* result=" "%~dp0test-results\snowlook408b.xml"
+findstr /l /c:"[cord]" "%~dp0test-results\snowlook408b.log"
+echo.
+echo   Part 3: the game (rebuilding it first, a few minutes).
+call :buildplayer
+if not exist "%GAME%" goto done
+set "SL408B=%LOCALAPPDATA%\SkiAreaDesignChallenge-snowlook408b"
+if exist "%SL408B%" rmdir /s /q "%SL408B%"
+echo.
+echo   The drawn resort run to January 13, the morning after a clear night's grooming, in a scratch folder (your
+echo   saves aren't touched). The run takes about five minutes before the view opens. Try:
+echo     - Fly to a groomed run (Snow conditions layer: Machine groomed) and look down it toward the sun from a lift's
+echo       height: the corduroy shows as a darker, finer-striped ribbon, even from 150 m.
+echo     - Turn so the sun is behind you: it goes almost as light as the snow beside it, as in photos.
+echo     - Close up: ridges 1 1/4 in apart, the same across the whole run, no lines where two passes meet.
+echo     - The snow types (packed, hard pack, icy, spring) differ by a faint colour and their shine, not textures.
+pause
+start "" "%GAME%" -data "%SL408B%" -notitle -offline -drawnresort -groomers 6 -simto 01-13
 pause
 goto menu
 

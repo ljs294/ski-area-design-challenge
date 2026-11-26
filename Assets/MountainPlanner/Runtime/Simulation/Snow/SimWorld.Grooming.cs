@@ -156,6 +156,8 @@ namespace MountainPlanner.Simulation
 
         /// <summary>The fleet (tests and the readout).</summary>
         internal int GroomerCount => _gCount;
+        /// <summary>Tests: tonight's planned pieces of work (none between the morning and the next night's plan).</summary>
+        internal int GroomPieceCount => _pCount;
 
         /// <summary>Swaps the live plan with the preview's (twice is none).</summary>
         void SwapPlan()
@@ -1763,7 +1765,7 @@ namespace MountainPlanner.Simulation
             {
                 _pTask[p] = r.Ranged(v14 ? TransitTask : 0, Math.Max(0, _kCount - 1), "a piece's task"); _pFrom[p] = r.I32(); _pTo[p] = r.I32();
                 _pPpm[p] = _pTask[p] == TransitTask ? r.I32() : r.Ranged(0, 1_000_000, "a piece's share");
-                _pLane[p] = (byte)r.Ranged(0, GroomFleet.MaxGroomers * 3 - 1, "a piece's lane");
+                _pLane[p] = r.Enum(0, GroomFleet.MaxGroomers * 3 - 1, "a piece's lane");   // a byte, as written (task 4.26 BB28)
             }
             RankGroomers();
             _gLastNight = r.I32(); _gLastNotReached = r.I32(); _gLastShort = r.I32(); _gLastWork = r.I32(); _gLastCost = r.I32();

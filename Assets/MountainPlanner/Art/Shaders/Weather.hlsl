@@ -10,7 +10,7 @@
 // takes the cheaper path: one curtain tap, no snow-line fringe. The clouds' shadows come from a map drawn once a frame
 // (CloudShadowMap.cs), so every surface reads them with one tap.
 //
-// The fog (WX_AIR) and the terrain's glint (WX_GLINT) are global keywords WeatherView sets only while they'd show. Measured,
+// The fog (WX_AIR) and the snow's sparkle (SNOW_SPARKLE, SnowLighting.hlsl) are global keywords WeatherView sets only while they'd show. Measured,
 // their code merely compiled into the terrain costs 0.2-0.35 ms on views near the ground even when its branch is skipped (the
 // shader keeps registers for it and fewer pixels run at once), so a clear day, a tool or an info view runs without them.
 #ifndef MOUNTAIN_WEATHER
@@ -34,7 +34,6 @@ float4 _WxFrontScale;  // the share of the deck's density behind (x) and ahead o
 float4 _WxSnowLine;    // x: the snow line (world y), y: strength (0: none), z: band height (m), w: wet darkening below (0-1)
 float4 _WxPixel;       // x: one pixel's angle (rad), y: the large tile's texel (m), z: 1 / the huge tile (m), w: cover variation (0-1)
 float4 _WxGust;        // xy: the way the gusts run (grid xz, unit), z: strength (0: none), w: how far they've run (m, wrapped at 2100)
-float4 _WxGlint;       // x: the snow's sparkle (0: none), y: the distance it's gone by (m)
 float4 _WxShadowAt;    // the clouds' shadow map: xy its origin on the deck's plane (grid xz), z 1 / its extent (m), w its size (texels)
 float4 _WxSunRun;      // xy: how far the sun's ray runs across (grid xz) for each metre it climbs, z: the clouds' map is drawn this frame (0/1)
 float4 _WxVolume;      // the screen pass (WeatherVolume.cs): x: it draws the air (1), y: the sun's share of the haze's light (gone in shadow), z: how far its rays are stepped (m), w: the beams' density (1/m; lit air scatters the sun toward the eye)
@@ -362,36 +361,7 @@ half WeatherGust(float3 p)
     return 1 + (half)(_WxGust.z * 0.16 * crest * crest * smoothstep(0.35, 0.8, patch));
 }
 
-// The bluebird's payoff (F5, WX-53): fresh snow sparkles in the sun near the camera, crystals catching it one by one as the view
-// moves. Cells a few pixels across at their distance (in power-of-two steps, so the pattern holds still as the camera moves),
-// each with a facet of its own; it glints when that facet mirrors the sun into the eye. Added to the terrain's highlight (so
-// shadow and the sun's colour still apply); only on snow-bright ground, gone by _WxGlint.y.
-float WeatherGlint(float3 p, float3 normal, float3 h, float3 albedo)
-{
-#if !defined(WX_GLINT)
-    return 0;
-#endif
-    UNITY_BRANCH
-    if (_WxParams.x < 0.5 || _WxGlint.x <= 0) return 0;
-    float dist = distance(p, _WorldSpaceCameraPos);
-    float near = 1 - smoothstep(_WxGlint.y * 0.5, _WxGlint.y, dist);
-    float snow = smoothstep(0.55, 0.75, dot(albedo, float3(0.2126, 0.7152, 0.0722)));
-    UNITY_BRANCH
-    if (near * snow <= 0) return 0;
-    float cell = exp2(ceil(log2(max(dist * _WxPixel.x * 2.5, 0.02))));
-    float3 q = p / cell;
-    uint3 c = (uint3)(int3)floor(q);
-    uint s = c.x * 73856093u ^ c.y * 19349663u ^ c.z * 83492791u;
-    s = (s ^ (s >> 16)) * 0x7FEB352Du;
-    s = (s ^ (s >> 15)) * 0x846CA68Bu;
-    s ^= s >> 16;
-    float3 r = float3(s & 1023u, (s >> 10) & 1023u, (s >> 20) & 1023u) / 1023.0;
-    // Crystals lie every which way, so some mirror even a low sun into a low eye.
-    float3 facet = normalize(normal + (r - 0.5) * 2.4);
-    float g = pow(saturate(dot(facet, h)), 400);
-    float spot = 1 - smoothstep(0.08, 0.3, length(frac(q) - 0.5 - (r.zxy - 0.5) * 0.4));
-    return min(g * spot * snow * near * _WxGlint.x * 40, 8);
-}
+// The bluebird's payoff (F5, WX-53), the snow's sparkle, is SnowLighting.hlsl's SnowSparkle since task 4.08 PR B.
 
 // The clouds' shadow on a surface (1: lit): the cloud where the sun's ray from p meets the deck's plane, read from the map
 // WeatherView draws each frame (the field, its eroded edges, the cover and the front, worked out once per texel rather than per
