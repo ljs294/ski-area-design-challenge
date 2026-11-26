@@ -235,7 +235,10 @@ namespace MountainPlanner.Editor
             }
             else
             {
-                result[$"{model}_Leaves"] = Hidden();                                   // winter: summer leaves are off
+                // Winter: summer leaves are off. MP_PREVIEW_LEAVES=summer|autumn (task 4.27, a season preview before Part 4).
+                string preview = System.Environment.GetEnvironmentVariable("MP_PREVIEW_LEAVES");
+                string leaves = preview != null ? $"{tex}_leaves_{preview}.png" : null;
+                result[$"{model}_Leaves"] = leaves != null && File.Exists(leaves) ? MakeMaterial($"{model}_Leaves", leaves, true, 0.1f) : Hidden();
                 result[$"{model}_Twigs"] = MakeMaterial($"{model}_Twigs", $"{tex}_twigs.png", true, 0.1f);
                 string kept = File.Exists($"{tex}_leaves_kept.png") ? $"{tex}_leaves_kept.png" : null;
                 result[$"{model}_LeavesKept"] = kept != null ? MakeMaterial($"{model}_LeavesKept", kept, true, 0.1f) : Hidden();

@@ -83,6 +83,37 @@ class MeshBuilder:
 
     def __init__(self):
         self.verts, self.wind, self.faces, self.mats, self.uv0, self.data, self.season = [], [], [], [], [], [], []
+        # Forest-grown broadleaf crowns (task 4.27): the allowed radius at a height. Every card is held inside it.
+        # None (conifers, krummholz) leaves cards exactly as given.
+        self.envelope = None
+        self.dbh = 0.0
+
+    def fit_card(self, base, d, s, length, width):
+        """Pulls a card's base inside the envelope and shrinks the card until its corners are inside too."""
+        r = math.hypot(base.x, base.y)
+        limit = self.envelope(base.z) * 0.92
+        if r > limit and r > 1e-6:
+            base = Vector((base.x * limit / r, base.y * limit / r, base.z))
+        for _ in range(12):
+            corners = (base - s * width / 2, base + d * length - s * width / 2, base + d * length + s * width / 2, base + s * width / 2)
+            if all(math.hypot(p.x, p.y) <= self.envelope(p.z) for p in corners) or length < 0.15:
+                break
+            length *= 0.82
+            width *= 0.88
+        return base, length, width
+
+    def card_radii(self):
+        """Horizontal distance from the trunk of every alpha-card corner (foliage, leaves, twigs)."""
+        used = {i for f, m in zip(self.faces, self.mats) if m != BARK for i in f}
+        return sorted(math.hypot(self.verts[i][0], self.verts[i][1]) for i in used)
+
+    def digest(self):
+        """A hash of everything the mesh carries: positions, wind, faces, materials and every UV set."""
+        import hashlib
+        h = hashlib.sha256()
+        for part in (self.verts, self.wind, self.faces, self.mats, self.uv0, self.data, self.season):
+            h.update(repr(part).encode())
+        return h.hexdigest()[:16]
 
     def vert(self, p, wind):
         self.verts.append(tuple(p))
@@ -148,6 +179,8 @@ class MeshBuilder:
         d, s = direction.normalized(), side.normalized()
         if d.cross(s).z < 0:  # keep the textured face up so snow lands on it
             s = -s
+        if self.envelope is not None:
+            base, length, width = self.fit_card(base, d, s, length, width)
         a = base - s * width / 2
         b = base + d * length - s * width / 2
         c = base + d * length + s * width / 2
@@ -581,7 +614,18 @@ def crown_envelope(shape, h):
         return (math.sin(math.pi * min(1.0, h * 0.8 + 0.2)) ** 0.4) * (1.1 - 0.3 * h)
     if shape == "irregular":
         return math.sin(math.pi * min(1.0, h * 0.9 + 0.1)) ** 0.6 * (0.85 + 0.15 * math.sin(h * 11))
+    if shape in FOREST_SHAPES:
+        # Forest-grown crowns (task 4.27): widest in the upper half, 1 at the widest, held in by neighbours below.
+        peak, fullness, floor = FOREST_SHAPES[shape]
+        t = 0.08 + 0.9 * h
+        a, b = fullness * peak, fullness * (1 - peak)
+        return max(floor * (1 - h), (t / peak) ** a * (max(0.0, 1 - t) / (1 - peak)) ** b)
     raise ValueError(shape)
+
+
+# Forest-grown crown shapes: (relative height of the widest point, fullness (lower = fuller), floor at the base).
+# column: aspen, birches, cherry; ovoid: maples, yellow birch; dome: beech and oak's rounded, flatter tops.
+FOREST_SHAPES = {"column": (0.55, 1.3, 0.3), "ovoid": (0.55, 1.0, 0.35), "dome": (0.6, 0.7, 0.4)}
 
 
 def build_deciduous(sp, rng, lod, height):
@@ -589,16 +633,32 @@ def build_deciduous(sp, rng, lod, height):
     trunk_r = sp["trunkRadius"] * height
     crown_base = sp["crownBase"] * height
     r_crown = sp["crownRadius"] * height
+    forest = sp.get("forest", False)
 
     def sway(z):
         return min(1.0, max(0.0, z / height)) ** 2
 
+    def allowed_at(z):
+        """The crown's radius at height z: the envelope branches are fitted to."""
+        h = (z - crown_base) / max(1.0, height - crown_base)
+        if forest:
+            # Forest-grown (task 4.27): a hard envelope a little past the nominal crown, so leaves reach no further
+            # than about 1.2 x it on any LOD.
+            return r_crown * crown_envelope(sp["crownShape"], h) * 1.06 + 0.15
+        return r_crown * crown_envelope(sp["crownShape"], h) + 0.3
+
+    if forest:
+        b.envelope = allowed_at
+
     def fit(tip):
         """How much to shorten a branch whose tip leaves the crown envelope."""
-        h = (tip.z - crown_base) / max(1.0, height - crown_base)
-        allowed = r_crown * crown_envelope(sp["crownShape"], h) + 0.3
+        allowed = allowed_at(tip.z) * (0.9 if forest else 1.0)
         d = math.hypot(tip.x, tip.y)
-        return max(0.35, allowed / d) if d > allowed and d > 1e-3 else 1.0
+        return max(0.35 if not forest else 0.2, allowed / d) if d > allowed and d > 1e-3 else 1.0
+
+    def shell(p):
+        """How far out in the crown p is (0 at the trunk, 1 at the envelope)."""
+        return math.hypot(p.x, p.y) / max(0.3, allowed_at(p.z))
 
     def curve(start, direction, length, upward, segs, crook=0.12):
         """A bending branch; crook is how far each segment turns at random (oak's limbs zigzag)."""
@@ -634,21 +694,36 @@ def build_deciduous(sp, rng, lod, height):
             return  # crowded stubs near the top would pile cards into dark clumps
         scale = min(1.0, branch_len / 1.8)
         count = max(1, int(4 * lod["cards"] * scale + 0.5))
+        if forest and lod["cards"] >= 1.0:
+            # More twigs out at the crown's edge, where the leaves and the fine winter crown are.
+            count = max(1, int(count * (0.8 + 0.7 * smoothstep(0.4, 0.9, shell(pts[-1]))) + 0.5))
         for i in range(count):
             p, tan = along(pts, lerp(0.35, 1.0, (i + rng.random() * 0.5) / count))
             a = rng.uniform(-0.9, 0.9)
             lat = tan.cross(UP)
             lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
-            dirn = (tan * math.cos(a) + lat * math.sin(a) + UP * rng.uniform(-0.1, 0.4)).normalized()
+            dirn = (tan * math.cos(a) + lat * math.sin(a) + UP * (rng.uniform(-0.1, 0.4) + (0.25 if forest else 0.0))).normalized()
             size = lod["card"] * rng.uniform(0.9, 1.25) * (0.55 + 0.45 * scale)
+            if forest:
+                # Forest crowns: fuller leaves (a closed canopy from above); LOD1's fewer cards larger again, so it
+                # keeps LOD0's cover (the denser forest LOD0 made it pop).
+                size *= 1.12 if lod["cards"] >= 1.0 else 1.3
             if i % 2 == 0:
                 tw = 1.3 if winter_crown else 1.0   # winterCrown: larger twig cards carry the denser twig texture
+                if forest and lod["cards"] < 1.0:
+                    tw *= 1.15   # forest LOD1: its fewer twig cards hold the bare crown's cover
                 b.card(p, dirn, horizontal_side(dirn, rng.uniform(-0.8, 0.8)), 1.5 * size * tw, 1.2 * size * tw,
                        [(sway(p.z), 0.7, phase, 0.6), (sway(p.z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.35)
             # LOD1, and every LOD with winterCrown: one larger leaf card per twig (the same summer cover for fewer
             # cards; leaf cards are still drawn in winter, only hidden).
             leaves = 2 if lod["cards"] >= 1.0 and not winter_crown else 1
             for _ in range(leaves):
+                if forest and lod["cards"] >= 1.0:
+                    # A forest crown is a shell of leaves: the shaded inside carries few (task 4.27). LOD1 and LOD2 keep
+                    # every card: they stand in for the whole crown's cover with far fewer, larger ones.
+                    top = (p.z - crown_base) / max(1.0, height - crown_base) > 0.82
+                    if not top and rng.random() > 0.45 + 0.55 * smoothstep(0.3, 0.75, shell(p)):
+                        continue
                 ld = (dirn + Vector((rng.uniform(-0.6, 0.6), rng.uniform(-0.6, 0.6), rng.uniform(-0.2, 0.3)))).normalized()
                 kept = "marcescent" in sp and p.z < crown_base + 0.45 * (height - crown_base) and rng.random() < sp.get("keptShare", 0.7)
                 rel = min(1.0, max(0.0, (p.z - crown_base) / (height - crown_base)))
@@ -664,6 +739,8 @@ def build_deciduous(sp, rng, lod, height):
         lean = UP if stem == 0 else (ring * 0.18 + UP).normalized()
         s_height = height * (1.0 if stem == 0 else rng.uniform(0.8, 0.95))
         split = 0.55 if sp["leaders"] > 1 else 0.92
+        if forest and sp["leaders"] > 1:
+            split = max(split, sp["crownBase"] + 0.18)   # a forest tree's leaders fork above a long clear bole
         trunk = curve(offset - Vector((0, 0, 0.3)), lean, s_height * split + 0.3, 1.0, 8)
         tr = trunk_r * (1.0 if stem == 0 else 0.75)
         ph = rng.random()
@@ -681,9 +758,37 @@ def build_deciduous(sp, rng, lod, height):
             return trunk[-1]
 
         span = trunk[-1].z - trunk[0].z
+        if stem == 0:
+            b.dbh = 2 * tr * (1 - 0.5 * min(1.0, max(0.0, (1.3 - trunk[0].z) / span)))   # trunk diameter at 1.3 m
         tube_pts = [trunk_at(z) for z in zs]
         b.tube(tube_pts, [tr * (1 - 0.5 * min(1.0, max(0.0, (z - trunk[0].z) / span))) for z in zs], lod["sides"],
                [(sway(p.z), 0.0, ph, 0.0) for p in tube_pts], snow_scale=0.2, v_scale=0.5, flare=(amounts, lobes, lobe_phase))
+
+        if forest and stem == 0 and lod["branchSides"]:
+            # Self-pruned limbs: a few short dead stubs on the clear bole below the crown.
+            for k in range(rng.randint(2, 4)):
+                z = rng.uniform(2.0, max(2.5, crown_base - 1.0))
+                a = rng.uniform(0, 2 * math.pi)
+                p0 = trunk_at(z)
+                out = Vector((math.cos(a), math.sin(a), rng.uniform(-0.25, 0.15))).normalized()
+                p1 = p0 + out * (tr * 0.8 + rng.uniform(0.2, 0.6))
+                b.tube([p0, p1], [tr * 0.16, 0.012], 3, [(sway(p0.z), 0.0, ph, 0.0), (sway(p1.z), 0.1, ph, 0.0)], snow_scale=0.4)
+            # A few live lower limbs below the crown (suppressed, short, leafy at their tips), so the bole isn't bare.
+            for k in range(sp.get("lowLimbs", 0) + rng.randint(0, 1)):
+                z = rng.uniform(max(2.5, 0.6 * crown_base), crown_base - 0.3)
+                a = rng.uniform(0, 2 * math.pi)
+                ang = math.radians(rng.uniform(55, 75))
+                d = Vector((math.cos(a) * math.sin(ang), math.sin(a) * math.sin(ang), math.cos(ang)))
+                length = r_crown * rng.uniform(0.6, 0.9)
+                p0 = trunk_at(z)
+                pts = curve(p0, d, length, sp["upward"], 3, crook)
+                k_fit = fit(pts[-1])
+                if k_fit < 1:
+                    pts = curve(p0, d, length * k_fit, sp["upward"], 3, crook)
+                phase = rng.random()
+                r0 = max(0.015, tr * 0.22)
+                b.tube(pts, [r0, r0 * 0.6, r0 * 0.3, 0.0], 3, [(sway(q.z), s3 / 3, phase, 0.2) for s3, q in enumerate(pts)])
+                dress(pts, phase)
 
         # Leaders continue the trunk (maples, beech and yellow birch fork into several).
         leaders = []
@@ -739,16 +844,18 @@ def build_deciduous(sp, rng, lod, height):
             n2 = int(rng.randint(*sp["secondaries"]) * 1.6 * lod["level2"])
             if n2 == 0:
                 # LOD2: large crossed twig cards and a leaf card straight on the primaries.
-                mid, tan = along(pts, 0.35)
-                for roll in (0.3, 1.6):
-                    b.card(mid, tan, horizontal_side(tan, roll), length * 0.95, length * 0.85,
+                # Forest-grown crowns start the cards near the trunk so they end at the branch tip, inside the crown.
+                mid, tan = along(pts, 0.12 if forest else 0.35)
+                for roll in ((0.3, 1.0, 1.6) if forest and stems == 1 else (0.3, 1.6)):
+                    b.card(mid, tan, horizontal_side(tan, roll), length * (0.92 if forest else 0.95), length * (1.0 if forest else 0.85),
                            [(sway(mid.z), 0.6, phase, 0.8), (sway(pts[-1].z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.3)
                 # Kept leaves on LOD2 follow keptShare without drawing from rng (that would change the tree).
                 kept = ("marcescent" in sp and mid.z < crown_base + 0.45 * (height - crown_base)
                         and (i * 0.6180339887) % 1.0 < sp.get("keptShare", 1.0))
-                b.card(mid, tan, horizontal_side(tan, 1.2), length * 0.8, length * 0.7,
-                       [(sway(mid.z), 0.6, phase, 1.0), (sway(pts[-1].z), 1.0, phase, 1.0)], KEPT if kept else FOLIAGE,
-                       flag=0.5 if kept else 1.0, snow_scale=0.0, season=(rng.random(), 0.5))
+                for roll in ((1.2, 2.6) if forest and stems == 1 else (1.2,)):   # clumped stems carry enough
+                    b.card(mid, tan, horizontal_side(tan, roll), length * (0.9 if forest else 0.8), length * (0.8 if forest else 0.7),
+                           [(sway(mid.z), 0.6, phase, 1.0), (sway(pts[-1].z), 1.0, phase, 1.0)], KEPT if kept else FOLIAGE,
+                           flag=0.5 if kept else 1.0, snow_scale=0.0, season=(rng.random(), 0.5))
                 continue
             for j in range(n2):
                 tj = lerp(0.3, 0.95, (j + rng.random() * 0.5) / n2)
@@ -757,7 +864,12 @@ def build_deciduous(sp, rng, lod, height):
                 lat = tan.cross(UP)
                 lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
                 d2 = (tan * math.cos(a2) + lat * math.sin(a2) + UP * sp["upward"] * 0.5).normalized()
-                p2 = curve(s0, d2, length * rng.uniform(0.3, 0.45) * (1 - 0.4 * tj), sp["upward"], 3, crook)
+                l2 = length * rng.uniform(0.3, 0.45) * (1 - 0.4 * tj)
+                p2 = curve(s0, d2, l2, sp["upward"], 3, crook)
+                if forest:
+                    k2 = fit(p2[-1])
+                    if k2 < 1:
+                        p2 = curve(s0, d2, l2 * k2, sp["upward"], 3, crook)
                 if lod["branchSides"]:
                     b.tube(p2, [r0 * 0.4, r0 * 0.25, r0 * 0.12, 0.0], 3,
                            [(sway(p.z), tj + (1 - tj) * s / 3, phase, 0.2) for s, p in enumerate(p2)])
@@ -953,6 +1065,17 @@ def card_area(obj):
     return round(sum(p.area for p in obj.data.polygons if p.material_index != BARK), 1)
 
 
+REACH_MAX = 1.25
+
+
+def reach(mb, sp, height):
+    radii = mb.card_radii()
+    if not radii or not sp.get("crownRadius"):
+        return [0.0, 0.0]
+    nominal = sp["crownRadius"] * height
+    return [round(radii[-1] / nominal, 3), round(radii[int(0.95 * (len(radii) - 1))] / nominal, 3)]
+
+
 def build_species(sp, out_dir):
     near, far, seasons = species_materials(sp, out_dir)
     made = []
@@ -966,8 +1089,17 @@ def build_species(sp, out_dir):
                 return build_krummholz(s, r, lod, h, form)
         else:
             builder = build_conifer if sp["form"] == "conifer" else build_deciduous
-        lods = [builder(sp, random.Random(seed), lod, height).to_object(f"{sp['id']}_v{v}_LOD{li}", near if li == 0 else far)
-                for li, lod in enumerate(LODS)]
+        spv = sp
+        if "variantWidth" in sp:
+            # Forest-grown variants (task 4.27): v0 a narrower, suppressed crown, v2 a fuller one.
+            spv = dict(sp, crownRadius=sp["crownRadius"] * sp["variantWidth"][v])
+        if "variantBase" in sp:
+            # v0 a long clear bole, v2 a low-branched tree: the game gives it to trees beside an opening.
+            spv = dict(spv, crownBase=sp["crownBase"] * sp["variantBase"][v])
+        if isinstance(sp.get("lowLimbs"), list):
+            spv = dict(spv, lowLimbs=sp["lowLimbs"][v])
+        builders = [builder(spv, random.Random(seed), lod, height) for lod in LODS]
+        lods = [mb.to_object(f"{sp['id']}_v{v}_LOD{li}", near if li == 0 else far) for li, mb in enumerate(builders)]
         bpy.ops.object.select_all(action="DESELECT")
         for o in lods:
             o.select_set(True)
@@ -976,9 +1108,16 @@ def build_species(sp, out_dir):
                                  colors_type="LINEAR", use_triangles=True, bake_space_transform=True, path_mode="RELATIVE")
         made.append({"variant": v, "height": round(height, 2), "objects": lods, "triangles": [tri_count(o) for o in lods],
                      "cardAreaM2": [card_area(o) for o in lods],
+                     # The mesh data itself (not the FBX, which embeds a time and paths): proves a change left a model alone.
+                     "meshHash": [mb.digest() for mb in builders],
+                     # Leaf reach per LOD as a share of the nominal crown (species.json crownRadius x height): the widest
+                     # card corner and the 95th percentile. Forest-grown crowns must keep the widest within REACH_MAX.
+                     "reach": [reach(mb, sp, height) for mb in builders],
                      # The prefab's native height in Unity: LOD0's highest point (a drooping leader or a
                      # krummholz's sprays can end below or above the nominal height).
                      "top": round(max(vt.co.z for vt in lods[0].data.vertices), 2)})
+        if builders[0].dbh:
+            made[-1]["dbhCmPerM"] = round(100 * builders[0].dbh / height, 2)
         if form:
             made[-1]["shape"] = form["shape"]
     return made, seasons
@@ -1003,6 +1142,9 @@ def main():
                                              for m in built[sp["id"]]), flush=True)
     over = [f"{sid} v{m['variant']} {BUDGET[i]['lod']}: {t:,} tris > {BUDGET[i]['max_tris']:,}"
             for sid, ms in report.items() for m in ms for i, t in enumerate(m["triangles"]) if t > BUDGET[i]["max_tris"]]
+    forest = {s["id"] for s in species if s.get("forest")}
+    over += [f"{sid} v{m['variant']} {BUDGET[i]['lod']}: leaves reach {r[0]:.2f} x the crown > {REACH_MAX}"
+             for sid, ms in report.items() if sid in forest for m in ms for i, r in enumerate(m["reach"]) if r[0] > REACH_MAX]
     with open(os.path.join(out_dir, "trees.json"), "w") as f:
         json.dump({"budget": BUDGET, "species": report, "overBudget": over}, f, indent=2)
     print("Budget check: " + ("all trees within budget" if not over else "OVER BUDGET"), flush=True)

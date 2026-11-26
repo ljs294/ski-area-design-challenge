@@ -628,6 +628,9 @@ namespace MountainPlanner.UI.Tools
             return _works;
         }
 
+        // Task 4.50 slice 2: how far the top stands over its ground (a fixed grip's unload ramp at 5 ft and up).
+        double TopRaise(LiftType type) => _built != null ? TerminalExtras.UnloadRaise(type, _built.TopPad) : 0;
+
         void BuildReview(int changes, bool blocked)
         {
             _review.Clear();
@@ -655,7 +658,7 @@ namespace MountainPlanner.UI.Tools
             _review.Add("Length", $"{ToolFormat.Length(run)} across", "LF-06")
                 .Add("Ride", LiftSummary.Ride(rope.Type, run, rope.RiseMetres), "LC-04")
                 .Add("Capacity", LiftSummary.Capacity(rope.Type), "LC-03")
-                .Add("Cost", LiftCostSummary.Cost(rope.Type, run, rope.RiseMetres, works), LiftCostSummary.Rule(rope.Type, run, rope.RiseMetres, works))
+                .Add("Cost", LiftCostSummary.Cost(rope.Type, run, rope.RiseMetres, works, TopRaise(rope.Type)), LiftCostSummary.Rule(rope.Type, run, rope.RiseMetres, works, TopRaise(rope.Type)))
                 .Add("Towers", LiftSummary.Towers(_built.Towers, rope, run), "TW-02, TW-12; LD3: tallest, longest span and heads")
                 // Task 4.01: a tow's riders are on the snow, so its row is the rope over the track, as New lift shows it.
                 .Add(rope.Type.Tow ? "Rope over track" : LiftSummary.Lowest(rope.Type),

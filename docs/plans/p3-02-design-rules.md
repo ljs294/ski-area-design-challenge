@@ -546,6 +546,12 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
     the ground as it is: nothing filled and no face reaching under it. Only ground that would rise above the pad's
     level, into the terminal itself, is cut back to it with 1:1 faces. The quads keep v4 over their whole footprint.
     Clearing (CL-09) and the low zones (TW-01 v2) still measure from the whole footprint.
+  - **v6, a raised fixed grip's top stands on its unload ramp** (owner, task 4.50 slice 2, 2026-11-25, LT46): a fixed
+    grip's top, drive or return, standing **5 ft (1.524 m)** or more over the mean ground under its level unload deck
+    shows the timber unload ramp, and its ground is not edited for a pad: no cut, no fill, the terminal and the ramp's
+    posts standing on the natural ground. Clearing (CL-09) is unchanged. Under 5 ft, and at every other terminal, the
+    pad is v4 or v5 as before. A save made before v6 keeps the pad it saved (the edits are saved, not replayed), even
+    when work beside it or the lift itself changes; a lift built or rebuilt from v6 on gets none.
 
 ### 5.2 Catalog (LC)
 

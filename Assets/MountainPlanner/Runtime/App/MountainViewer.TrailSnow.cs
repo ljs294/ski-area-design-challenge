@@ -73,6 +73,7 @@ namespace MountainPlanner.App
             _trailSnowSentHash = 0;
             _trailSnowReady = null;
             _trailSnowDirty = true;
+            ResetTrailGrassLook();
         }
 
         /// <summary>Per frame, after the snow's inputs.</summary>
@@ -100,6 +101,7 @@ namespace MountainPlanner.App
                               $"({_trailSnowReady.FineCells} fine cells) to the worker (hash {hash:X16})");
                     _trailSnowSentHash = hash;
                     _trailSnowSent = _trailSnowReady;
+                    ShowTrailGrassLayout(_trailSnowReady);   // task 4.29 PR B: the ground draws each trail's grass by it
                     _trailSnowReady = null;
                 }
                 return;

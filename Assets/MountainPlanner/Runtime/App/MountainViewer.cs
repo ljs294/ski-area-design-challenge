@@ -251,7 +251,9 @@ namespace MountainPlanner.App
                 if (Array.IndexOf(args, "-covermap") >= 0) _layers.Set(MapLayers.CoverMap, true);
                 // Task 4.28: -plaingrass draws the grass as it was (one look whatever the land or the date), -moisturemap the
                 // moisture map itself.
-                if (Array.IndexOf(args, "-plaingrass") >= 0) GroundLayers.SetGrassVariation(false);
+                // Task 4.29 PR B: -plaingrass also draws every trail mown; -trailgrass 10,50,100 sets the trails' look in turn.
+                if (Array.IndexOf(args, "-plaingrass") >= 0) { GroundLayers.SetGrassVariation(false); _resort.States.PushTrailGrassParams(); }
+                ReadTrailGrassArgs(args);
                 _resort.States.ShowMoisture(Array.IndexOf(args, "-moisturemap") >= 0);
                 int info = Array.IndexOf(args, "-info");
                 if (info >= 0 && info + 1 < args.Length) _layers.Set(args[info + 1], true);
@@ -393,6 +395,7 @@ namespace MountainPlanner.App
             while (WorkBusy) yield return null;                           // and any -testbench or -styletile edit, drawn
             while (_simToRunning) yield return null;                      // and a -simto run, at its date
             for (float t = 0; !MoistureReady && t < 30; t += Time.unscaledDeltaTime) yield return null;   // and the ground's moisture (task 4.28)
+            for (float t = 0; !TrailGrassReady && t < 30; t += Time.unscaledDeltaTime) yield return null;   // and the trails' grass (task 4.29 PR B)
             // Task 4.07 PR A3: a seeded capture waits (up to 180 s: a -styletile build re-runs the snow's inputs first) for the
             // live snow's first full pass, when the snow shell stands on it; it says so if it gave up.
             float waited = 0;

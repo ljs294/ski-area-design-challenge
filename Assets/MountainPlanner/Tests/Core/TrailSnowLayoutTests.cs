@@ -161,5 +161,35 @@ namespace MountainPlanner.Tests
             var L = TrailSnowLayout.Build(Grid, Grid, Origin, Origin, new[] { t }, 2_000_000);
             Assert.That((L.Blocks, L.FineCells, L.TrailCells[0]), Is.EqualTo((0, 0, 0)));
         }
+
+        // Task 4.29 PR B: each 8 m cell draws its grass as the trail that owns most of its fine cells.
+        [Test]
+        public void GrassOwnersAreEachCellsMainTrail()
+        {
+            var ns = Straight(0, -200_000, 0, 200_000, 30_000);
+            var ew = Straight(-200_000, 50_000, 200_000, 50_000, 30_000);
+            var L = TrailSnowLayout.Build(Grid, Grid, Origin, Origin, new[] { ns, ew }, 2_000_000);
+            var map = TrailCellOwners.Build(L);
+            Assert.That(map.Length, Is.EqualTo(Grid * Grid));
+            int CellAt(long x, long y) => (int)(Math.Floor((y - Origin) / 8000.0) * Grid + Math.Floor((x - Origin) / 8000.0));
+            Assert.That(map[CellAt(4_000, -100_000)], Is.EqualTo(1), "on the north-south trail alone: trail 0, + 1");
+            Assert.That(map[CellAt(-100_000, 52_000)], Is.EqualTo(2), "on the east-west trail alone");
+            Assert.That(map[CellAt(300_000, 300_000)], Is.EqualTo(0), "off every trail");
+            int[] seen = new int[3];
+            for (int b = 0; b < L.Blocks; b++)
+            {
+                int cell = L.BlockCell[b], o = map[cell];
+                seen[o]++;
+                // The owner holds at least as many of the block's fine cells as any other trail.
+                int[] counts = new int[2];
+                for (int k = b * L.BlockCells; k < (b + 1) * L.BlockCells; k++) if (L.Owner[k] >= 0) counts[L.Owner[k]]++;
+                if (counts[0] + counts[1] == 0) { Assert.That(o, Is.Zero); continue; }
+                Assert.That(o, Is.InRange(1, 2));
+                Assert.That(counts[o - 1], Is.GreaterThanOrEqualTo(counts[2 - o]), $"block {b}");
+            }
+            for (int c = 0; c < map.Length; c++) if (L.BlockOf(c) < 0) Assert.That(map[c], Is.Zero, "only blocks have trails");
+            Assert.That(seen[1] > 0 && seen[2] > 0, Is.True);
+            Assert.That(TrailCellOwners.Build(L), Is.EqualTo(map), "the same layout, the same map");
+        }
     }
 }

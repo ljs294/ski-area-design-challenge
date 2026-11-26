@@ -214,7 +214,7 @@ namespace MountainPlanner.Domain.Design
             {
                 bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel + raiseB, type.Bottom.PadAhead);
                 var withBottom = new EditedHeights(current.Source, current.Lattice, bottomPad.Edits);
-                topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, type.TopFootprint.Behind, type.TopFootprint.Ahead, type.TopFootprint.HalfWidth, topLevel + raiseT, type.TopFootprint.PadAhead);
+                topPad = TopPad(type, withBottom, tx, ty, -ux, -uy, type.TopFootprint, topLevel + raiseT);
                 onPads = new EditedHeights(current.Source, current.Lattice, topPad.Edits);
                 placed = TowerPlacement.Place(type, onPads, bx, by, tx, ty, bottomLevel + raiseB, topLevel + raiseT, stance);
                 // The station towers' steel: their rope point is what the terminal needs, so the ground under them changes only
@@ -485,6 +485,22 @@ namespace MountainPlanner.Domain.Design
             return LiftLevels.FromMetres(bed.BottomLevel + bottomHand, bed.TopLevel + topHand);
         }
 
+        /// <summary>
+        /// The top terminal's pad (LF-12), or none (LF-12 v6, owner 2026-11-25, task 4.50): a fixed grip's top standing
+        /// 5 ft or more over the ground under its unload deck (<see cref="TerminalExtras.UnloadRaise(LiftType, IHeightSource, double, double, double, double, double)"/>)
+        /// shows its timber unload ramp, so the ground is left as it is: no cut, no fill; the terminal, the ramp and its
+        /// posts stand over the natural ground (the trees round it are still cleared, CL-09). The result keeps where it
+        /// stands and the ground before it, as a graded pad's does.
+        /// </summary>
+        static TerminalPad.Result TopPad(LiftType type, EditedHeights withBottom, double tx, double ty, double ux, double uy,
+                                         TerminalEnd end, double level)
+        {
+            var extras = TerminalExtras.For(type, true);
+            if (extras.UnloadEnd && TerminalExtras.RampShown(extras, TerminalExtras.UnloadRaise(type, withBottom, tx, ty, ux, uy, level)))
+                return TerminalPad.None(withBottom, tx, ty, ux, uy, level);
+            return TerminalPad.Grade(withBottom, tx, ty, ux, uy, end.Behind, end.Ahead, end.HalfWidth, level, end.PadAhead);
+        }
+
         /// <summary>A lift's earthwork as built from what's stored.</summary>
         public sealed class Works
         {
@@ -525,7 +541,7 @@ namespace MountainPlanner.Domain.Design
             var bottomPad = TerminalPad.Grade(current, bx, by, ux, uy, type.Bottom.Behind, type.Bottom.Ahead, type.Bottom.HalfWidth, bottomLevel, type.Bottom.PadAhead);
             var withBottom = new EditedHeights(current.Source, current.Lattice, bottomPad.Edits);
             var topEnd = type.TopFootprint;   // LD9: room for whichever row the rope picks
-            var topPad = TerminalPad.Grade(withBottom, tx, ty, -ux, -uy, topEnd.Behind, topEnd.Ahead, topEnd.HalfWidth, topLevel, topEnd.PadAhead);
+            var topPad = TopPad(type, withBottom, tx, ty, -ux, -uy, topEnd, topLevel);
             var onPads = new EditedHeights(current.Source, current.Lattice, topPad.Edits);
             LiftRope Solve(EditedHeights g) => LiftRope.Solve(type, g, bx, by, tx, ty, towers, stance,
                                                              type.Bottom.ExitAlong, bottomLevel + type.Bottom.ExitRise,

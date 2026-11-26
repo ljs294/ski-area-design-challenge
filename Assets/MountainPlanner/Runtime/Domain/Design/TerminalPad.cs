@@ -14,6 +14,8 @@ namespace MountainPlanner.Domain.Design
     /// bullwheel, station rail) stands over natural ground: nothing there is filled and no face reaches into it; only ground
     /// that would rise above the pad's level, into the terminal itself, is cut back to it (with 1:1 faces), as the
     /// terminal must stand clear.
+    /// LF-12 v6 (owner, 2026-11-25, task 4.50): a fixed grip's top standing 5 ft or more over the ground under its unload deck
+    /// gets no pad (<see cref="None"/>): its timber unload ramp stands on posts over the natural ground (LiftBuild.TopPad).
     /// Positions in the edit lattice's frame; (ux, uy) points toward the other terminal.
     /// </summary>
     public static class TerminalPad
@@ -32,6 +34,22 @@ namespace MountainPlanner.Domain.Design
             /// <summary>The largest height difference left where a face reached the envelope without meeting the ground.</summary>
             public double ClippedStepMetres { get; internal set; }
             public int ClearedCells { get; internal set; }
+            /// <summary>Where the pad was graded (task 4.50 slice 2, for the unload ramp's 5 ft test and its price): the
+            /// bullwheel, the way toward the other terminal, the level, and the ground before the pad.</summary>
+            public double X { get; internal set; }
+            public double Y { get; internal set; }
+            public double Ux { get; internal set; }
+            public double Uy { get; internal set; }
+            public double Level { get; internal set; }
+            public EditedHeights Before { get; internal set; }
+        }
+
+        /// <summary>No pad (LF-12 v6, task 4.50: a fixed grip's top on its timber unload ramp): the ground left as it is,
+        /// where the terminal stands and the ground before it kept, as <see cref="Grade"/> gives them.</summary>
+        public static Result None(EditedHeights current, double x, double y, double ux, double uy, double elevation)
+        {
+            if (current == null) throw new ArgumentNullException(nameof(current));
+            return new Result { Edits = current.Edits, X = x, Y = y, Ux = ux, Uy = uy, Level = elevation, Before = current };
         }
 
         /// <summary>
@@ -81,7 +99,7 @@ namespace MountainPlanner.Domain.Design
                 return Math.Max(elevation - fillOff * FaceSlope, Math.Min(elevation + cutOff * FaceSlope, ground));
             }
             double Reach(double px, double py) => front && !InFront(px, py) ? Math.Min(Outside(px, py), OutsideTo(px, py, p)) : Outside(px, py);
-            var result = new Result();
+            var result = new Result { X = x, Y = y, Ux = ux, Uy = uy, Level = elevation, Before = current };
             double cut = 0, fill = 0, clipped = 0;
             int cleared = 0;
             for (int r = r0; r <= r1; r++)

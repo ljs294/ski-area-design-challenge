@@ -43,6 +43,8 @@ Attack order (PR: findings): **A** BB20, BB11 · **B** BB13, BB12, BB14, BB5, BB
 | BB23 | 4.08 thread via 0.0, 2026-11-23 | A capture or screenshot run with a bad `-opensave` value (it was given the save's folder name) throws in `OpenSaveForCapture`, the rest of Start is skipped and the player never quits: it held the render lane for 2 hours, until gpu.ps1's limit | Any capture switch whose setup fails logs the error and quits with a nonzero exit code (every capture switch, not just `-opensave`) | | Fixed in PR O: an unattended run (batch mode, a GPU lane's job) whose start fails quits with exit code 1 |
 | BB24 | 4.27 thread via 0.0, 2026-11-23 | 4.29 B's card capture at Gilford (`-simto 12-15`): the simulation's worker threw `DivideByZeroException` in `FineSnow.DepthUm`, from the Grooming tab's preview of tonight (`WriteGrooming` → `PreviewTonight` → `BuildTasks` → `TrailSnapshot`), and the clock stopped | The simulation never crashes there; fix it in the grooming preview, not in `FineSnow.cs` (4.08 owns it); no format bump, and stop before any golden or pin moves | | Fixed in PR P: the preview and the hours since a groom wait for the hour's snow in flight (the last preview stays on show); a grooming order finishes that hour first |
 | BB25 | 4.27 thread via 0.0, 2026-11-23 | The same capture: once the worker had died, the player waited for a day that never came and held the render lane to gpu.ps1's 120-minute limit. BB23 covers only a failed setup | An unattended run whose simulation dies quits with a nonzero exit code, as BB23 does for a failed setup | | Fixed in PR P: an unattended run (batch mode, a GPU lane's job) quits with exit code 1 when its simulation stops |
+| BB26 | Owner, 2026-11-24 | Lift lines still break: the front rows leave the terminal square and then jump to a fold, and folds jump where a U-turn doesn't fit | Audit queuing as a whole and plan lines that look great; skiers may stand closer together | | Fixed in PR S (#204): each line is one winding ribbon, rows 1.8 m, a little natural variation; PR T deletes the old planner |
+| BB27 | 4.26 thread, 2026-11-24 | Three EditMode `SkierBandTableTests` threw on main: `SkierPlaceJob.FineLift has not been assigned or constructed`. Task 4.08 PR A (#200) added the fine trail snow's arrays to the job, and these tests schedule it themselves without them | The tests pass again; the game itself is safe (the layer always passes the arrays) | | Fixed in PR R: the tests pass 1-element arrays, as the layer does (0.0 and 4.08 agreed, 2026-11-24) |
 
 Each finding's cause, fix and evidence are recorded in its own section below as it is worked.
 
@@ -536,3 +538,38 @@ Fix: `UnattendedRun.FailRun`, used by `RunClock` when the worker has failed. An 
 job) logs why and quits with exit code 1. The game played by hand keeps the toast and the F1 report, and so does the
 editor. Evidence: `UnattendedRunTests` (the editor only logs a stopped run), with the compile check. The quit itself
 isn't run on the GPU; it is BB23's quit, which was run in batch mode.
+
+## BB26: each lift line is one winding ribbon (owner, 2026-11-24)
+
+Cause: the design, not one bug. The old planner laid a grid maze of 12 m passes with square U-turns. It jumped wherever a
+turn didn't fit: square U-turns, steers to a new fold, the throat corner, walkways. It also dropped whole rows where one
+place clashed. Lift 0 at the drawn resort had about 30 lane breaks in its first 150 rows.
+
+Fix (owner's plan, approved 2026-11-24):
+- **PR S (#204, c81ff946).** Each line is one ribbon as wide as the chair, from the loader to its back
+  (`LineLayout.Ribbon.cs`). It is planned as arcs whose curvature eases in, folds back in round hairpins, narrows to
+  single file and widens again where it is boxed in, and backtracks out of dead ends. Skiers stand along lanes at a
+  constant offset from its centre (`LineLayout.Lanes.cs`), 1.8 m a row (was 7 ft). Each is a little off their mark,
+  keyed by line and place, except on the square front rows.
+- **PR T.** Deletes the old planner and its heading test.
+
+Evidence: `LiftLineRibbonTests` (open fields, trees, corridors, gaps, patchy forests, two lines at one base, the throat,
+the variation) and `LiftLineLayoutTests` pass.
+
+On the drawn resort, all 6 lines reach 1,500+ places with 0 lane breaks and 0 centre breaks, and 1 place in about
+9,350 is passed over. Patchy-forest lines stand 0–8% in trees (17–33% before). The photo pairs were approved by the
+owner.
+
+Left:
+- Building and growing the lines takes 7.0 s on the drawn resort (target 5 s, main 7.5 s).
+- About 4 m of single file behind lift 0's terminal, pinched between the lift's corridor and trees.
+
+## BB27: the skier tests' fine snow arrays (4.26, 2026-11-24)
+
+Cause: #200 (task 4.08 PR A) added `FineLift` and `FinePage` to `SkierPlaceJob`. `SkierLayer` always assigns them
+(1-element arrays until the fine snow is in), but `SkierBandTableTests` schedules the job itself and left them unset,
+and Unity's job safety check refuses a job with an unassigned container. EditMode isn't in CI's fast tier, so it
+reached main.
+
+Fix: the tests pass 1-element arrays, as the layer does (`FineT` 0, so none is read). Evidence: the three tests fail on
+main 1f2528ae and pass with the fix; `SkierBandTableTests`, `FineSnowAtlasTests`, `Skier` and `Guest` pass 79 of 79.

@@ -1,0 +1,65 @@
+{
+  "_about": "The booster (task 4.50 phase 2; the game's Inline pump, PumpSpec.Booster: 250 hp, adds 300 psi): a small insulated-metal-panel pump building on a concrete stem wall, 30 x 20 ft, 12 ft eave, 4:12 gable along its long axis, holding one 250 hp split-case pump fed by the main. No compressors and no water side: the main enters the west gable (inlet, buried) and leaves the east gable (discharge). Same frame and keys as pumphouse.json (the shared builder, bldgkit/metal_building.py): millimetres, origin at the footprint's centre on the finished floor, u along the long axis, v across, w up; +v is the yard side with the doors. The skirt runs deep so the building sits on a bench cut into a slope. Gate 0 refs: short overhangs (12 in eaves, 8 in rakes), a low intake louvre on the inlet gable and a high exhaust louvre on the other, a 300 kVA pad-mount transformer about 3 ft off the back wall, between the windows.",
+  "catalog": {"name": "Booster", "kind": "booster"},
+  "footprint": {"length": 9144, "width": 6096},
+  "eave": 3658,
+  "pitch": [4, 12],
+  "roof": {"thick": 150, "overhang": 300, "rake": 200, "ridgeCap": [400, 90]},
+  "base": {"top": 457, "skirt": -2500, "flashing": 60},
+  "reveal": 120,
+  "cornerTrim": 120,
+  "doors": [
+    {"name": "door_main", "kind": "rollup", "side": "+v", "u": 1500, "width": 3048, "height": 3048, "slats": 7},
+    {"name": "door_man", "kind": "man", "side": "+v", "u": -2700, "width": 914, "height": 2134, "halfLight": true}
+  ],
+  "windows": [
+    {"side": "-v", "first": -2200, "last": 2200, "count": 2, "width": 914, "sill": 2400, "height": 610}
+  ],
+  "louvres": [
+    {"side": "+u", "at": 0, "width": 1219, "sill": 2200, "height": 914},
+    {"side": "-u", "at": 0, "width": 1219, "sill": 600, "height": 914}
+  ],
+  "sconces": [
+    {"name": "light_sconce_man", "door": "door_man", "at": "hinge", "beyond": 150, "height": 1980}
+  ],
+  "wallPacks": [
+    {"name": "light_door_main", "over": "door_main", "gap": 150}
+  ],
+  "canopy": {"projection": 900, "rise": 250, "over": 300},
+  "transformers": {"side": "-v", "at": [0], "half": [750, 700], "height": 1400, "gap": 1000,
+                   "pad": {"from": 850, "to": 2550, "uFrom": -1100, "uTo": 1100, "top": 150}},
+  "ridgeVents": {"at": [0], "size": [1500, 600, 250]},
+  "vaults": [{"side": "-u", "at": 0, "out": 1100, "size": 1200, "top": 150},
+             {"side": "+u", "at": 0, "out": 1100, "size": 1200, "top": 150}],
+  "apron": {"door": "door_main", "out": 2400, "margin": 300},
+  "stoop": {"size": [1200, 1200], "top": 20},
+  "snowGuards": {"pitch": 400, "inset": 600, "beyond": 500},
+  "sockets": {"inlet": {"side": "-u", "at": 0, "w": -1524},
+              "discharge": {"side": "+u", "at": 0, "w": -1524},
+              "label": {"w": 6000}},
+  "review": {
+    "figure": [4.4, 5.0, 0.0],
+    "detail": {"doors": [[0.0, 3.05, 1.8], [-3.0, 6.0, 0.4], 30],
+               "window": [[-2.2, -3.05, 2.7], [-1.0, -3.0, -0.8], 40],
+               "light": ["light:light_door_man", [-0.9, 2.2, -0.9], 40],
+               "gable": [[-4.6, 0.0, 1.6], [-7.0, -2.5, 0.4], 30]},
+    "photoFigure": [4.4, 5.0, 0.0], "figureIn": ["hero", "snow"], "bench": {"grade": 0.2, "half": 10.0, "cut": 1.5, "fill": 2.0, "gravel": [-8.0, 8.0, -7.0, 10.0],
+      "_about": "metres; the hill climbs 20 % toward +u; a level bench to 10 m each side of the centre, a 1:1.5 cut face uphill, a 1:2 fill slope downhill"},
+    "photos": [
+      ["hero", [0.3, 0.3, 2.2], 55, 8, 18, 35, "day"],
+      ["back", [0.0, -1.5, 1.8], 215, 9, 17, 35, "day"],
+      ["inlet", [-4.8, 0.0, 1.6], 172, 10, 15, 35, "day"],
+      ["high", [2.0, 0.0, 2.0], 128, 30, 30, 35, "day"],
+      ["door_light", {"mean": ["light_door_man", "light_sconce_man"], "plus": [0.0, 0.25, -0.15]}, 75, -12, 3.6, 40, "day"],
+      ["dusk", [0.3, 0.3, 2.2], 62, 7, 18, 35, "dusk"],
+      ["dusk_yard", [-0.5, 4.0, 1.6], 100, 8, 14, 30, "dusk"],
+      ["snow", [1.5, 0.3, 2.2], 132, 16, 24, 35, "snow"]
+    ]
+  },
+  "lights": {
+    "wallPack": {"kind": "spot", "kelvin": 4000, "lumens": 3000, "rangeM": 9, "coneDeg": 110, "schedule": "dusk"},
+    "canopy": {"kind": "spot", "kelvin": 4000, "lumens": 1500, "rangeM": 6, "coneDeg": 120, "schedule": "dusk"},
+    "sconce": {"kind": "point", "kelvin": 4000, "lumens": 800, "rangeM": 5, "coneDeg": 360, "schedule": "dusk"},
+    "glow": {"kelvin": 3000, "schedule": "running"}
+  }
+}

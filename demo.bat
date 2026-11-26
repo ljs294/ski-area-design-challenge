@@ -424,14 +424,39 @@ echo        gun whale: the snow lies on the ground that never moves, the skiers 
 echo        trees stand in it; Shift+1 hides and shows the snow at once. Part 5: the season to February 1 without the
 echo        drawing (a few minutes), then the game paused there to check the snow. Type 4 or 5 at the start to
 echo        go straight to the game (no tests, report or time-lapse; it builds only if there is no game yet).
-echo   4.26 bug bash PR N: lift lines that bend and fill from behind (builds the game if there is none)
-echo     161 The drawn resort on January 15, busy: the lift lines run straight back from the terminal, curve
-echo        round their folds and stand clear of the trees; when a chair takes fewer than a row the guests behind
-echo        step straight forward in their own lane.
+echo   4.26 bug bash BB26: each lift line is one winding ribbon (builds the game if there is none)
+echo     161 The drawn resort on January 15, busy: every lift line leaves its loader in square rows, then winds
+echo        back in one chair-wide ribbon, folding close to the lift and curving round trees with no jumps; rows
+echo        1.8 m apart, each guest a little off their mark; guests step straight forward in their own lane.
+echo   4.29 trail grass PR B: each trail's grass on the ground, and the card's Grass line
+echo     156 The tests, then mid-July on a scratch copy of your Gilford save (or the drawn resort), three times:
+echo        every trail mown as before, then as the simulation grows it, then short, long and brush in turn.
+echo     157 The trail card pictures (each card's Grass line in the log), then the game
+echo        on that save for your hands-on check. Both rebuild the game; close the editor first.
+echo   4.50 buildings: the pump house, the booster, the lift huts, the unload ramps and the groomer garage (Blender only; no Unity, no game build)
+echo     158 Pick a building (1 pump house, 2 booster, 3 lift huts, 4 unload ramps, 5 groomer garage), build it with its checks (budgets,
+echo        footprint, sockets, lights, same mesh twice), then its Gate 1 drawings and clay views (about 30 seconds;
+echo        the ramps also on each review site, in gate1\cases; the garage beside a
+echo        groomer and a pickup to scale); opens the pictures.
+echo     159 Pick a building, then its Gate 2 pictures in Cycles: day, close-ups, dusk with its lights on, and
+echo        snow (a few minutes on the GPU; waits for a free GPU slot); opens the pictures. The ramps: the quad, triple
+echo        and double, each at another maker's terminal, by day and in snow.
+echo     160 The pump house and the groomer garage in the game: builds both in Blender, imports them into Unity,
+echo        rebuilds the game (close the editor first), then takes five pictures on the Jackson Hole test
+echo        mountain (summer and snow, by the doors; waits for a free GPU slot) and opens the game there, both
+echo        standing at the garage (dev only: -buildings, never saved); the pump house is 1.9 km east.
+echo     162 Every lift terminal's operator hut, and at a fixed grip's top its stop gate, pedestal and (raised 5 ft
+echo        or more, now with no earth pad) the timber unload ramp: builds them in Blender, imports them, rebuilds the
+echo        game (close the editor first), then three pictures on the style tile (a Sessellift and a Monta top drive
+echo        raised 8 ft, the Monta's on its wide ramp, by day; the Sessellift's in snow; waits for a free GPU slot)
+echo        and opens the game there. Every lift's card shows its Huts and Unload ramp lines.
 echo   4.29 trail grass PR A: grass grows on a trail, a skied winter kills it, mowing keeps it short (.NET only)
 echo     155 The grass and save tests, then two label years on the test mountain from bare ground (a few
 echo        minutes): two natural twins, the first mown every autumn; each one's grass every October 1 and April,
 echo        and the first day each winter it is Covered. The mown one needs less snow and opens no later.
+echo   4.27 deciduous trees: forest-grown broadleaf crowns, eastern heights and density (rebuilds the game)
+echo     150 The forest tests, then your Jackson NH map in mid-July and in winter: narrower hardwood
+echo        crowns in the stands, low-branched trees along trails and edges, eastern trees no taller than the lidar.
 echo   4.28 ground grass: wet hollows, dry ridges and the season (rebuilds the game; close the editor first)
 echo     154 The moisture and season tests, then the game four times in mid-July on your Jackson NH map (or the
 echo        demo mountain), a scratch copy: the old plain grass, the new grass, early October (gold), and the
@@ -657,9 +682,16 @@ if /i "%CHOICE%"=="146" goto tests426
 if /i "%CHOICE%"=="147" goto pads426
 if /i "%CHOICE%"=="161" goto lines426
 if /i "%CHOICE%"=="149" goto garbage426
+if /i "%CHOICE%"=="150" goto trees427
 if /i "%CHOICE%"=="154" goto grass428
 if /i "%CHOICE%"=="119" goto snowlook408a
 if /i "%CHOICE%"=="155" goto grass429
+if /i "%CHOICE%"=="156" goto grassb429
+if /i "%CHOICE%"=="157" goto cardb429
+if /i "%CHOICE%"=="158" goto pumphouse450
+if /i "%CHOICE%"=="159" goto pumphouse450photos
+if /i "%CHOICE%"=="160" goto buildings450game
+if /i "%CHOICE%"=="162" goto liftextras450
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -1303,7 +1335,7 @@ pause
 goto menu
 
 :lines426
-rem 4.26 PR N (BB4): guests keep their lane (owner 2026-11-23, option A) and the lines bend smoothly.
+rem 4.26 PR N (BB4): guests keep their lane (owner 2026-11-23, option A); BB26 (2026-11-24): one winding ribbon.
 chcp 65001 >nul
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
@@ -1311,9 +1343,9 @@ set "PD=%LOCALAPPDATA%\SkiAreaDesignChallenge-lines426"
 if exist "%PD%" rmdir /s /q "%PD%"
 echo.
 echo   The drawn resort on January 15 in a scratch folder (your saves aren't touched). Let the clock run to about
-echo   10:00, then fly low over a lift's bottom terminal: its line runs straight back, then folds back and forth in
-echo   smooth bends clear of the trees, each guest facing the one ahead. Watch a chair load with fewer than a row:
-echo   the others step straight up their lane.
+echo   10:00, then fly low over a lift's bottom terminal: two square rows, then one ribbon as wide as the chair
+echo   that eases into a curve and winds back and forth, round trees, never breaking or jumping; in a tight gap it
+echo   narrows to single file and widens again. Watch a chair load with fewer than a row: the others step up their lane.
 pause
 start "" "%GAME%" -data "%PD%" -notitle -offline -drawnresort -simto 01-15
 pause
@@ -1343,6 +1375,103 @@ dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedN
 echo.
 echo   Part 2 (.NET, a few minutes): two years, mown beside unmown.
 dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "Name=SN37_TwoYearsMownBesideUnmown" --logger "console;verbosity=normal" <nul | findstr /l /c:"[two years]" /c:"Passed" /c:"Failed"
+goto menu
+
+:grassb429
+rem 4.29 PR B: the trails' grass on the ground (SN-35), summer look only (owner 2026-11-23).
+chcp 65001 >nul
+echo.
+echo   Part 1 (.NET, about a minute): each 8 m cell draws as the trail that owns most of it.
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~TrailSnowLayoutTests" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+call :grassb429setup
+if not exist "%GAME%" goto done
+echo.
+echo   1 of 3, before: mid-July, every trail the even mown stripe it always was. Close the game for the next.
+pause
+"%GAME%" -data "%GB%" -notitle -offline %GBARG% -season summer -plaingrass <nul
+echo   2 of 3, after: each trail as the simulation has it. A trail built this year is long grass (half height):
+echo   its stripe fades into the meadow beside it. Graded trails start bare and mown-short.
+pause
+"%GAME%" -data "%GB%" -notitle -offline %GBARG% -season summer <nul
+echo   3 of 3: the trails short, long and brush in turn (the look only; nothing is saved). Short is the fresh,
+echo   even stripe; long and brush turn back into the meadow beside them, like ground that was never a trail.
+pause
+"%GAME%" -data "%GB%" -notitle -offline %GBARG% -season summer -trailgrass 10,50,100 <nul
+goto menu
+
+:cardb429
+rem 4.29 PR B: the trail card's Grass line (SN-36); Mowing is off the card (owner 2026-11-23).
+chcp 65001 >nul
+call :grassb429setup
+if not exist "%GAME%" goto done
+set "GBOUT=%~dp0test-results\p4-29b\cards"
+if exist "%GBOUT%" rmdir /s /q "%GBOUT%"
+echo.
+echo   Part 1: the card pictures on December 15 (the list, a Covered, a Bare and a Marginal card); the log lists
+echo   each card's Grass line.
+start "" /wait "%GAME%" -data "%GB%" -notitle -offline %GBARG% -simto 12-15 -trailcardshots "%GBOUT%" -logFile "%~dp0test-results\p4-29b\cards.log"
+findstr /l /c:"[TrailCards]" "%~dp0test-results\p4-29b\cards.log"
+if exist "%GBOUT%" start "" "%GBOUT%"
+echo.
+echo   Part 2: the game for your hands-on check. Open a trail's card: Grass, Short, Long or Brush and the snow it
+echo   needs to be Covered.
+pause
+"%GAME%" -data "%GB%" -notitle -offline %GBARG% <nul
+goto menu
+
+:grassb429setup
+call :buildplayer
+if not exist "%GAME%" exit /b 0
+set "GB=%LOCALAPPDATA%\SkiAreaDesignChallenge-grass429b"
+if exist "%GB%" rmdir /s /q "%GB%"
+mkdir "%GB%"
+set "GBPKG=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts\920664685ffa7122"
+set "GBSAVE=%LOCALAPPDATA%\SkiAreaDesignChallenge\Saves\920664685ffa7122\autosave"
+set "GBARG=-drawnresort"
+if exist "%GBPKG%\manifest.json" if exist "%GBSAVE%\save.json" (
+    echo   Copying your Gilford map and its autosave into a scratch folder (yours are only read^)...
+    robocopy "%GBPKG%" "%GB%\Gilford" /e /nfl /ndl /njh /njs /np >nul
+    robocopy "%GBSAVE%" "%GB%\Saves\920664685ffa7122\autosave" /e /nfl /ndl /njh /njs /np >nul
+    set "GBARG=-package "%GB%\Gilford" -opensave "%GB%\Saves\920664685ffa7122\autosave""
+)
+if "%GBARG%"=="-drawnresort" echo   Your Gilford save isn't here; the drawn resort opens instead.
+exit /b 0
+
+:trees427
+rem 4.27: forest-grown broadleaf trees (owner 2026-11-22: narrow crowns 0.30-0.45 x height, edge trees low-branched,
+rem eastern heights x1.26 with density x1.15, the same tree count as before). Terrain cache v13 rebuilds on first open.
+chcp 65001 >nul
+echo.
+echo   Part 1 (.NET, about a minute): the forest tests (each broadleaf crown matches the tree library, crowns spaced by
+echo   their own size, the same trees every time, the old conifer-crown forest kept exactly when the table is empty).
+dotnet test "%~dp0tools\domain-tests\Tests" -c Release --filter "FullyQualifiedName~ForestTests" <nul | findstr /l /c:"Passed" /c:"Failed" /c:"error"
+echo.
+echo   Part 2: the game (rebuilding it first, a few minutes).
+call :buildplayer
+if not exist "%GAME%" goto done
+set "TR427=%LOCALAPPDATA%\SkiAreaDesignChallenge-trees427"
+if exist "%TR427%" rmdir /s /q "%TR427%"
+mkdir "%TR427%"
+set "TR427PKG=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts\0cf7b7bd1e05e710"
+set "TR427ARG="
+if exist "%TR427PKG%\manifest.json" (
+    echo   Copying your Jackson NH map into the scratch folder (yours is only read^)...
+    robocopy "%TR427PKG%" "%TR427%\JacksonNH" /e /nfl /ndl /njh /njs /np >nul
+    set "TR427ARG=-package "%TR427%\JacksonNH""
+) else (
+    echo   Your Jackson NH map isn't in the library; the demo mountain opens instead.
+)
+echo.
+echo   1 of 3, mid-July: the hardwoods stand close with narrow crowns; trees beside the trails and the forest's edge
+echo   keep their low limbs. Their crowns are still bare in every season (leaves in the game come later, Part 4). The first open rebuilds the map's tiles (cache v13), a minute or two. Close the game for the next.
+pause
+"%GAME%" -data "%TR427%" -notitle -offline %TR427ARG% -season summer <nul
+echo   2 of 3, the same day, low over a stand: fly along a trail to see the edge trees.
+pause
+"%GAME%" -data "%TR427%" -notitle -offline %TR427ARG% -season summer -view -150,250,160,330,14 <nul
+echo   3 of 3, the opening winter day: the bare hardwoods among the conifers.
+pause
+"%GAME%" -data "%TR427%" -notitle -offline %TR427ARG% <nul
 goto menu
 
 :grass428
@@ -2833,6 +2962,50 @@ echo Starting the Lift Lab on the Sessellift G8 gondola. Z this view, L LOD, N s
 start "" "%LIFTLAB%" -mode gondola
 goto menu
 
+:pumphouse450
+call :building450pick
+if not defined B450 goto done
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%~dp0test-results\buildings" mkdir "%~dp0test-results\buildings"
+echo Building the %B450NAME% in Blender and drawing the Gate 1 pictures (about 30 seconds)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\buildings\build_buildings.py" -- --assets %B450% --out "%~dp0test-results\buildings" --render "%~dp0test-results\buildings\gate1" %B450EXTRA% <nul | findstr /r /c:"tris per" /c:"Checks" /c:"PROBLEMS" /c:"Error" /c:"Traceback"
+if not exist "%~dp0test-results\buildings\gate1\bldg_%B450ID%_clay_yard.png" (echo   The build failed. & goto done)
+echo   Built and checked: test-results\buildings\bldg_*.fbx
+start "" "%~dp0test-results\buildings\gate1"
+if defined B450EXTRA start "" "%~dp0test-results\buildings\gate1\cases"
+goto done
+
+:pumphouse450photos
+call :building450pick
+if not defined B450 goto done
+if "%B450%"=="garages" (echo   The garage's Gate 2 pictures come after Gate 1 is approved. & goto done)
+set "B450SHOT=bldg_%B450ID%_photo_dusk.png"
+if "%B450%"=="unloadramp" set "B450SHOT=ramp_photo_quad_2m_hero.png"
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%~dp0test-results\buildings" mkdir "%~dp0test-results\buildings"
+echo Building the %B450NAME% and rendering the Gate 2 pictures in Cycles (a few minutes once the GPU is free)...
+%RENDER% "%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\buildings\build_buildings.py" -- --assets %B450% --out "%~dp0test-results\buildings" --photos "%~dp0test-results\buildings\gate2" <nul | findstr /r /c:"tris per" /c:"Checks" /c:"PROBLEMS" /c:"Cycles on" /c:"ramp photos:" /c:"Error" /c:"Traceback"
+if not exist "%~dp0test-results\buildings\gate2\%B450SHOT%" (echo   The render failed. & goto done)
+start "" "%~dp0test-results\buildings\gate2"
+goto done
+
+:building450pick
+set "B450="
+set "B450NAME="
+set "B450ID="
+set "B450PICK="
+set "B450EXTRA="
+set /p "B450PICK=Which building? 1 pump house, 2 booster, 3 lift huts, 4 unload ramps, 5 groomer garage: "
+if "%B450PICK%"=="1" (set "B450=pumphouse" & set "B450NAME=pump house" & set "B450ID=pumphouse")
+if "%B450PICK%"=="2" (set "B450=booster" & set "B450NAME=booster" & set "B450ID=booster")
+if "%B450PICK%"=="3" (set "B450=lifthut" & set "B450NAME=lift huts" & set "B450ID=hut_mini")
+if "%B450PICK%"=="4" (set "B450=unloadramp" & set "B450NAME=unload ramps" & set "B450ID=ramp_quad" & set B450EXTRA=--cases "%~dp0test-results\buildings\gate1\cases")
+if "%B450PICK%"=="5" (set "B450=garages" & set "B450NAME=groomer garage" & set "B450ID=garage")
+if not defined B450 echo   No building picked.
+exit /b 0
+
 :gondolamodel
 set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
 if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
@@ -2930,6 +3103,67 @@ if exist "%~dp0Temp\UnityLockfile" (
 )
 exit /b 0
 
+:buildings450game
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%UNITY%" (echo Unity 6000.3.25f1 was not found at "%UNITY%". & goto done)
+call :projectfree || goto done
+set "B450OUT=%~dp0test-results\p4-50\game"
+if not exist "%B450OUT%" mkdir "%B450OUT%"
+set "JH2=%LOCALAPPDATA%\SkiAreaDesignChallenge-p308\jh2km"
+if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%JH2%" /e /njh /njs /nfl /ndl >nul
+echo Building the pump house and the groomer garage in Blender (about 20 seconds)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\buildings\build_buildings.py" -- --assets pumphouse,garages --out "%~dp0tools\assets\buildings\out" <nul | findstr /r /c:"tris per" /c:"Checks" /c:"PROBLEMS" /c:"Error" /c:"Traceback"
+if not exist "%~dp0tools\assets\buildings\out\bldg_garage.fbx" (echo   The build failed. & goto done)
+echo Importing them into Unity (a minute or two)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.BuildingImport.Import -quit -logFile "%B450OUT%\import.log" <nul
+if errorlevel 1 (echo   The import failed - see test-results\p4-50\game\import.log & goto done)
+findstr /c:"[BuildingImport]" "%B450OUT%\import.log"
+call :buildplayer
+if not exist "%GAME%" goto done
+rem Both on open ground clear of the trees and the tracks: the garage on the flat pad at 2,523 m (its doors east),
+rem the pump house beside the east track at 2,326 m. x,z in metres from the site's centre, as -view; then yaw.
+set "B450AT=garage@-590,-330,0;pumphouse@780,390,0"
+set "B450RUN=%RENDER% "%GAME%" -package "%JH2%" -notitle -nohud -quality high %SCREEN% -buildings %B450AT%"
+echo Taking five pictures (about a minute each; waits for a free GPU slot)...
+%B450RUN% -season summer -time 11:00 -view -590,-325,55,300,14 -screenshot "%B450OUT%\1-garage-summer.png" -logFile "%B450OUT%\1-garage-summer.log" <nul
+%B450RUN% -season summer -time 16:30 -view -590,-322,30,215,10 -screenshot "%B450OUT%\2-garage-yard.png" -logFile "%B450OUT%\2-garage-yard.log" <nul
+%B450RUN% -snowseed -day 40 -time 11:00 -view -590,-325,60,300,18 -screenshot "%B450OUT%\3-garage-snow.png" -logFile "%B450OUT%\3-garage-snow.log" <nul
+%B450RUN% -season summer -time 11:00 -view 781,390,45,300,14 -screenshot "%B450OUT%\4-pumphouse-summer.png" -logFile "%B450OUT%\4-pumphouse-summer.log" <nul
+%B450RUN% -snowseed -day 40 -time 11:00 -view 781,390,50,300,18 -screenshot "%B450OUT%\5-pumphouse-snow.png" -logFile "%B450OUT%\5-pumphouse-snow.log" <nul
+findstr /c:"[Buildings]" "%B450OUT%\1-garage-summer.log"
+start "" "%B450OUT%"
+echo Opening the game at the garage, both buildings standing (not saved)...
+start "" "%GAME%" -package "%JH2%" -notitle -snowseed -buildings %B450AT% -view -590,-325,120,300,25
+goto done
+:liftextras450
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+if not exist "%UNITY%" (echo Unity 6000.3.25f1 was not found at "%UNITY%". & goto done)
+call :projectfree || goto done
+set "LX450OUT=%~dp0test-results\p4-50\lift-extras"
+if not exist "%LX450OUT%" mkdir "%LX450OUT%"
+echo Building the buildings in Blender: huts, ramps, stop gates, pedestal (about a minute)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\buildings\build_buildings.py" -- --assets pumphouse,garages,lifthut,unloadramp --out "%~dp0tools\assets\buildings\out" <nul | findstr /r /c:"tris per" /c:"Checks" /c:"PROBLEMS" /c:"Error" /c:"Traceback"
+if not exist "%~dp0tools\assets\buildings\out\bldg_ramp_quad_wide.fbx" (echo   The build failed. & goto done)
+echo Importing them into Unity (a minute or two)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.BuildingImport.Import -quit -logFile "%LX450OUT%\import.log" <nul
+if errorlevel 1 (echo   The import failed - see test-results\p4-50\lift-extras\import.log & goto done)
+findstr /c:"[BuildingImport]" "%LX450OUT%\import.log"
+call :buildplayer
+if not exist "%GAME%" goto done
+rem A second fixed quad on the style tile, its top drive raised 8 ft; its top stands at -508,-627.
+set "LX450LIFT=-styletile -extralift -150,-900,450 -extradrive top -extratopraise 8"
+set "LX450RUN=%RENDER% "%GAME%" -notitle -nohud -quality high %SCREEN% %LX450LIFT%"
+echo Taking three pictures (about a minute each; waits for a free GPU slot)...
+%LX450RUN% -extratype sessellift-fgq4 -season summer -view -505,-625,32,222,45 -screenshot "%LX450OUT%\1-sessellift-drive.png" -logFile "%LX450OUT%\1-sessellift-drive.log" <nul
+%LX450RUN% -extratype monta-fg4 -season summer -view -505,-625,32,222,45 -screenshot "%LX450OUT%\2-monta-drive.png" -logFile "%LX450OUT%\2-monta-drive.log" <nul
+%LX450RUN% -extratype sessellift-fgq4 -snowseed -day 40 -view -505,-625,32,222,45 -screenshot "%LX450OUT%\3-sessellift-snow.png" -logFile "%LX450OUT%\3-sessellift-snow.log" <nul
+findstr /c:"[StyleTile] extra" "%LX450OUT%\1-sessellift-drive.log"
+start "" "%LX450OUT%"
+echo Opening the game on the style tile, the Sessellift top drive raised 8 ft...
+start "" "%GAME%" -notitle %LX450LIFT% -extratype sessellift-fgq4 -season summer -view -505,-625,60,222,30
+goto done
 :buildgame
 call :buildplayer
 goto done

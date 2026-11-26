@@ -1,0 +1,78 @@
+{
+  "_about": "Enforced triangle budgets per building kind and LOD, and the LOD switch distances (metres at lodBias 1), as tools/assets/lifts/budgets.json. The far level is a box and a roof, never an impostor. Task 4.50.",
+  "pumphouse": {
+    "lods": [
+      {"lod": 0, "maxTris": 8000, "untilM": 40},
+      {"lod": 1, "maxTris": 2000, "untilM": 120},
+      {"lod": 2, "maxTris": 400, "untilM": 400},
+      {"lod": 3, "maxTris": 40, "untilM": 2000}
+    ],
+    "shadowLods": 3,
+    "crossFade": true
+  },
+  "booster": {
+    "lods": [
+      {"lod": 0, "maxTris": 2500, "untilM": 30},
+      {"lod": 1, "maxTris": 800, "untilM": 90},
+      {"lod": 2, "maxTris": 200, "untilM": 300},
+      {"lod": 3, "maxTris": 40, "untilM": 1500}
+    ],
+    "shadowLods": 3,
+    "crossFade": true
+  },
+  "lift_hut": {
+    "_about": "A lift operator hut (phase 3): the four factory cabins of lifthut.json, one at each end of a chairlift or gondola.",
+    "lods": [
+      {"lod": 0, "maxTris": 2500, "untilM": 25},
+      {"lod": 1, "maxTris": 800, "untilM": 75},
+      {"lod": 2, "maxTris": 200, "untilM": 250},
+      {"lod": 3, "maxTris": 40, "untilM": 1200}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "unload_ramp": {
+    "_about": "A timber unload ramp at a fixed-grip top return (phase 4): one model per chair width, built for its tallest site (a 4 m raise, a 20 m ski-off); the terrain clips it.",
+    "lods": [
+      {"lod": 0, "maxTris": 2500, "untilM": 40},
+      {"lod": 1, "maxTris": 1000, "untilM": 120},
+      {"lod": 2, "maxTris": 400, "untilM": 350},
+      {"lod": 3, "maxTris": 40, "untilM": 1500}
+    ],
+    "shadowLods": 3,
+    "crossFade": true
+  },
+  "op_pedestal": {
+    "_about": "The lift operator's outdoor pedestal with a phone (phase 4), on an unload ramp's hut bay.",
+    "lods": [
+      {"lod": 0, "maxTris": 300, "untilM": 15},
+      {"lod": 1, "maxTris": 150, "untilM": 40},
+      {"lod": 2, "maxTris": 60, "untilM": 120},
+      {"lod": 3, "maxTris": 12, "untilM": 400}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "garage": {
+    "_about": "The groomer garage (phase 5): a two-bay maintenance shop with its fuel pad (the `fuel` part counts in); round 5 raised LOD1 for the windows on the back and the wash-bay gable.",
+    "lods": [
+      {"lod": 0, "maxTris": 5000, "untilM": 50},
+      {"lod": 1, "maxTris": 2000, "untilM": 150},
+      {"lod": 2, "maxTris": 400, "untilM": 450},
+      {"lod": 3, "maxTris": 40, "untilM": 2000}
+    ],
+    "shadowLods": 3,
+    "crossFade": true
+  },
+  "stop_gate": {
+    "_about": "A fixed-grip top return's stop gate (phase 4): a post on the ramp past the wheel and a 1 in bar along the line, one per terminal style.",
+    "lods": [
+      {"lod": 0, "maxTris": 80, "untilM": 15},
+      {"lod": 1, "maxTris": 40, "untilM": 40},
+      {"lod": 2, "maxTris": 24, "untilM": 120},
+      {"lod": 3, "maxTris": 12, "untilM": 400}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  }
+}

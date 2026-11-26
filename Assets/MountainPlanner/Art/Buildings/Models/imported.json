@@ -1,0 +1,19 @@
+{
+  "bldg_pumphouse": "42d1e1a734754809a6353dd915f3c9bf3ce07e60",
+  "bldg_garage": "4586cc4ebb378927b328c7c12f43b9fd73a8ad3b",
+  "bldg_hut_large": "d250baa136b56b53425356e3b0287ffb02314543",
+  "bldg_hut_small": "36d9d83d5adfaf01f44114d76c7fedffbc92d46f",
+  "bldg_hut_mini": "4a3607d70a5d90cb00505b2607c17b691e2af30f",
+  "bldg_ramp_quad": "25e451ea8ff6cfab271867e52de66ae323084a92",
+  "bldg_ramp_triple": "1ffd045658ed46e0bed11528b928c6f3758da843",
+  "bldg_ramp_double": "a45a5eb705dc945567938c74d33ddcbb3ad51f64",
+  "bldg_op_pedestal": "b24c62d843beaed6cc0e64b6762c92fad542998f",
+  "bldg_stop_gate_sessellift": "fcbd3478e1b794a09b45d71c4d874b6f30134d29",
+  "bldg_stop_gate_stern": "996a494051d23b439008770a5e104dae78057161",
+  "bldg_stop_gate_monta": "ad896be104a62055b4ce03fdbd35b47c150b2afe",
+  "bldg_ramp_quad_wide": "d2c3c1e2bcaf89b43bbe1f857319fa497bbfc3f3",
+  "bldg_ramp_triple_wide": "0c2c2d93747fa324ac990f82b461532ca88fe477",
+  "bldg_ramp_double_wide": "b53d4c30345cb4a59dfb7f3bbc47087ac345aa1a",
+  "bldg_stop_gate_sessellift_drive": "280e095b39f33bae0c254055004726a4f35f58ee",
+  "bldg_stop_gate_monta_drive": "9e3117b4b7097d3d0bee6cdf8d205486608c5d44"
+}

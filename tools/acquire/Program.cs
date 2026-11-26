@@ -470,7 +470,10 @@ static void ForestDump(string folder, string outDir, Dictionary<string, string> 
     var manifest = ResortPackage.ReadManifest(folder);
     float[] core = ResortPackage.ReadLayer(folder, manifest, "heights-core", out var coreHeader);
     float[] ring = ResortPackage.ReadLayer(folder, manifest, "heights-ring", out var ringHeader);
-    var field = new ForestField(manifest, folder, new TerrainCache.HeightField(core, coreHeader, ring, ringHeader));
+    // --oldcrowns: every tree spaced and counted by the conifer crown, as before task 4.27 (an empty crown table).
+    var field = new ForestField(manifest, folder, new TerrainCache.HeightField(core, coreHeader, ring, ringHeader),
+                                opts.ContainsKey("oldcrowns") ? new int[MountainPlanner.Domain.Flora.SpeciesMap.Models.Length] : null,
+                                Calibration(manifest, opts));
     var tiles = TileGrid.For(SiteSquare.Create(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY), manifest.Site.SizeMetres / 1000.0));
     var clock = System.Diagnostics.Stopwatch.StartNew();
     var plan = field.Prepare(tiles);
@@ -537,6 +540,16 @@ static void ForestDump(string folder, string outDir, Dictionary<string, string> 
         $"\"cellsX\": {plan.CellsX}, \"cellsY\": {plan.CellsY}, \"cellWest\": {ox + plan.CellOriginX / 256.0}, \"cellSouth\": {oy + plan.CellOriginY / 256.0}, " +
         canopyInfo + $"\"prepareSeconds\": {prepare:F2}, \"plantSeconds\": {plant:F2}, \"models\": [{models}]}}");
     Console.WriteLine($"{manifest.Site.Name}: {trees:N0} of {quota:N0} quota trees, prepare {prepare:F1} s, plant {plant:F1} s → {outDir}");
+}
+
+// forest-dump overrides: --density, --dominant (and --region west|east) replace the site's calibration.
+static MountainPlanner.Domain.Cover.ForestCalibration Calibration(PackageManifest manifest, Dictionary<string, string> opts)
+{
+    var c = MountainPlanner.Domain.Cover.ForestCalibration.ForSite(manifest.Site.Latitude, manifest.Site.Longitude);
+    if (opts.TryGetValue("region", out string? region))
+        c = region == "west" ? MountainPlanner.Domain.Cover.ForestCalibration.Default : MountainPlanner.Domain.Cover.ForestCalibration.East;
+    double D(string key, double fallback) => opts.TryGetValue(key, out string? v) ? double.Parse(v, CultureInfo.InvariantCulture) : fallback;
+    return new MountainPlanner.Domain.Cover.ForestCalibration(c.Region, D("density", c.DensityFactor), c.HeightFactor, D("dominant", c.DominantHeightFactor));
 }
 
 static string Slug(string name)

@@ -33,6 +33,8 @@ namespace MountainPlanner.Persistence
         public int SpeciesColumns, SpeciesRows, SpeciesWest, SpeciesNorth, SpeciesCell;
         public int[] ModelOfIndex = new int[256];
         public int[] SiteCumulative = Array.Empty<int>();
+        /// <summary>Per model, a broadleaf crown's share of the height in 1/256 (task 4.27); empty: every tree spaced as a conifer.</summary>
+        public int[] CrownShare256 = Array.Empty<int>();
         public int Models, Variants, KrummholzModel = -1, DownwindRotation;
         public int[] KrummholzHeights = Treeline.HeightCodes();
         public int[] StandHeights = ForestPlacement.StandHeightTable();
@@ -71,6 +73,7 @@ namespace MountainPlanner.Persistence
                     SpeciesColumns = p.SpeciesColumns, SpeciesRows = p.SpeciesRows,
                     SpeciesWest = p.SpeciesWest, SpeciesNorth = p.SpeciesNorth, SpeciesCell = p.SpeciesCell,
                     ModelOfIndex = (int*)Pin(p.ModelOfIndex), SiteCumulative = (int*)Pin(p.SiteCumulative),
+                    CrownShare256 = (int*)Pin(p.CrownShare256),
                     Models = p.Models, Variants = p.Variants, KrummholzModel = p.KrummholzModel, DownwindRotation = p.DownwindRotation,
                     KrummholzHeights = (int*)Pin(p.KrummholzHeights),
                     StandHeights = (int*)Pin(p.StandHeights), ClumpLattice = p.ClumpLattice, ClumpRadius = p.ClumpRadius, ClumpFloor = p.ClumpFloor,
@@ -197,7 +200,9 @@ namespace MountainPlanner.Persistence
         /// <summary>The ring stand weight's mean over a large sample, so stands and glades keep the ring's calibrated density.</summary>
         readonly double _ringStandMean;
         readonly ulong _seed;
-        readonly ForestCalibration _calibration = ForestCalibration.Default;
+        readonly ForestCalibration _calibration;
+        /// <summary>Per model, the broadleaf crown share of height (1/256, <see cref="ForestPlacement.BroadleafCrowns"/>); 0: a conifer crown.</summary>
+        readonly int[] _crownShares;
 
         readonly TerrainCache.HeightField? _heights;
 
@@ -207,9 +212,15 @@ namespace MountainPlanner.Persistence
         public double TreelineMetres = double.NaN;
 
         /// <param name="heights">The package's heights, for krummholz at the treeline (without them, none grows).</param>
-        public ForestField(PackageManifest package, string folder, TerrainCache.HeightField? heights = null)
+        /// <param name="crownShares">Per model, the broadleaf crown shares (default <see cref="ForestPlacement.CrownShares256"/>);
+        /// all zeros space every tree by the conifer crown, as before task 4.27.</param>
+        /// <param name="calibration">The canopy map's calibration (default: <see cref="ForestCalibration.ForSite"/> for the site).</param>
+        public ForestField(PackageManifest package, string folder, TerrainCache.HeightField? heights = null, int[]? crownShares = null,
+                           ForestCalibration? calibration = null)
         {
             _package = package;
+            _calibration = calibration ?? ForestCalibration.ForSite(package.Site.Latitude, package.Site.Longitude);
+            _crownShares = crownShares ?? ForestPlacement.CrownShares256();
             _heights = heights;
             _seed = CoverNoise.SeedFor(package.Site.CentreX, package.Site.CentreY) ^ 0x7EE5UL;
             var site = SiteSquare.Create(new AlbersPoint(package.Site.CentreX, package.Site.CentreY), package.Site.SizeMetres / 1000.0);
@@ -344,6 +355,19 @@ namespace MountainPlanner.Persistence
                 for (int i = 0; i < cellsX; i++) cells[j * cellsX + i] = PrepareCell(cellX0 + i, cellY0 + j);
             });
             plan.MaxSpacing256 = cells.Length == 0 ? 0 : cells.Max(c => c.Spacing256);
+            plan.CrownShare256 = (int[])_crownShares.Clone();
+            int widest = _crownShares.Length == 0 ? 0 : _crownShares.Max();
+            if (widest > 0)
+            {
+                // A broadleaf tree stands as far apart as its own crown (PoissonForest.Grow), which may be wider than its cell's
+                // conifer spacing: tiles must take in neighbours that far out.
+                foreach (var c in cells)
+                {
+                    if (c.Kind == ForestCell.None) continue;
+                    long s = (long)c.Spacing256 * PoissonForest.BroadleafCrown256(widest, c.HeightCode) / PoissonForest.CrownRadius256(c.HeightCode);
+                    if (s > plan.MaxSpacing256) plan.MaxSpacing256 = (int)Math.Min(65535, s);
+                }
+            }
             AddKrummholz(plan, cellX0, cellY0);
 
             if (_canopy != null)
@@ -470,7 +494,7 @@ namespace MountainPlanner.Persistence
                 if (trees10 == 0) return default;
                 canopyShare = trees10 / 100.0;
                 dominant = Clamp(_calibration.DominantHeight((byte)tallest), ForestPlacement.MinHeight, ForestPlacement.MaxHeight);
-                expected = ForestPlacement.TreesPerCell(trees10 / 100.0, dominant, _calibration);
+                expected = TreesPerCell(x0 + m / 2.0, y0 + m / 2.0, trees10 / 100.0, dominant);
                 kind = ForestCell.Core;
             }
             else
@@ -493,7 +517,7 @@ namespace MountainPlanner.Persistence
                 if (stand <= 0.02) return default;
                 dominant = Clamp(height * (0.85 + 0.3 * ForestPlacement.Hash01(_seed, cx, cy, 0, 7)), ForestPlacement.MinHeight, ForestPlacement.MaxHeight);
                 canopyShare = Math.Min(1, RingTreeShare * stand);
-                expected = ForestPlacement.TreesPerCell(canopyShare, dominant, _calibration) * density;
+                expected = TreesPerCell(cxm, cym, canopyShare, dominant) * density;
                 width = Math.Min(3, 1 / Math.Sqrt(density));   // fewer, wider crowns in the distance
                 kind = ForestCell.Ring;
             }
@@ -558,6 +582,52 @@ namespace MountainPlanner.Persistence
                 result[n] = list;
             });
             return result;
+        }
+
+        /// <summary>
+        /// Calibrated trees in one 10 m cell (task 4.27): the tree share over the mean crown area of the species there, each
+        /// broadleaf species by its own crown (<see cref="ForestPlacement.CrownRadius(double, int)"/>), everything else by the
+        /// conifer crown. A cell without broadleaf crowns takes exactly the conifer rule.
+        /// </summary>
+        double TreesPerCell(double x, double y, double treeShare, double dominant)
+        {
+            double conifer = ForestPlacement.CrownRadius(dominant), coniferArea = Math.PI * conifer * conifer;
+            double broad = 0, broadArea = 0, total = 0;
+            void Add(int model, double weight)
+            {
+                total += weight;
+                int share = model >= 0 && model < _crownShares.Length ? _crownShares[model] : 0;
+                if (share == 0) return;
+                double r = ForestPlacement.CrownRadius(dominant, share);
+                broad += weight;
+                broadArea += weight * Math.PI * r * r;
+            }
+            if (!SpeciesWeightsAt(x, y, Add))
+                for (int k = 0; k < _siteShares.Length; k++)
+                    if (_siteShares[k] > 0) Add(k, _siteShares[k]);
+            if (broad <= 0 || total <= 0) return ForestPlacement.TreesPerCell(treeShare, dominant, _calibration);
+            double mean = ((total - broad) * coniferArea + broadArea) / total;
+            return ForestPlacement.TreesPerCell(treeShare, _calibration, mean);
+        }
+
+        /// <summary>BIGMAP's species at a point (their model and weight), as <see cref="SharesAt"/> reads them; false outside it.</summary>
+        bool SpeciesWeightsAt(double x, double y, Action<int, double> add)
+        {
+            if (_speciesIds == null || _speciesWeights == null) return false;
+            var h = _speciesHeader;
+            int columns = h.Width / 4;
+            int c = (int)Math.Floor((x - h.West) / h.CellSize), r = (int)Math.Floor((h.North - y) / h.CellSize);
+            if (c < 0 || r < 0 || c >= columns || r >= h.Height) return false;
+            long o = ((long)r * columns + c) * 4;
+            bool any = false;
+            for (int k = 0; k < 4; k++)
+            {
+                int id = _speciesIds[o + k];
+                if (id == 0 || _speciesWeights[o + k] == 0) continue;
+                add(_modelOfIndex[id], _speciesWeights[o + k]);
+                any = true;
+            }
+            return any;
         }
 
         /// <summary>FIA species codes below 300 are the softwoods (conifers).</summary>

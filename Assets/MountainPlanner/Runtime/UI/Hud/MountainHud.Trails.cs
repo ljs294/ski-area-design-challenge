@@ -57,6 +57,13 @@ namespace MountainPlanner.UI
         public Func<ulong, Domain.Design.TrailSwitch?> TrailSwitchOf;
         public Func<ulong, Domain.Design.TrailSwitch, string> TrailSwitchChosen;
         VisualElement _trailCardSnowKv, _trailCardSwitch;
+        /// <summary>
+        /// Owner 2026-11-23: the card opens short (Posted, Length, Vertical, Status, Conditions and the switch); More details
+        /// unfolds the rest (the grade, the snow and grass, grooming). It stays as the player left it for the next trail.
+        /// </summary>
+        Button _trailCardMore;
+        Label _trailCardMoreText, _trailCardMoreCaret;
+        bool _trailCardMoreOpen;
         /// <summary>Task 4.07 B2: each line's word with its reason and its snow, from the simulation (built trails only).</summary>
         readonly Dictionary<ulong, (string Word, TrailCardModel Snow, long Sig)> _trailWhy = new Dictionary<ulong, (string, TrailCardModel, long)>();
         static readonly (string, string)[] ConditionsBins = { ("Covered", "Covered"), ("Marginal", "Marginal"), ("Bare", "Bare"), ("None", "No snow yet") };
@@ -133,14 +140,23 @@ namespace MountainPlanner.UI
             _trailCardKv = new VisualElement();
             _trailCardKv.AddToClassList("tw-kv");
             _trailCard.Add(_trailCardKv);
-            // Task 4.07 B2: its snow, and the switch (the approved mockup's second list and .sched row).
+            // Task 4.07 B2: the switch (the approved mockup's .sched row); then the fold and its details, the snow among them.
+            _trailCardSwitch = new VisualElement { name = "trail-card-switch" };
+            _trailCardSwitch.AddToClassList("lift-sched");
+            _trailCard.Add(_trailCardSwitch);
+            _trailCardMore = new Button(ToggleTrailCardMore) { name = "trail-card-more" };
+            _trailCardMore.AddToClassList("trail-card__more");
+            _trailCardMoreText = new Label();
+            _trailCardMoreText.AddToClassList("trail-card__more-t");
+            _trailCardMoreCaret = new Label();
+            _trailCardMoreCaret.AddToClassList("trail-card__more-c");
+            _trailCardMore.Add(_trailCardMoreText);
+            _trailCardMore.Add(_trailCardMoreCaret);
+            _trailCard.Add(_trailCardMore);
             _trailCardSnowKv = new VisualElement { name = "trail-card-snow" };
             _trailCardSnowKv.AddToClassList("tw-kv");
             _trailCardSnowKv.AddToClassList("trail-card__snow");
             _trailCard.Add(_trailCardSnowKv);
-            _trailCardSwitch = new VisualElement { name = "trail-card-switch" };
-            _trailCardSwitch.AddToClassList("lift-sched");
-            _trailCard.Add(_trailCardSwitch);
             var acts = new VisualElement();
             acts.AddToClassList("tw-btns");
             acts.AddToClassList("an-card__acts");
@@ -329,22 +345,47 @@ namespace MountainPlanner.UI
             Kv("Posted", TrailTool.Posted(t.Posted));   // TD-07: read only; Edit trail changes it (R2) and shows the game's (F3)
             Kv("Length", ToolFormat.Length(t.LengthMetres));
             Kv("Vertical", ToolFormat.Length(t.VerticalMetres));
-            if (!double.IsNaN(t.MeanPercent)) Kv("Average grade", $"{Math.Round(t.MeanPercent):0}%");
             Kv("Status", TrailStatusWord(t));   // F4: no Grading row; task 4.07 B2: with its reason
+            if (t.Built) Kv("Conditions", SnowOf(t)?.Conditions() ?? "—");
+            _trailCardMoreText.text = _trailCardMoreOpen ? "Fewer details" : "More details";
+            _trailCardMoreCaret.text = _trailCardMoreOpen ? "▴" : "▾";
+            _trailCardMore.tooltip = _trailCardMoreOpen ? "Back to the short card" : "The grade, the snow and grass, and grooming";
+            _trailCardMore.EnableInClassList("trail-card__more--on", _trailCardMoreOpen);
             FillTrailSnow(t);
             FillTrailGrooming(t);   // task 4.25 PR B: its setting, priority and last groom
         }
 
-        /// <summary>Task 4.07 B2: the card's snow rows and its switch (built trails; the rows read "—" before the snow).</summary>
+        void ToggleTrailCardMore()
+        {
+            _trailCardMoreOpen = !_trailCardMoreOpen;
+            FillTrailCard();
+        }
+
+        /// <summary>The card unfolded to its details or not (tests, captures); <see cref="SetTrailCardMoreForTest"/> sets it.</summary>
+        public bool TrailCardMoreOpen => _trailCardMoreOpen;
+        /// <summary>The card folded or unfolded as More details / Fewer details leaves it, card open or not (tests, captures).</summary>
+        public void SetTrailCardMoreForTest(bool open)
+        {
+            if (_trailCardMoreOpen == open) return;
+            if (_trailCardMore != null && _trailCardId != 0 && !_trailCardMore.ClassListContains("hidden"))
+                using (var e = NavigationSubmitEvent.GetPooled()) { e.target = _trailCardMore; _trailCardMore.SendEvent(e); }   // its click
+            else _trailCardMoreOpen = open;
+        }
+
+        /// <summary>
+        /// Task 4.07 B2: the card's switch and, under More details, its grade and snow rows (the snow for built trails; the rows
+        /// read "—" before the snow).
+        /// </summary>
         void FillTrailSnow(TrailRow t)
         {
             _trailCardSnowKv.Clear();
             _trailCardSwitch.Clear();
             var sw = t.Built ? TrailSwitchOf?.Invoke(t.Id) : null;
-            _trailCardSnowKv.EnableInClassList("hidden", !t.Built);
+            bool details = t.Built || !double.IsNaN(t.MeanPercent);
+            _trailCardMore.EnableInClassList("hidden", !details);
+            _trailCardSnowKv.EnableInClassList("hidden", !details || !_trailCardMoreOpen);
             _trailCardSwitch.EnableInClassList("hidden", !sw.HasValue);
-            if (!t.Built) return;
-            var snow = SnowOf(t);
+            var snow = t.Built ? SnowOf(t) : null;
             void Kv(string k, string v)
             {
                 var row = new VisualElement();
@@ -358,10 +399,12 @@ namespace MountainPlanner.UI
                 row.Add(vl);
                 _trailCardSnowKv.Add(row);
             }
-            Kv("Conditions", snow?.Conditions() ?? "—");
+            if (!double.IsNaN(t.MeanPercent)) Kv("Average grade", $"{Math.Round(t.MeanPercent):0}%");
+            if (!t.Built) return;
             Kv("Cover", snow?.CoverText() ?? "—");
             Kv("Snow rating", snow?.RatingText() ?? "—");
             Kv("Snow", snow?.Surface() ?? "—");
+            Kv("Grass", snow?.GrassText(t.Graded, MountainPlanner.Presentation.DisplayUnits.Current == MountainPlanner.Domain.Measure.UnitSystem.Imperial) ?? "—");   // task 4.29 PR B
             if (!sw.HasValue) return;
             var now = sw.Value;
             var choices = TrailCardModel.Choices;

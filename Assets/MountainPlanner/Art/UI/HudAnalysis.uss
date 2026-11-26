@@ -95,6 +95,12 @@
 .hud .lift-sched__hint { margin: 5px 0 0 0; padding: 0; font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: normal; }
 /* task 4.07 B2: the trail card's snow, under its figures */
 .hud .trail-card__snow { border-top-width: 1px; border-top-color: var(--row); }
+/* owner 2026-11-23: the short card's fold, the mockup's .tmore (More details ▾ / Fewer details ▴) */
+.hud .trail-card__more { flex-direction: row; align-items: center; margin: 0; padding: 7px 12px; border-width: 0; border-radius: 0; border-top-width: 1px; border-top-color: var(--row); background-color: rgba(0, 0, 0, 0); }
+.hud .trail-card__more-t { flex-grow: 1; margin: 0; padding: 0; font-size: 12px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .trail-card__more-c { margin: 0; padding: 0; font-size: 11px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .trail-card__more:hover > .trail-card__more-t { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .trail-card__more--on > .trail-card__more-t { color: var(--text); -unity-text-outline-color: var(--text); }
 
 /* ---------- task 4.25 PR B: Analysis › Grooming (the approved mockup's .gralert, .grsw, .grplate, .grhd, .grstrip, .grkey,
    .grn, .grdd, .tbl.grt, .grc, .grcc, .hd2), the groomer cards and the trail card's grooming row ---------- */

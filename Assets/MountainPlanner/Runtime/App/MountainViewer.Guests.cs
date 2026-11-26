@@ -179,20 +179,20 @@ namespace MountainPlanner.App
                 int pop = k < g.TrailPopularity.Length ? g.TrailPopularity[k] : -1;
                 var label = s.TrailLabelAt(k);
                 int walk = s.TrailWalkFtAt(k), cover = s.TrailCoverPct[k], rating = s.TrailRatingAt(k);
-                byte snow = s.TrailSnow[k];
+                byte snow = s.TrailSnow[k], grass = s.TrailGrass[k];
                 // Task 4.07 B2: every segment of the run counts for the player's trail that holds it, by its length (a shaped
                 // trail may cover part of a run, or several; a run's first segment alone gave a split trail's lower part the
                 // upper's words). With no sections yet, the run's own id is the best key there is.
                 var segs = sections?.SegmentsOf(new TrailId(run));
                 if (segs == null || segs.Count == 0)
                 {
-                    AddLine(run, word, pop, label, walk, cover, rating, snow, 1);
+                    AddLine(run, word, pop, label, walk, cover, rating, snow, 1, grass);
                     continue;
                 }
                 foreach (var seg in segs)
                 {
                     var t = sections.TrailOf(seg);
-                    AddLine(t?.Id.Value ?? run, word, pop, label, walk, cover, rating, snow, Math.Max(1, seg.EndMm - seg.StartMm));
+                    AddLine(t?.Id.Value ?? run, word, pop, label, walk, cover, rating, snow, Math.Max(1, seg.EndMm - seg.StartMm), grass);
                 }
             }
             foreach (var kv in _lineStatus)
@@ -208,13 +208,14 @@ namespace MountainPlanner.App
         }
 
         /// <summary>Task 4.07 B2: one run's part of a player's trail (its status, popularity and snow).</summary>
-        void AddLine(ulong line, OperatingStatus word, int pop, Simulation.TrailSnowLabel label, int walk, int cover, int rating, byte snow, long weightMm)
+        void AddLine(ulong line, OperatingStatus word, int pop, Simulation.TrailSnowLabel label, int walk, int cover, int rating, byte snow, long weightMm,
+                     byte grass)
         {
             bool first = _lineSeen.Add(line);
             _lineStatus[line] = !first && _lineStatus.TryGetValue(line, out var was) ? LessOpen(was, word) : word;
             if (!_linePopularity.TryGetValue(line, out int best) || pop > best) _linePopularity[line] = pop;
             if (!_lineSnow.TryGetValue(line, out var m)) _lineSnow[line] = m = new MountainPlanner.UI.Tools.TrailCardModel();
-            m.Add(label, walk, cover, rating, snow, word, weightMm);
+            m.Add(label, walk, cover, rating, snow, word, weightMm, grass);
         }
 
         /// <summary>Task 4.07 B2: each player's trail's snow, pooled and refilled at the live rate (no allocation once warm).</summary>

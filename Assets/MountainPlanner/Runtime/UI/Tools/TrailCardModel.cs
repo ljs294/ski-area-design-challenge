@@ -28,33 +28,40 @@ namespace MountainPlanner.UI.Tools
         public bool SnowOpen { get; private set; } = true;
         /// <summary>The least open run's word from the lifts' reach and the resort's hours.</summary>
         public OperatingStatus LiftStatus { get; private set; } = OperatingStatus.Open;
+        /// <summary>Task 4.29 PR B (SN-35): its grass, % of brush, weighted by length over the runs whose grass is known; −1
+        /// before any is.</summary>
+        public int GrassPct => _grassWeight == 0 ? -1 : (int)((_grassSum + _grassWeight / 2) / _grassWeight);
 
-        long _weight, _coverSum, _mainWeight;
+        long _weight, _coverSum, _mainWeight, _grassWeight, _grassSum;
         bool _any;
 
         /// <summary>Moves when anything the card or the list shows does (the HUD redraws only then).</summary>
         public long Signature => HasSnow
             ? 1 + (long)Label * 3 + (long)Rating * 17 + (long)MainType * 131 + (Moguls ? 2_000 : 0) + (Ice ? 4_000 : 0)
               + (SnowOpen ? 8_000 : 0) + (long)CoverPct * 16_000 + (long)WalkFt * 2_000_000 + (long)LiftStatus * 1_000_000_000_000
-            : -1 - (long)LiftStatus;
+              + (GrassPct + 1L) * 10_000_000_000_000
+            : -1 - (long)LiftStatus - (GrassPct + 1L) * 16;
 
         /// <summary>Back to nothing (a pooled model, one per line, refilled each time).</summary>
         public void Clear()
         {
             HasSnow = false; Label = TrailSnowLabel.None; WalkFt = 0; Rating = 3; MainType = SnowType.None;
             Moguls = Ice = false; SnowOpen = true; LiftStatus = OperatingStatus.Open;
-            _weight = _coverSum = _mainWeight = 0; _any = false;
+            _weight = _coverSum = _mainWeight = _grassWeight = _grassSum = 0; _any = false;
         }
 
         /// <summary>
         /// One run's part of the line: <paramref name="weightMm"/> of it (at least 1). <paramref name="snow"/> is the
-        /// snapshot's <see cref="SimSnapshot.TrailSnow"/> byte.
+        /// snapshot's <see cref="SimSnapshot.TrailSnow"/> byte; <paramref name="grass"/> its <see cref="SimSnapshot.TrailGrass"/>
+        /// (<see cref="SimSnapshot.NoGrass"/> not known yet).
         /// </summary>
-        public void Add(TrailSnowLabel label, int walkFt, int coverPct, int rating, byte snow, OperatingStatus liftStatus, long weightMm)
+        public void Add(TrailSnowLabel label, int walkFt, int coverPct, int rating, byte snow, OperatingStatus liftStatus, long weightMm,
+                        byte grass = SimSnapshot.NoGrass)
         {
             weightMm = Math.Max(1, weightMm);
             LiftStatus = !_any ? liftStatus : LessOpen(LiftStatus, liftStatus);
             _any = true;
+            if (grass <= 100) { _grassWeight += weightMm; _grassSum += (long)grass * weightMm; }
             if (label == TrailSnowLabel.None) return;   // no trail snow on this run yet
             if ((snow & SimSnapshot.TrailSnowOpen) == 0) SnowOpen = false;
             if (!HasSnow || Worse(label, Label)) Label = label;
@@ -119,6 +126,26 @@ namespace MountainPlanner.UI.Tools
         public string ConditionsBin() => !HasSnow ? "None" : Label == TrailSnowLabel.Bare ? "Bare" : Label == TrailSnowLabel.Marginal ? "Marginal" : "Covered";
 
         public string CoverText() => HasSnow ? $"{CoverPct}%" : "—";
+
+        /// <summary>Task 4.29 PR B: grass to this % is Short (mown), from <see cref="BrushFrom"/> Brush, Long between.</summary>
+        public const int ShortTo = 15, BrushFrom = 85;
+
+        /// <summary>The grass's word: "Short", "Long" or "Brush" (null before it's known).</summary>
+        public static string GrassWord(int pct) => pct < 0 ? null : pct <= ShortTo ? "Short" : pct < BrushFrom ? "Long" : "Brush";
+
+        /// <summary>
+        /// The card's Grass line (SN-36): its word and the snow it needs to be Covered, whole inches (or cm),
+        /// "Long · needs 12 in"; "—" before the grass is known.
+        /// </summary>
+        public string GrassText(bool graded, bool imperial = true)
+        {
+            int pct = GrassPct;
+            if (pct < 0) return "—";
+            int mm = SimWorld.CoverNeededMm(Pacing.Default, graded, pct * 10);
+            string need = imperial ? $"{Math.Round(mm / 25.4):0} in" : $"{Math.Round(mm / 10.0):0} cm";
+            return $"{GrassWord(pct)} · needs {need}";
+        }
+
 
         public string RatingText() => HasSnow && Label != TrailSnowLabel.Bare ? RatingWords[Math.Clamp(Rating, 0, 3)] : "—";
 

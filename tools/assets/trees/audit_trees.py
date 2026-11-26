@@ -78,6 +78,10 @@ def arrays(obj):
     return d
 
 
+# Whether summer leaves are drawn while measuring (the game hid them in every season before the 4.27 leaf season).
+LEAVES = [False]
+
+
 def kinds(obj, sp):
     """Per material slot: 'bark', 'cutout' or 'hidden', as the game draws it in winter (TreeImport)."""
     out = []
@@ -85,6 +89,8 @@ def kinds(obj, sp):
         name = slot.material.name
         if name.endswith("_Bark"):
             out.append("bark")
+        elif name.endswith("_Leaves") and LEAVES[0]:
+            out.append("cutout")                     # summer (task 4.27 leaf season): the leaves are drawn
         elif name.endswith("_Leaves") or (name.endswith("_LeavesKept") and "marcescent" not in sp):
             out.append("hidden")
         else:
@@ -432,6 +438,38 @@ def fidelity(sid, sp, lods, tmp, res=160):
 
 
 # ---------------------------------------------------------------------------------------------
+# Forest-grown crowns (task 4.27): what the density rule and the crown table need from each model.
+
+def top_cover(sid, obj, sp, tmp, summer, res=200):
+    """Square metres of ground the model covers seen straight from above (alpha-tested, as drawn)."""
+    LEAVES[0] = summer
+    co = arrays(obj)["co"]
+    ext = 2 * float(np.hypot(co[:, 0], co[:, 1]).max()) * 1.04
+    top = float(co[:, 2].max())
+    bpy.context.scene.render.resolution_x = bpy.context.scene.render.resolution_y = res
+    cam = look_camera(Vector((0, 0, top + 20)), Vector((0, 0, 0)), ortho_scale=ext)
+    cam.data.clip_end = top + 60
+    inst = instance(obj, sp, mode="cover")
+    px = render_array(os.path.join(tmp, f"top_{sid}_{int(summer)}.png"))
+    bpy.data.objects.remove(inst)
+    bpy.data.objects.remove(cam)
+    LEAVES[0] = False
+    return float(px[..., 3].mean()) * ext * ext
+
+
+
+def forest_metrics(sid, sp, lods, tmp, height):
+    """Crown radius by projected area (summer), its share of the height, the top-down fill of the nominal
+    crown disc in summer and bare (DBH per metre of height is in the build's trees.json)."""
+    summer = top_cover(sid, lods[0], sp, tmp, True)
+    bare = top_cover(sid, lods[0], sp, tmp, False)
+    nominal = math.pi * (sp.get("crownRadius", 0.1) * height) ** 2
+    radius = math.sqrt(summer / math.pi)
+    return {"crownRadiusM": round(radius, 2), "crownDiameterPerHeight": round(2 * radius / height, 3),
+            "fillSummer": round(summer / nominal, 3), "fillBare": round(bare / nominal, 3)}
+
+
+# ---------------------------------------------------------------------------------------------
 # TreeShading (TreeShading.cs), ported: crown radius per band from LOD0's foliage, then per vertex an
 # outward crown normal and an occlusion term; and TreeLight's brightness from them.
 
@@ -601,6 +639,12 @@ def audit(species, built, out_dir, tmp):
             top = ve["lods"][0]["top"]
             ve["lodDistances"] = lod_distances(top)
             ve["fidelity"] = fidelity(f"{sid}{v}", sp, lods, tmp)
+            if sp["form"] == "deciduous":
+                LEAVES[0] = True
+                ve["fidelitySummer"] = fidelity(f"{sid}{v}s", sp, lods, tmp)
+                LEAVES[0] = False
+                ve["forest"] = forest_metrics(f"{sid}{v}", sp, lods, tmp, top)
+                print(f"[audit] {sid} v{v}: forest {ve['forest']} summer fidelity {ve['fidelitySummer']}", flush=True)
             u = unity.get(f"{sid}_v{v}")
             if u:
                 ve["unityFidelity"] = {"LOD0coverage": u["LOD0coverage"], "LOD1": u["LOD1"]["coverage"], "LOD2": u["LOD2"]["coverage"]}

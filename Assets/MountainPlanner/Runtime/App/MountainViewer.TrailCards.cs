@@ -34,7 +34,12 @@ namespace MountainPlanner.App
             Hud.SetAnalysis(true);
             yield return CardShot(dir, "1-trails-list", 0);
             ulong covered = Pick(TrailSnowLabel.Covered), bare = Pick(TrailSnowLabel.Bare), marginal = Pick(TrailSnowLabel.Marginal);
-            if (covered != 0) yield return CardShot(dir, "2-card-covered", covered);
+            // Owner 2026-11-23: the card opens short; the first picture shows it so, the rest with More details unfolded (the
+            // grade, the snow and the grass).
+            Hud.SetTrailCardMoreForTest(false);
+            if (covered != 0) yield return CardShot(dir, "2-card-covered-short", covered);
+            if (covered != 0) { Hud.SetTrailCardMoreForTest(true); yield return CardShot(dir, "2-card-covered", covered); }
+            Hud.SetTrailCardMoreForTest(true);
             if (bare != 0) yield return CardShot(dir, "3-card-bare", bare);
             if (marginal != 0) yield return CardShot(dir, "4-card-marginal", marginal);
             if (covered != 0)
@@ -79,6 +84,10 @@ namespace MountainPlanner.App
 
         string Name(ulong id) => TrailRowOf(id)?.Name ?? "none";
 
+        /// <summary>The player's trail is graded (its first run's), as the card's row says.</summary>
+        bool GradedRow(ResolvedTrail t) =>
+            t != null && Design?.Document.FindTrail(t.Segments[0].Piece) is Trail run && run.Settings.Grading == TrailGrading.Graded;
+
         IEnumerator CardShot(string dir, string name, ulong id)
         {
             if (id != 0)
@@ -97,7 +106,8 @@ namespace MountainPlanner.App
                 var t = TrailRowOf(id);
                 var sw = SwitchNow(t) ?? TrailSwitch.Auto;
                 Debug.Log($"[TrailCards] {name}: {t?.Name} · switch {sw} · status '{m.Status(true, sw, true).Word}' · conditions '{m.Conditions()}' · " +
-                          $"cover {m.CoverText()} · rating {m.RatingText()} · snow '{m.Surface()}' · hint '{m.SwitchHint(sw)}'");
+                          $"cover {m.CoverText()} · rating {m.RatingText()} · snow '{m.Surface()}' · hint '{m.SwitchHint(sw)}' · " +
+                          $"grass '{m.GrassText(GradedRow(t))}'");
             }
             else Debug.Log($"[TrailCards] {name}: the list");
         }

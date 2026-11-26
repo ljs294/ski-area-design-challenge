@@ -106,6 +106,12 @@ Shader "MountainPlanner/Terrain"
         TEXTURE2D(_WaterBodyMap);
         TEXTURE2D(_WaterBodyStates);
         float4 _WaterBodyParams;
+        // Task 4.29 PR B: each trail's grass (SN-35), set by SurfaceStates. The owners map is 1 + the layout trail per 8 m cell
+        // on the snow map's grid (R16, 0 none); the table holds each trail's grass, % of brush (R8, 256 a row; 255 not known
+        // yet, drawn mown). _TrailGrassParams: x bound (0/1; 0 under -plaingrass), y trails, z width, w depth (cells).
+        TEXTURE2D(_TrailGrassMap);
+        TEXTURE2D(_TrailGrassStates);
+        float4 _TrailGrassParams;
 
         // Snow depth in metres at a point (12 in until the field is set), and how fully it covers the ground (Snow.hlsl).
         float SnowDepthMetres(float3 positionWS) { return SnowDepthAt(positionWS); }
@@ -440,6 +446,33 @@ Shader "MountainPlanner/Terrain"
             {
                 float s = LOAD_TEXTURE2D(_WaterBodyStates, uint2(min(body, (uint)max(_WaterBodyParams.y, 1) - 1), 0)).x;
                 return s > 0.5 ? s - 1 : 2;
+            }
+
+            // Task 4.29 PR B: the trail's grass here, 0 freshly mown to 1 brush: the four 8 m cells round the point, each its
+            // trail's height, blended bilinear (a cell with no trail, or a trail not known yet, doesn't vote), so two trails
+            // meet in a soft band. Nothing bound, or nothing voting: 0, the mown look every trail had before.
+            float TrailGrassAt(float3 p)
+            {
+                if (_TrailGrassParams.x < 0.5) return 0;
+                float2 size = _TrailGrassParams.zw;
+                float2 c = (p.xz - _SnowDepthRect.xy) * _SnowDepthRect.zw * size - 0.5;
+                float2 f = frac(c);
+                int2 c0 = (int2)floor(c);
+                float sum = 0, weight = 0;
+                [unroll] for (int k = 0; k < 4; k++)
+                {
+                    int2 o = int2(k & 1, k >> 1);
+                    int2 q = clamp(c0 + o, int2(0, 0), (int2)size - 1);
+                    uint id = (uint)round(LOAD_TEXTURE2D(_TrailGrassMap, q).r * 65535);
+                    if (id == 0) continue;
+                    id -= 1;
+                    float pct = LOAD_TEXTURE2D(_TrailGrassStates, uint2(id & 255, id >> 8)).r * 255;
+                    if (pct > 100.5) continue;
+                    float w = (o.x ? f.x : 1 - f.x) * (o.y ? f.y : 1 - f.y);
+                    sum += pct * w;
+                    weight += w;
+                }
+                return weight > 1e-4 ? saturate(sum / weight / 100) : 0;
             }
 
             // Task 4.09 PR B: how much of each look (x open water, y bare ice, z snow on ice) this pixel takes, from the
@@ -844,12 +877,17 @@ Shader "MountainPlanner/Terrain"
                     }
                 }
                 // Summer: the bench is seeded and mown, a fresher, more even green; the faces fresh earth, stonier in cut.
+                // Task 4.29 PR B, by the trail's grass (SN-35): mown (to about 15 %) the even, fresher stripe; left to grow it
+                // fades into the meadow beside it, and from about 75 % (long to brush) it is that meadow, the same grass as the
+                // ground that was never a trail (owner 2026-11-23: an unmown trail turns back into the field around it).
                 [branch] if (onTrail > 0.01 && weights[2] > 0.004)
                 {
+                    float tall = TrailGrassAt(i.positionWS);
+                    float mownShare = 1 - smoothstep(0.12, 0.75, tall);
                     float3 mown = albedos[2].rgb * float3(1.02, 1.12, 0.92);
                     float lum = dot(mown, float3(0.3, 0.59, 0.11));
                     mown = lerp(mown, lum * float3(0.86, 1.08, 0.72) * 1.05, 0.35);
-                    albedos[2].rgb = lerp(albedos[2].rgb, mown, onTrail * (1 - earthFace));
+                    albedos[2].rgb = lerp(albedos[2].rgb, mown, onTrail * (1 - earthFace) * mownShare);
                     [branch] if (earthFace > 0.01)
                     {
                         float4 dirt, stones;

@@ -13,19 +13,19 @@ namespace MountainPlanner.UI.Tools
     {
         /// <summary>The total for a line <paramref name="run"/> across and <paramref name="rise"/> up, metres, with its site
         /// works; "no price yet" for a type without one.</summary>
-        public static string Cost(LiftType type, double run, double rise, in SiteWorks works)
+        public static string Cost(LiftType type, double run, double rise, in SiteWorks works, double topRaise = 0)
         {
-            var cost = Breakdown(type, run, rise, works);
+            var cost = Breakdown(type, run, rise, works, topRaise);
             return cost == null ? "no price yet" : Money(cost.TotalUsd);
         }
 
         /// <summary>The rule text beside the row: the parts and the price year.</summary>
-        public static string Rule(LiftType type, double run, double rise, in SiteWorks works)
+        public static string Rule(LiftType type, double run, double rise, in SiteWorks works, double topRaise = 0)
         {
-            var cost = Breakdown(type, run, rise, works);
+            var cost = Breakdown(type, run, rise, works, topRaise);
             if (cost == null) return "Lift costs: trams, eights and the other gondolas have no price yet";
             return $"{LiftPrices.DollarYear} dollars: terminals {Money(cost.Line(LiftCost.Terminals))} + length {Money(cost.Line(LiftCost.Length))}"
-                 + $" + rise {Money(cost.Line(LiftCost.Rise))} + {Works(cost, works, true)}";
+                 + $" + rise {Money(cost.Line(LiftCost.Rise))} + {Works(cost, works, true)}{Extras(cost)}";
         }
 
         /// <summary>A trail's site works: Clearing always, Grading when graded (owner, 2026-11-06).</summary>
@@ -34,8 +34,15 @@ namespace MountainPlanner.UI.Tools
         public static string TrailRule(in SiteWorks works, bool graded) =>
             $"{LiftPrices.DollarYear} dollars: {Works(SiteCost.Trail(works, graded), works, graded)}";
 
-        static LiftCostBreakdown Breakdown(LiftType type, double run, double rise, in SiteWorks works) =>
-            SiteCost.With(LiftCost.OfLine(type, run, rise), works);
+        // Task 4.50 slice 2: the huts (and a raised fixed grip's unload ramp) after the site works.
+        static LiftCostBreakdown Breakdown(LiftType type, double run, double rise, in SiteWorks works, double topRaise) =>
+            TerminalExtrasCost.With(SiteCost.With(LiftCost.OfLine(type, run, rise), works), type, topRaise);
+
+        static string Extras(CostBreakdown cost)
+        {
+            long huts = cost.Line(TerminalExtrasCost.Huts), ramp = cost.Line(TerminalExtrasCost.Ramp);
+            return (huts > 0 ? $" + huts {Money(huts)}" : "") + (ramp > 0 ? $" + unload ramp {Money(ramp)}" : "");
+        }
 
         static string Works(CostBreakdown cost, in SiteWorks w, bool graded)
         {
