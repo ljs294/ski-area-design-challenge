@@ -44,8 +44,10 @@ namespace MountainPlanner.Presentation.Weather
         public const float ArcEasePerSecond = 0.25f;
         /// <summary>Spindrift (B9): the summit wind (mph) it starts at and is full at. Gust patches over the far forest: the same.</summary>
         public const float SpindriftFrom = 20, SpindriftFull = 40, GustFrom = 14, GustFull = 40, GustWrap = 2100;
-        /// <summary>The bluebird's sparkle: how far from the camera it shows (m).</summary>
-        public const float GlintReach = 600;
+        /// <summary>The snow's sparkle (task 4.08 PR B, SnowLighting.hlsl): how far from the camera it shows (m), thinning from 40 % of it.</summary>
+        public const float GlintReach = 2500;
+        /// <summary>The sparkle's strength in plain direct sun; a bluebird day (or 0.7 of a cold snap) brings it to 1.</summary>
+        public const float GlintPlainSun = 0.55f;
         /// <summary>The front (B7): a cover change this big crosses the map over <see cref="FrontSeconds"/> of real time, <see cref="FrontWidth"/> wide, from <see cref="FrontReach"/> upwind to as far downwind.
         /// Task 4.06: never longer than <see cref="FrontHourShare"/> of the face hour's real length (at least <see cref="FrontLeastSeconds"/>),
         /// and a front still crossing finishes before another starts, so a fast clock never sends it back upwind.</summary>
@@ -60,7 +62,7 @@ namespace MountainPlanner.Presentation.Weather
                             FrontId = Shader.PropertyToID("_WxFront"), FrontOldId = Shader.PropertyToID("_WxFrontOld"),
                             FrontScaleId = Shader.PropertyToID("_WxFrontScale"), SnowLineId = Shader.PropertyToID("_WxSnowLine"),
                             PixelId = Shader.PropertyToID("_WxPixel"), GustId = Shader.PropertyToID("_WxGust"),
-                            GlintId = Shader.PropertyToID("_WxGlint"), SunRunId = Shader.PropertyToID("_WxSunRun"),
+                            GlintId = Shader.PropertyToID("_SnowSparkle"), SunRunId = Shader.PropertyToID("_WxSunRun"),
                             SunDirId = Shader.PropertyToID("_SkySunDirection"), VolumeId = Shader.PropertyToID("_WxVolume"),
                             DeckVolId = Shader.PropertyToID("_WxDeckVol"), DeckShapeId = Shader.PropertyToID("_WxDeckShape"),
                             DriftTurnId = Shader.PropertyToID("_WxDriftTurn");
@@ -93,7 +95,7 @@ namespace MountainPlanner.Presentation.Weather
         static class Keywords
         {
             public static readonly UnityEngine.Rendering.GlobalKeyword Air = UnityEngine.Rendering.GlobalKeyword.Create("WX_AIR"),
-                                                                       Glint = UnityEngine.Rendering.GlobalKeyword.Create("WX_GLINT"),
+                                                                       Glint = UnityEngine.Rendering.GlobalKeyword.Create("SNOW_SPARKLE"),
                                                                        Veil = UnityEngine.Rendering.GlobalKeyword.Create("WX_VEIL"),
                                                                        // The pass draws the air and skips what fogs itself (lifts, cables, skier figures).
                                                                        Keep = UnityEngine.Rendering.GlobalKeyword.Create("WX_KEEP");
@@ -103,7 +105,7 @@ namespace MountainPlanner.Presentation.Weather
         }
         public const int WarmFrames = 30;
         /// <summary>The glint shows within <see cref="GlintReach"/> of the camera, so from further than this it's off.</summary>
-        public const float GlintCameraReach = 800;
+        public const float GlintCameraReach = 3000;
 
         readonly WeatherLook.Easer _easer = new WeatherLook.Easer();
         int _warm = WarmFrames;
@@ -445,11 +447,13 @@ namespace MountainPlanner.Presentation.Weather
             _spindrift.Draw(camera, downwind * windMs, Mathf.Clamp01(w.Gust - 1), drift, realSeconds, skipping, sun, sky);
             _gustRun = Mathf.Repeat(_gustRun + windMs * 0.8f * Mathf.Max(0, realSeconds), GustWrap);
             Shader.SetGlobalVector(GustId, new Vector4(downwind.x, downwind.y, NoGust ? 0 : Smooth(GustFrom, GustFull, w.Wind), _gustRun));
-            // The bluebird's sparkle (a cold snap's dry snow too) in the sun: 4.07 refines it with the snow's real age.
-            float glint = Mathf.Max(_bluebird, 0.7f * _coldSnap) * (1 - grade.Overcast) * day;
-            bool glints = glint > 0.01f && !noGlint && cameraDistance < GlintCameraReach;
+            // The snow's sparkle (task 4.08 PR B; owner, 2026-11-24: a twinkle across the snow) in any direct sun, strongest on
+            // a bluebird day and in a cold snap's dry snow; none under a closed deck or at night. Each type of snow takes its
+            // own share (SnowLooks), dulled by its age. Not at Low: its code compiled into the terrain costs even when idle.
+            float glint = (GlintPlainSun + (1 - GlintPlainSun) * Mathf.Max(_bluebird, 0.7f * _coldSnap)) * (1 - grade.Overcast) * day;
+            bool glints = glint > 0.01f && !noGlint && cameraDistance < GlintCameraReach && QualityPresets.Current != QualityPreset.Low;
             Shader.SetKeyword(Keywords.Glint, warming || glints);
-            Shader.SetGlobalVector(GlintId, new Vector4(glints ? glint : 0, GlintReach, 0, 0));
+            Shader.SetGlobalVector(GlintId, new Vector4(glints ? glint : 0, GlintReach, pixel, 0));
         }
 
         static double Wrap(double v) => v - System.Math.Floor(v / DriftWrap) * DriftWrap;

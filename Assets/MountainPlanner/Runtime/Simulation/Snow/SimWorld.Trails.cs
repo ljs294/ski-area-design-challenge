@@ -239,15 +239,21 @@ namespace MountainPlanner.Simulation
                 if (n <= 0 || fine.Swe[f] <= 0) continue;
                 int cell = L.BlockCell[f / bc];
                 int grade = GradeAt(cell);
-                fine.Passes[f] = (ushort)Math.Min(ushort.MaxValue, fine.Passes[f] + n);
+                int before = fine.Passes[f];
+                fine.Passes[f] = (ushort)Math.Min(ushort.MaxValue, before + n);
                 fine.Flags[f] |= FineSnow.Packed;
                 long factor = Math.Max(Pacing.WearFactorMin, Math.Min(Pacing.WearFactorMax, (long)grade * 1000 / Pacing.WearGradeRef));
                 long worn = Math.Min(fine.Swe[f], (long)n * Pacing.WearPerPassUm * factor / 1000);
                 fine.Swe[f] -= (int)worn;
-                // SN-17: moguls grow where the groomed finish has gone (SN-14 v4: a groomed cell is PP or MG until skied hard).
+                // SN-17 v2 (task 4.08 PR B): moguls grow by the hour's passes where the groomed finish has gone (SN-14 v4: a
+                // groomed cell is PP or MG until skied hard), so they outlast a powder reset, which zeroes the passes. The growth
+                // telescopes (floor of the new total less the floor of the old), so no fraction of a mogul is lost hour to hour.
                 bool groomedFinish = (fine.Flags[f] & FineSnow.GroomMask) != 0 && (SnowType)fine.Type[f] != SnowType.HP;
                 if (grade >= Pacing.MogulGrade && !groomedFinish)
-                    fine.Moguls[f] = (byte)Math.Min(255, (long)fine.Passes[f] * Pacing.MogulsPerKPasses / 1000);
+                {
+                    long grow = (long)fine.Passes[f] * Pacing.MogulsPerKPasses / 1000 - (long)before * Pacing.MogulsPerKPasses / 1000;
+                    fine.Moguls[f] = (byte)Math.Min(255, fine.Moguls[f] + grow);
+                }
                 var type = (SnowType)fine.Type[f];
                 int count = fine.Passes[f];
                 if ((type == SnowType.P || type == SnowType.MM) && count >= Pacing.PackedPasses) type = SnowType.PP;

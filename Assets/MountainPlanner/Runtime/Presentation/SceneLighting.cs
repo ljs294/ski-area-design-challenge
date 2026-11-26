@@ -91,7 +91,8 @@ namespace MountainPlanner.Presentation
                             BelowId = Shader.PropertyToID("_Below"), SunColorId = Shader.PropertyToID("_SunColor"),
                             DiscId = Shader.PropertyToID("_DiscCos"), StarsId = Shader.PropertyToID("_Stars"),
                             SunDirectionId = Shader.PropertyToID("_SkySunDirection"),
-                            HazeId = Shader.PropertyToID("_Haze"), HazeColorId = Shader.PropertyToID("_HazeColor");
+                            HazeId = Shader.PropertyToID("_Haze"), HazeColorId = Shader.PropertyToID("_HazeColor"),
+                            SnowZenithId = Shader.PropertyToID("_SnowSkyZenith"), SnowHorizonId = Shader.PropertyToID("_SnowSkyHorizon");
 
         void Awake()
         {
@@ -287,6 +288,9 @@ namespace MountainPlanner.Presentation
             }
             Shader.SetGlobalVector(SunDirectionId, toLight);
             Shader.SetGlobalColor(HazeColorId, p.Horizon);   // far ridges fade toward the sky's horizon
+            // Task 4.08 PR B: the sky the snow's shine mirrors (SnowLighting.hlsl), the weather's grey already in it.
+            Shader.SetGlobalColor(SnowZenithId, p.Zenith);
+            Shader.SetGlobalColor(SnowHorizonId, p.Horizon);
             _adjust.postExposure.Override(p.Exposure);
             _adjust.contrast.Override(p.Contrast);
             _adjust.saturation.Override(p.Saturation);
