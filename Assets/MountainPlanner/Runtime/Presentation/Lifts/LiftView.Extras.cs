@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using MountainPlanner.Domain.Design;
 using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Presentation.Buildings;
+using MountainPlanner.World.Buildings;
 using MountainPlanner.World.Lifts;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -202,9 +204,34 @@ namespace MountainPlanner.Presentation.Lifts
         {
             var go = Object.Instantiate(prefab, position, rotation, Root.transform);
             _partOf[go] = _spawning;
-            if (building) _materials?.ApplyPlain(go);
+            if (building) _materials?.ApplyPlain(go, _hutsInUse);
             else _materials?.Apply(go, livery);
+            // Slice 3: a building with lights glows by its schedules (BuildingGlow), in use while the lift runs.
+            var lights = go.GetComponent<BuildingLights>();
+            if (lights != null) go.AddComponent<BuildingGlowState>().Init(lights, _hutsInUse);
             return go;
+        }
+
+        bool _hutsInUse;
+
+        /// <summary>Whether the huts are in use (task 4.50 slice 3: the lift is running, so their windows and downlights
+        /// glow as the light fails; after closing only the door sconces burn). Swaps the huts' lit and dark material
+        /// copies, only when it changes; a rebuilt lift's huts start in this state.</summary>
+        public bool HutsInUse
+        {
+            get => _hutsInUse;
+            set
+            {
+                if (_hutsInUse == value) return;
+                _hutsInUse = value;
+                foreach (var end in new[] { BottomExtras, TopExtras })
+                {
+                    if (end?.Hut == null) continue;
+                    if (end.Hut.GetComponent<BuildingLights>() != null) _materials?.ApplyPlain(end.Hut, value);
+                    var state = end.Hut.GetComponent<BuildingGlowState>();
+                    if (state != null) state.InUse = value;
+                }
+            }
         }
 
         /// <summary>The highest ground under a hut's footprint (its box in its own frame, mirrored by <paramref name="m"/>

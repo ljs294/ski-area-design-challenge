@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using MountainPlanner.World.Buildings;
 using MountainPlanner.World.Lifts;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -19,7 +20,8 @@ namespace MountainPlanner.Editor
     /// tools/assets/buildings/budgets.json. Every socket is checked against out/buildings.json to 1 mm.
     ///
     /// The buildings carry no livery: the materials' livery and accent are white, so the lamp and window masks (3, 4)
-    /// show their palette colours. Lights and the night glow are not drawn yet (a later slice).
+    /// show their palette colours. Slice 3: each prefab carries its light records (<see cref="BuildingLights"/>); the
+    /// lenses and windows glow at night by them (LiftStructure's emission, the lamp halos). No light lights the ground.
     /// </summary>
     public static class BuildingImport
     {
@@ -255,11 +257,53 @@ namespace MountainPlanner.Editor
                 if ((local - expected).magnitude > Tolerance)
                     throw new System.InvalidOperationException($"{id}: {t.name} imported at {local:F4}, expected {expected:F4} (buildings.json)");
             }
+            AddLights(id, info, go);
 
             string path = $"{Root}/Prefabs/{id}.prefab";
             var prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
             Object.DestroyImmediate(go);
             return prefab;
+        }
+
+        /// <summary>
+        /// Slice 3: the build's light records (buildings.json <c>lights</c>, <c>glow</c>) onto the prefab's
+        /// <see cref="BuildingLights"/>. Every record must have its <c>light_*</c> socket, at its lens to 1 mm.
+        /// </summary>
+        static void AddLights(string id, JObject info, GameObject go)
+        {
+            var records = info["lights"] as JArray ?? new JArray();
+            var glow = info["glow"] as JObject;
+            if (glow != null && glow["kelvin"] == null) glow = null; // the ramps, gates and pedestal: {} (no windows)
+            if (records.Count == 0 && glow == null) return;
+            var sockets = (JObject)info["sockets"];
+            var lamps = new List<BuildingLights.Lamp>();
+            foreach (JObject r in records)
+            {
+                string name = (string)r["name"];
+                var pos = (JArray)r["pos"];
+                var aim = (JArray)r["aim"];
+                var p = new Vector3((float)pos[0], (float)pos[1], (float)pos[2]);
+                if (!(sockets[name] is JArray s))
+                    throw new System.InvalidOperationException($"{id}: light {name} has no socket");
+                if ((new Vector3((float)s[0], (float)s[1], (float)s[2]) - p).magnitude > Tolerance)
+                    throw new System.InvalidOperationException($"{id}: light {name} is not at its socket");
+                lamps.Add(new BuildingLights.Lamp
+                {
+                    Name = name,
+                    Spot = (string)r["kind"] == "spot",
+                    Position = p,
+                    Aim = new Vector3((float)aim[0], (float)aim[1], (float)aim[2]).normalized,
+                    Kelvin = (int)r["kelvin"],
+                    Lumens = (int)r["lumens"],
+                    RangeMetres = (float)r["rangeM"],
+                    ConeDegrees = (float)r["coneDeg"],
+                    Schedule = (string)r["schedule"],
+                });
+            }
+            var lights = go.AddComponent<BuildingLights>();
+            lights.Lamps = lamps.ToArray();
+            lights.GlowKelvin = glow != null ? (int)glow["kelvin"] : 0;
+            lights.GlowSchedule = glow != null ? (string)glow["schedule"] : null;
         }
     }
 }

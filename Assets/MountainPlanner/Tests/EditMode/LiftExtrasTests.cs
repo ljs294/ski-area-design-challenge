@@ -172,6 +172,45 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void AHutGlowsWhileItsLiftRunsAndItsLampsSitOnTheirSockets()
+        {
+            // Task 4.50 slice 3: a hut's lit and dark material copies swap with its lift's running, and each lamp's halo
+            // stands on its light socket's lens, a mirrored hut's too.
+            var v = Build(LiftCatalogIds.SesselliftFgq4, 0, LiftDrive.Bottom);
+            int lamp = Shader.PropertyToID("_LampGlow"), window = Shader.PropertyToID("_WindowGlow");
+            bool mirroredSeen = false;
+            foreach (var end in new[] { v.BottomExtras, v.TopExtras })
+            {
+                var state = end.Hut.GetComponent<Presentation.Buildings.BuildingGlowState>();
+                Assert.That(state, Is.Not.Null, end.Extras.HutModel + ": its lights' state");
+                Assert.That(state.InUse, Is.False, "a new lift: not running yet");
+                var mats = end.Hut.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Where(m => m.HasProperty(lamp)).ToList();
+                Assert.That(mats, Is.Not.Empty);
+                Assert.That(mats.All(m => m.GetFloat(lamp) == 0 && m.GetFloat(window) == 0), "dark while the lift is closed");
+                var sockets = end.Hut.GetComponentsInChildren<Transform>(true);
+                for (int i = 0; i < state.Lights.Lamps.Length; i++)
+                {
+                    var l = state.Lights.Lamps[i];
+                    var socket = sockets.First(t => t.name.EndsWith("_socket_" + l.Name));
+                    Assert.That((state.LampAt(i) - socket.position).magnitude, Is.LessThan(0.06f), $"{end.Extras.HutModel} {l.Name}: on its lens");
+                }
+                mirroredSeen |= end.Mirrored;
+            }
+            Assert.That(mirroredSeen, Is.True, "one of the two huts is the mirrored hand");
+            v.HutsInUse = true;
+            foreach (var end in new[] { v.BottomExtras, v.TopExtras })
+            {
+                Assert.That(end.Hut.GetComponent<Presentation.Buildings.BuildingGlowState>().InUse, Is.True);
+                var mats = end.Hut.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Where(m => m.HasProperty(lamp)).ToList();
+                Assert.That(mats.All(m => m.GetFloat(lamp) == LiftMaterials.LampGlow && m.GetFloat(window) == LiftMaterials.WindowGlow), "lit while it runs");
+            }
+            // The lift's own materials never glow.
+            var liftMats = v.Root.GetComponentsInChildren<Renderer>(true).Where(r => r.GetComponentInParent<World.Buildings.BuildingLights>() == null)
+                .SelectMany(r => r.sharedMaterials).Where(m => m != null && m.HasProperty(lamp));
+            Assert.That(liftMats.All(m => m.GetFloat(lamp) == 0 && m.GetFloat(window) == 0), "no lift material glows");
+        }
+
+        [Test]
         public void ATowsHutStandsAtItsBottom()
         {
             var v = Build(LiftCatalogIds.MontaTbar);

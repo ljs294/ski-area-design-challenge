@@ -8,6 +8,10 @@
 // shader with _LIFT_GLASS: premultiplied alpha (only its diffuse fades, its reflection stays whole) with a Fresnel
 // opacity from _GlassAlpha face-on (coated station glass, 0.75) to 0.97 at grazing angles, no shadows or depth, so the interior shows through dark
 // mirror glass (lift models 2, round 3: straight alpha scaled the reflection too and turned glass into a dull tint).
+// Buildings (task 4.50 slice 3) use livery masks 3 (a lamp's lens) and 4 (window glass): at night they glow by
+// _LampGlow and _WindowGlow (the material's lit or dark copy, LiftMaterials): the lenses by the global _BuildingNight
+// (the night's weight), the windows by _BuildingDim (the failing light, BuildingGlow.Dim), each with the post exposure
+// taken back out (MountainViewer.Lights). Lifts never paint 3 or 4, and both default 0.
 Shader "MountainPlanner/LiftStructure"
 {
     Properties
@@ -27,6 +31,8 @@ Shader "MountainPlanner/LiftStructure"
         [HideInInspector] _SrcBlend ("Src blend", Float) = 1
         [HideInInspector] _DstBlend ("Dst blend", Float) = 0
         [HideInInspector] _ZWrite ("Z write", Float) = 1
+        _LampGlow ("Lamp lens glow (mask 3)", Float) = 0
+        _WindowGlow ("Window glow (mask 4)", Float) = 0
     }
     SubShader
     {
@@ -49,7 +55,11 @@ Shader "MountainPlanner/LiftStructure"
             // New properties go after the existing ones (BB7): _AccentColor between _LiveryColor and _SnowLoad made the
             // bundled D3D12 runtime (Agility SDK 1.618) crash in Unity's device teardown on quit after a lifts benchmark.
             float4 _AccentColor;
+            float _LampGlow;     // task 4.50 slice 3, after _AccentColor (BB7)
+            float _WindowGlow;
         CBUFFER_END
+        float _BuildingNight;    // globals (task 4.50 slice 3): the night's weight and the failing light, each over exp2(exposure)
+        float _BuildingDim;
         TEXTURE2D(_PaletteMap);   // sampled with the core library's sampler_PointClamp: flat swatches, no bleeding
         TEXTURE2D(_DetailMap); SAMPLER(sampler_DetailMap);
 
@@ -217,6 +227,11 @@ Shader "MountainPlanner/LiftStructure"
                 #endif
 
                 half4 color = UniversalFragmentPBR(input, surface);
+                // Task 4.50 slice 3: a building's lenses (4000 K) and windows (3000 K) at night.
+                half lens = step(2.5h, (half)i.data.y) * (1.0h - step(3.5h, (half)i.data.y));
+                half pane = step(3.5h, (half)i.data.y);
+                color.rgb += lens * (half)(_LampGlow * _BuildingNight) * half3(1.0h, 0.64h, 0.37h)
+                           + pane * (half)(_WindowGlow * _BuildingDim) * half3(1.0h, 0.46h, 0.15h);
                 color.rgb = MixFog(color.rgb, input.fogCoord);
                 color.rgb = WeatherFogKeep(color.rgb, i.positionWS, 0.25h);   // task 4.06: the weather, silhouette kept
                 #if defined(_LIFT_GLASS)

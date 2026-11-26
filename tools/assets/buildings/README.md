@@ -98,7 +98,9 @@ Every light is a `light_<name>` socket plus a record in `buildings.json` (`light
 `point`), position, aim, colour temperature (K), lumens, range (m), cone (degrees) and a schedule tag. The building's
 window glow is its `glow` record (temperature and schedule). A light never sits on top of a door hood or over a
 transformer: man doors get a downlight under their hood, and the pad is lit from a pole beside it (the build fails
-otherwise). A hut's downlights are recessed under its canopy; a cage sconce sits beside each door. Schedule tags:
+otherwise). A hut's downlights are recessed under its canopy; a cage sconce sits beside each door. The hut's
+downlights and windows are lit while its lift runs; its sconce stays on from dusk to dawn (owner 2026-11-25, task 4.50
+slice 3). The game reads the records into each prefab's `BuildingLights` (BuildingImport). Schedule tags:
 
 | Tag | On when |
 |---|---|

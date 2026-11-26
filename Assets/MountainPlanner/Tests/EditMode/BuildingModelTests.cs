@@ -82,6 +82,38 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void EveryLightSocketHasItsRecord()
+        {
+            // Task 4.50 slice 3: BuildingImport stores each light's record on its prefab, one per light_* socket, at its lens.
+            var set = Resources.Load<LiftModelSet>(DevBuildingPlacement.SetName);
+            Assert.That(set, Is.Not.Null);
+            int lit = 0;
+            foreach (var (id, _) in Expected)
+            {
+                var prefab = set.Find(id);
+                var sockets = prefab.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith($"{id}_socket_light_")).ToList();
+                var lights = prefab.GetComponent<World.Buildings.BuildingLights>();
+                if (sockets.Count == 0) { Assert.That(lights == null || lights.Lamps.Length == 0, id + ": no lights"); continue; }
+                lit++;
+                Assert.That(lights, Is.Not.Null, id);
+                Assert.That(lights.Lamps.Select(l => $"{id}_socket_{l.Name}"), Is.EquivalentTo(sockets.Select(t => t.name)), id);
+                foreach (var l in lights.Lamps)
+                {
+                    var t = sockets.First(s => s.name == $"{id}_socket_{l.Name}");
+                    Assert.That((prefab.transform.InverseTransformPoint(t.position) - l.Position).magnitude, Is.LessThan(0.001f), $"{id} {l.Name}");
+                    Assert.That(l.Schedule, Is.Not.Empty);
+                    Assert.That(l.Aim.magnitude, Is.EqualTo(1).Within(1e-3));
+                }
+                Assert.That(lights.GlowKelvin, Is.GreaterThan(0), id + ": its windows glow");
+            }
+            Assert.That(lit, Is.EqualTo(5), "the pump house, the garage and the three huts");
+            // The owner's hut rule: the door sconce burns all night, the downlights only while the lift runs.
+            var mini = set.Find("bldg_hut_mini").GetComponent<World.Buildings.BuildingLights>();
+            Assert.That(mini.Lamps.First(l => l.Name == "light_sconce").Schedule, Is.EqualTo("dusk"));
+            Assert.That(mini.Lamps.First(l => l.Name == "light_down_1").Schedule, Is.EqualTo("lift_open"));
+        }
+
+        [Test]
         public void TheFlagReadsEachBuilding()
         {
             var r = DevBuildingPlacement.Parse("pumphouse@120.5,-40,90;bldg_garage@-10,25;bad;garage@x,1");
