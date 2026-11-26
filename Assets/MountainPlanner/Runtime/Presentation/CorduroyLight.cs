@@ -4,7 +4,7 @@ namespace MountainPlanner.Presentation
 {
     /// <summary>
     /// Task 4.08 G1 (owner 2026-11-25: "make the groomed texture more noticeable from further away"): how corduroy takes the
-    /// sun, the C# twin of SnowLighting.hlsl's CorduroySun, CorduroyShade, CorduroyPassSun and CordStripCover (the terrain
+    /// sun, the C# twin of SnowLighting.hlsl's CorduroySun and CorduroyShade (the terrain
     /// draws them; CorduroyLightTests holds the two equal and the light the right way round). The ridges, 1 in apart and
     /// 8 mm deep (SK3), are two sloped faces: a face turned from the sun past its slope gets none, the face toward a low sun is
     /// shaded near the trough by the crest across the groove, and the eye sees one face more than the other. So corduroy reads
@@ -13,17 +13,13 @@ namespace MountainPlanner.Presentation
     /// </summary>
     public static class CorduroyLight
     {
-        public const float SpacingMetres = 0.0254f, DepthMetres = 0.008f;
+        public const float SpacingMetres = 0.032f, DepthMetres = 0.010f;   // 1¼ in (owner 2026-11-25: "a tad bigger"); same slope
         /// <summary>Of the light a shaded groove would get from the sun, bounced in by the faces.</summary>
         public const float Bounce = 0.45f;
         /// <summary>Sun-behind brightening at most (lit snow sits near the top of the picture's range).</summary>
         public const float SunMax = 1.15f;
         /// <summary>The sky the grooves don't see.</summary>
         public const float SkyLoss = 0.06f;
-        /// <summary>Each pass's ridges this much deeper or shallower, and turned this far either way (a hash of the pass).</summary>
-        public const float PassDepthSpread = 0.25f, PassTurnDegrees = 4;
-        /// <summary>The rough strip with no ridges where two passes meet.</summary>
-        public const float JoinMetres = 0.3f;
 
         /// <summary>The faces' slope (rise over run): a V-groove with the sine's mean slope, 2 × depth / spacing.</summary>
         public static float Slope(float depthScale) => 2 * DepthMetres / SpacingMetres * depthScale;
@@ -67,37 +63,9 @@ namespace MountainPlanner.Presentation
             return Smooth(-edge, edge, into) * (1 - Smooth(share - edge, share + edge, into));
         }
 
-        /// <summary>One groomer pass's ridges (pass: its number across the trail), <paramref name="vary"/> of its own depth and
-        /// turn; depth: the pass's depth scale.</summary>
-        public static float PassSun(Vector3 n, Vector3 across, Vector3 sunDir, Vector3 view, float pass, float vary, out float depth)
-        {
-            int id = (int)pass;
-            depth = 1 + PassDepthSpread * (2 * Hash(id, 7) - 1) * vary;
-            float turn = PassTurnDegrees * Mathf.Deg2Rad * (2 * Hash(id, 11) - 1) * vary;
-            Vector3 side = Vector3.Cross(n, across);
-            return Sun(n, across * Mathf.Cos(turn) + side * Mathf.Sin(turn), sunDir, view, Slope(depth));
-        }
-
         /// <summary>The groove light under cloud (<paramref name="cover"/> 0 to 1): the grooves shade only the direct sun, which a
         /// closing deck takes away as it does the sun disc (cover 0.5 to 0.9). The sky the grooves miss stays.</summary>
         public static float UnderCloud(float sun, float cover) => Mathf.Lerp(1, sun, 1 - Smooth(0.5f, 0.9f, cover));
-
-        /// <summary>How much of a pixel <paramref name="p"/> metres wide a strip <paramref name="width"/> wide covers when its
-        /// centre line is <paramref name="d"/> metres away (box filter).</summary>
-        public static float StripCover(float d, float p, float width)
-        {
-            p = Mathf.Max(p, 1e-4f);
-            return Mathf.Clamp01((Mathf.Min(d + p / 2, width / 2) - Mathf.Max(d - p / 2, -width / 2)) / p);
-        }
-
-        /// <summary>SnowLighting.hlsl's SnowHash2: 0 to 1 for a lattice cell.</summary>
-        public static float Hash(int x, int y)
-        {
-            uint h = unchecked((uint)x * 0x8DA6B343u ^ (uint)y * 0xD8163841u);
-            h = unchecked((h ^ (h >> 15)) * 0x2C1B3C6Du);
-            h = unchecked((h ^ (h >> 12)) * 0x297A2D39u);
-            return (h >> 8) / 16777215f;
-        }
 
         static float Frac(float x) => x - Mathf.Floor(x);
 

@@ -807,15 +807,14 @@ Shader "MountainPlanner/Terrain"
                     albedos[0].rgb *= snowLook.tint;
                 }
                 // Built trails (task 07). Groomed snow: the snow's own grain mostly smoothed away, then dense corduroy
-                // (owner, SK20): ridges 1 in (25 mm) apart along the trail (lines of constant offset).
+                // (owner, SK20 v2): ridges 1¼ in (32 mm) apart along the trail (lines of constant offset).
                 // Task 4.25 PR B: the corduroy follows the simulation's grooming (SnowCorduroyAt): full where it says machine
                 // groomed, fading as skiers wear it to packed powder and hard pack, none on powder.
                 // Task 4.08 G1 (owner 2026-11-25, SK3 v2, SK20 v2): it reads from far away, as groomed runs do in photos.
                 // The ridges take the sun as two sloped faces with their own shade (SnowLighting.hlsl): darker toward the sun
                 // and in a raking sun, a little brighter with the sun behind the eye. Close up one ridge at a time while a
-                // ridge spans 2 pixels or more, then their mean. The groomers' passes (Pacing.GroomPassMm, 5.5 m, in
-                // _TrailParams.w) each have their own depth and a slight turn, so they show as bands in the sun and alike under
-                // cloud; where two meet, a 0.3 m strip has no ridges, a line of the other tone, at its true share of the pixel.
+                // ridge spans 2 pixels or more, then their mean. Every groomer pass is the same, with no line where two meet
+                // (owner 2026-11-25, O-G1-1 and O-G1-2: no lines, no tone difference between passes).
                 // Only the light changes (cordSun on the sun's, cordSky on the sky's, below), never the snow's colour.
                 // The derivatives come first, under the trail geometry's own test (smooth across a 2x2 quad), and only
                 // then the simulation's weight, which can change from pixel to pixel inside a trail.
@@ -832,26 +831,16 @@ Shader "MountainPlanner/Terrain"
                     normals[0] = normalize(lerp(normals[0], n, 0.6 * cord));
                     float3 cordLight = GetMainLight().direction;
                     float3 cordEye = normalize(GetWorldSpaceViewDir(i.positionWS));
-                    // The passes, one down the trail's middle: this pixel's, the nearer join, and the pass across it.
-                    float passWidth = _TrailParams.w > 0.5 ? _TrailParams.w : 5.5;
-                    float lane = u / passWidth + 0.5, inPass = frac(lane);
-                    float toJoin = (0.5 - abs(inPass - 0.5)) * passWidth;
-                    float passNo = floor(lane), nextPass = passNo + (inPass < 0.5 ? -1 : 1);
-                    float vary = 1 - smoothstep(0.15, 0.35, uPerPixel / passWidth);
-                    float spill = saturate((uPerPixel / 2 - toJoin) / max(uPerPixel, 1e-4));   // the pixel's share past the join's line
-                    float ridges = cord * (1 - CordStripCover(toJoin, uPerPixel, CordJoinMetres));
-                    float depthHere, depthThere;
-                    float far = lerp(CorduroyPassSun(n, acrossWS, cordLight, cordEye, passNo, vary, depthHere),
-                                     CorduroyPassSun(n, acrossWS, cordLight, cordEye, nextPass, vary, depthThere), spill);
-                    // Close up, single ridges: a sine across the trail with its own shade (no turn: the ridges run with the
-                    // trail's lines), handing over to their mean as a ridge shrinks under 2 pixels.
+                    float ridges = cord, k = CordSlope(1);
+                    float far = CorduroySun(n, acrossWS, cordLight, cordEye, k);
+                    // Close up, single ridges: a sine across the trail with its own shade (the ridges run with the trail's
+                    // lines), handing over to their mean as a ridge shrinks under 2 pixels.
                     float cycles = u / CordSpacingMetres, perCycle = uPerPixel / CordSpacingMetres;
                     float fine = 1 - smoothstep(0.25, 0.5, perCycle);
-                    float k = CordSlope(depthHere);
                     normals[0] = normalize(normals[0] - acrossWS * (cos(cycles * 6.2831853) * 1.5707963 * k * fine * ridges));
                     float near = 1 - CorduroyShade(cycles, perCycle, n, acrossWS, cordLight, k) * (1 - CordBounce);
                     cordSun = lerp(1, lerp(far, near, fine), ridges);
-                    cordSky = 1 - CordSkyLoss * ridges * lerp(depthHere, depthThere, spill);
+                    cordSky = 1 - CordSkyLoss * ridges;
                     }
                 }
                 // Summer: the bench is seeded and mown, a fresher, more even green; the faces fresh earth, stonier in cut.

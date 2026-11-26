@@ -703,5 +703,5 @@ three guesses. These replace two of task 07's style-tile decisions.
 
 | # | Decision |
 |---|---|
-| SK3 v2 | **Groomer lanes are the groomers' own passes:** 5.5 m, read from `Pacing.GroomPassMm` (GO-16 v2), so the screen and the grooming simulation agree; replaces SK3's 15 ft. The ridges stay about 1 in |
-| SK20 v2 | **Corduroy has the real amount of contrast, from its light:** the grooves shade the direct sun (strong toward the sun and in a raking sun, faint with the sun behind the eye); each pass has its own depth and turn, so passes read as bands; a 0.3 m join strip shows as a line to about 300 m. Under a closed deck it is faint, with the joins still showing. Replaces SK20's "faint groomer lanes" and the flat brightening |
+| SK3 v2 | **No groomer lanes are drawn** (owner, on the G1 stills: "remove the line entirely", then "make them the same"): every pass looks the same and no line marks where two meet; replaces SK3's 15 ft seams. The ridges are 1¼ in (32 mm) apart and 10 mm deep (owner: "a tad bigger" than 1 in; photos show about 2–3 cm) |
+| SK20 v2 | **Corduroy has the real amount of contrast, from its light:** the grooves shade the direct sun (strong toward the sun and in a raking sun, faint with the sun behind the eye); every pass is the same, with no line where two meet (SK3 v2). Under a closed deck it is faint. Replaces SK20's "faint groomer lanes" and the flat brightening |

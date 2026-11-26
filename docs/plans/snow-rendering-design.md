@@ -66,7 +66,7 @@ The terrain's vertex shader lifts each vertex by the total depth there: natural 
 ### 4.2 The look of the surface
 
 - The **snow layer** in the terrain shader picks its albedo, normal and roughness from the snow conditions map:
-  - groomed: corduroy ridges about 1 in apart along the trail's groom direction, fading with age and traffic. Task 4.08 G1 (SK3 v2, SK20 v2): the ridges are a V-groove light model (`CorduroyLight` in `SnowLighting.hlsl`, C# twin `Presentation/CorduroyLight.cs`) with shadowing and masking; it scales the direct sun only, so shaded grooves keep the blue sky, and it fades under cloud cover 0.5–0.9 as the sun disc does. The passes are the groomers' 5.5 m (`Pacing.GroomPassMm`), each with its own depth (±25%) and turn (±4°) from a hash, and a 0.3 m join strip at each edge is box-filtered by its share of the pixel, so it reads as a line to about 300 m without shimmer;
+  - groomed: corduroy ridges 1¼ in (32 mm) apart along the trail's groom direction, fading with age and traffic. Task 4.08 G1 (SK3 v2, SK20 v2): the ridges are a V-groove light model (`CorduroyLight` in `SnowLighting.hlsl`, C# twin `Presentation/CorduroyLight.cs`) with shadowing and masking; it scales the direct sun only, so shaded grooves keep the blue sky, and it fades under cloud cover 0.5–0.9 as the sun disc does. Every groomer pass looks the same and no line is drawn where two meet (owner, O-G1-1 and O-G1-2);
   - powder: soft and bright with sparkle;
   - packed and crud: rougher, with tracks;
   - ice: smoother, greyer and specular;

@@ -177,13 +177,10 @@ float SnowSparkle(float3 p, float3 n, float3 h, float dist, float density, float
 // with the sun behind the eye, as groomed runs do in photos (p4-08-findings, Round 4). Snow's own bounce keeps the grooves
 // from going black. These scale the sun's light only; the shaded grooves keep the sky's (blue) light, a little of it lost.
 // Presentation/CorduroyLight.cs is the C# twin (CorduroyLightTests holds the two equal).
-static const float CordSpacingMetres = 0.0254, CordDepthMetres = 0.008;
+static const float CordSpacingMetres = 0.032, CordDepthMetres = 0.010;   // 1¼ in (owner 2026-11-25: "a tad bigger"); same slope
 static const float CordBounce = 0.45;          // of the light a shaded groove would get from the sun, bounced in by the faces
 static const float CordSunMax = 1.15;          // sun-behind brightening at most (lit snow is near the top of the range)
 static const float CordSkyLoss = 0.06;         // the sky the grooves don't see
-static const float CordPassDepthSpread = 0.25; // each pass's ridges this much deeper or shallower (a hash)
-static const float CordPassTurnDegrees = 4;    // and turned this far either way
-static const float CordJoinMetres = 0.3;       // the rough strip with no ridges where two passes meet
 
 // The faces' slope (rise over run): a V-groove with the sine's mean slope, 2 × depth / spacing.
 float CordSlope(float depthScale) { return 2 * CordDepthMetres / CordSpacingMetres * depthScale; }
@@ -231,29 +228,9 @@ float CorduroyShade(float cycles, float perCycle, float3 n, float3 across, float
     return smoothstep(-edge, edge, into) * (1 - smoothstep(share - edge, share + edge, into));
 }
 
-// One groomer pass's ridges (passNo: its number across the trail): its own depth and turn from a hash, `vary` of the way (1
-// while a pass spans many pixels, 0 once it is only a few, so nothing flickers far off). The sun's light, as CorduroySun;
-// depth: the pass's depth scale, for the sky the grooves hide.
-float CorduroyPassSun(float3 n, float3 across, float3 sunDir, float3 view, float passNo, float vary, out float depth)
-{
-    int2 id = int2((int)passNo, 7);
-    depth = 1 + CordPassDepthSpread * (2 * SnowHash2(id) - 1) * vary;
-    float turn = radians(CordPassTurnDegrees) * (2 * SnowHash2(id + int2(0, 4)) - 1) * vary;
-    float3 side = cross(n, across);
-    return CorduroySun(n, across * cos(turn) + side * sin(turn), sunDir, view, CordSlope(depth));
-}
-
 // The groove light under cloud (cover 0-1): the grooves shade only the direct sun, which a closing deck takes away as it
 // does the sun disc (cover 0.5 to 0.9); the sky they miss stays (CordSkyLoss). C# twin: CorduroyLight.UnderCloud.
 float CorduroyUnderCloud(float sun, float cover) { return lerp(1, sun, 1 - smoothstep(0.5, 0.9, cover)); }
-
-// How much of a pixel `p` metres wide a strip `width` wide covers when its centre line is `d` metres away (box filter): a
-// join keeps its true share of the pixel, so it fades as it truly shrinks and never shimmers.
-float CordStripCover(float d, float p, float width)
-{
-    p = max(p, 1e-4);
-    return saturate((min(d + p / 2, width / 2) - max(d - p / 2, -width / 2)) / p);
-}
 
 struct SnowLitInput
 {

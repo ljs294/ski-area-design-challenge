@@ -2,8 +2,6 @@ using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 using MountainPlanner.Presentation;
-using MountainPlanner.Presentation.Design;
-using MountainPlanner.Simulation;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -12,8 +10,8 @@ namespace MountainPlanner.Tests
     /// <summary>
     /// Task 4.08 G1 (owner 2026-11-25: the groomed texture noticeable from further away): the corduroy's light. The shader's
     /// numbers are the C# twin's; the light falls the way it does on groomed runs in photos (darker toward the sun and in a
-    /// raking sun, a little brighter with the sun behind the eye, never black, never far above smooth snow); the passes are
-    /// the groomers' own and differ in the sun; a join keeps its true share of a pixel. What it looks like on screen is the
+    /// raking sun, a little brighter with the sun behind the eye, never black, never far above smooth snow); every pass is
+    /// the same, with no line drawn where two meet. What it looks like on screen is the
     /// gate stills' (measured steps), not this.
     /// </summary>
     public sealed class CorduroyLightTests
@@ -48,11 +46,12 @@ namespace MountainPlanner.Tests
             Assert.That(Shader("CordBounce"), Is.EqualTo(CorduroyLight.Bounce).Within(1e-6f));
             Assert.That(Shader("CordSunMax"), Is.EqualTo(CorduroyLight.SunMax).Within(1e-6f));
             Assert.That(Shader("CordSkyLoss"), Is.EqualTo(CorduroyLight.SkyLoss).Within(1e-6f));
-            Assert.That(Shader("CordPassDepthSpread"), Is.EqualTo(CorduroyLight.PassDepthSpread).Within(1e-6f));
-            Assert.That(Shader("CordPassTurnDegrees"), Is.EqualTo(CorduroyLight.PassTurnDegrees).Within(1e-6f));
-            Assert.That(Shader("CordJoinMetres"), Is.EqualTo(CorduroyLight.JoinMetres).Within(1e-6f));
             string terrain = File.ReadAllText(Path.Combine(Application.dataPath, "MountainPlanner/Art/Shaders/MountainTerrain.shader"));
-            Assert.That(terrain, Does.Contain("_TrailParams.w"), "the terrain reads the passes' width the trail map sends");
+            // O-G1-1 (owner 2026-11-25, still 05: "the big white lines that break up the corduroy"; "remove the line entirely"):
+            // no join strip is drawn where two passes meet.
+            Assert.That(terrain, Does.Not.Contain("CordJoin").And.Not.Contain("StripCover"), "no line where two passes meet");
+            // O-G1-2 (owner 2026-11-25: "I don't like the color difference between the passes, please make them the same").
+            Assert.That(terrain, Does.Not.Contain("CorduroyPassSun").And.Not.Contain("_TrailParams.w"), "every pass the same");
             Assert.That(text, Does.Contain("lerp(1, sun, 1 - smoothstep(0.5, 0.9, cover))"), "CorduroyUnderCloud is UnderCloud's twin");
             Assert.That(terrain, Does.Contain("CorduroyUnderCloud(cordSun, _WxCloud.x"), "the terrain fades the groove light under cloud");
         }
@@ -69,14 +68,6 @@ namespace MountainPlanner.Tests
             Assert.That(CorduroyLight.UnderCloud(1.1f, 1), Is.EqualTo(1).Within(1e-6f), "nor any brightening");
             float half = CorduroyLight.UnderCloud(toward, 0.7f);
             Assert.That(half, Is.GreaterThan(toward).And.LessThan(1), "in between, part of it");
-        }
-
-        [Test]
-        public void ThePassesAreTheGroomersOwn()
-        {
-            // SK3 v2: the corduroy's passes are GO-16 v2's (5.5 m, a big groomer's finisher), not SK3's old 15 ft.
-            Assert.That(TrailSurfaceMap.PassMetres, Is.EqualTo(Pacing.Default.GroomPassMm / 1000f));
-            Assert.That(TrailSurfaceMap.PassMetres, Is.InRange(4f, 7f));
         }
 
         [Test]
@@ -113,43 +104,6 @@ namespace MountainPlanner.Tests
             Say($"[cord] over every sun and eye: {lo:F2} to {hi:F2}");
             Assert.That(lo, Is.GreaterThanOrEqualTo(CorduroyLight.Bounce - 1e-4f), "the bounce keeps the grooves from going black");
             Assert.That(hi, Is.LessThanOrEqualTo(CorduroyLight.SunMax + 1e-4f));
-        }
-
-        [Test]
-        public void PassesDifferInTheSunAndHardlyUnderCloud()
-        {
-            // A morning sun 25 degrees up, 45 degrees round from the ridges; the eye at a lift's height looking down the run.
-            float lo = float.MaxValue, hi = float.MinValue, deep = 0, shallow = float.MaxValue;
-            for (int pass = -10; pass < 10; pass++)
-            {
-                float f = CorduroyLight.PassSun(Up, Across, Dir(25, 45), Dir(35, 200), pass, 1, out float depth);
-                lo = Mathf.Min(lo, f); hi = Mathf.Max(hi, f);
-                deep = Mathf.Max(deep, depth); shallow = Mathf.Min(shallow, depth);
-            }
-            float cloud = CorduroyLight.SkyLoss * (deep - shallow);
-            Say($"[cord] twenty passes in a morning sun: {lo:F2} to {hi:F2}; under cloud the sky they hide differs by {cloud:F3}");
-            Assert.That(hi - lo, Is.GreaterThan(0.05f), "neighbouring passes read as bands in the sun");
-            Assert.That(cloud, Is.LessThan(0.035f), "and nearly alike under a closed deck");
-            // Far off (vary 0) every pass is the same: nothing flickers as passes shrink to a few pixels.
-            float a = CorduroyLight.PassSun(Up, Across, Dir(25, 45), Dir(35, 200), 3, 0, out _);
-            float b = CorduroyLight.PassSun(Up, Across, Dir(25, 45), Dir(35, 200), 4, 0, out _);
-            Assert.That(a, Is.EqualTo(b).Within(1e-6f));
-        }
-
-        [Test]
-        public void AJoinKeepsItsTrueShareOfThePixel()
-        {
-            float w = CorduroyLight.JoinMetres;
-            Assert.That(CorduroyLight.StripCover(0, 0.01f, w), Is.EqualTo(1).Within(1e-5f), "close up, a pixel on the join is all join");
-            Assert.That(CorduroyLight.StripCover(1, 0.1f, w), Is.EqualTo(0).Within(1e-5f), "a pixel mid-pass has none of it");
-            Assert.That(CorduroyLight.StripCover(0, 3, w), Is.EqualTo(w / 3).Within(1e-5f), "far off, its width over the pixel's");
-            float last = 1;
-            for (float p = 0.05f; p < 5; p += 0.05f)
-            {
-                float c = CorduroyLight.StripCover(0, p, w);
-                Assert.That(c, Is.LessThanOrEqualTo(last + 1e-6f), "it only fades as the pixel grows");
-                last = c;
-            }
         }
 
         [Test]
