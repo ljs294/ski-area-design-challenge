@@ -28,6 +28,7 @@ Shader "MountainPlanner/PondWater"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "../../Haze.hlsl"
+            #include "../../LampLight.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float _Body;
@@ -89,7 +90,7 @@ Shader "MountainPlanner/PondWater"
                 Light sun = GetMainLight(TransformWorldToShadowCoord(p));
                 float ndl = saturate(dot(n, sun.direction));
                 float3 ambient = SampleSH(n);
-                float3 colour;
+                float3 colour, diffuse;   // diffuse: what the building lamps light (task 4.50 slice 3 part 2)
                 if (state < 0.5)
                 {
                     // Dark blue-green (0.5 §2), the sky in it toward the horizon, a sun glint.
@@ -98,18 +99,22 @@ Shader "MountainPlanner/PondWater"
                     float3 sky = SampleSH(reflect(-view, n));
                     float3 h = normalize(sun.direction + view);
                     float glint = pow(saturate(dot(n, h)), 400) * 4;
+                    diffuse = deep * 0.5;
                     colour = deep * (sun.color * sun.shadowAttenuation * ndl * 0.5 + ambient) + sky * fresnel + sun.color * glint * sun.shadowAttenuation;
                 }
                 else if (state < 1.5)
                 {
                     float3 clear = float3(0.11, 0.18, 0.19) * (0.8 + 0.4 * ValueNoise2(p.xz / 25));
+                    diffuse = clear;
                     colour = clear * (sun.color * sun.shadowAttenuation * ndl + ambient) + SampleSH(reflect(-view, n)) * 0.08;
                 }
                 else
                 {
                     float3 packed = float3(0.86, 0.89, 0.93) * (0.96 + 0.06 * ValueNoise2(p.xz / 6));
+                    diffuse = packed;
                     colour = packed * (sun.color * sun.shadowAttenuation * ndl + ambient);
                 }
+                colour += diffuse * LampLight(p, n);   // skipped by day
                 return half4(ApplyHaze(colour, p), 1);
             }
             ENDHLSL

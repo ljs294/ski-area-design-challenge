@@ -20,7 +20,7 @@
     "downlight": {"size": 220},
     "lights": {
       "downlight": {"kind": "spot", "kelvin": 4000, "lumens": 800, "rangeM": 6, "coneDeg": 110, "schedule": "lift_open"},
-      "sconce": {"kind": "point", "kelvin": 4000, "lumens": 800, "rangeM": 5, "coneDeg": 360, "schedule": "lift_open"},
+      "sconce": {"kind": "point", "kelvin": 4000, "lumens": 800, "rangeM": 5, "coneDeg": 360, "schedule": "dusk"},
       "glow": {"kelvin": 3000, "schedule": "lift_open"}
     },
     "view": 1600

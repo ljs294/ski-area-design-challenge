@@ -8,6 +8,11 @@
 // shader with _LIFT_GLASS: premultiplied alpha (only its diffuse fades, its reflection stays whole) with a Fresnel
 // opacity from _GlassAlpha face-on (coated station glass, 0.75) to 0.97 at grazing angles, no shadows or depth, so the interior shows through dark
 // mirror glass (lift models 2, round 3: straight alpha scaled the reflection too and turned glass into a dull tint).
+// Buildings (task 4.50 slice 3) use livery masks 3 (a lamp's lens) and 4 (window glass): at night they glow by
+// _LampGlow and _WindowGlow (the material's lit or dark copy, LiftMaterials): the lenses by the global _BuildingNight
+// (the night's weight), the windows by _BuildingDim (the failing light, BuildingGlow.Dim), each with the post exposure
+// taken back out (MountainViewer.Lights). Lifts never paint 3 or 4, and both default 0. Every surface, lift or
+// building, also takes the building lamps' light at night (LampLight.hlsl, part 2).
 Shader "MountainPlanner/LiftStructure"
 {
     Properties
@@ -27,6 +32,8 @@ Shader "MountainPlanner/LiftStructure"
         [HideInInspector] _SrcBlend ("Src blend", Float) = 1
         [HideInInspector] _DstBlend ("Dst blend", Float) = 0
         [HideInInspector] _ZWrite ("Z write", Float) = 1
+        _LampGlow ("Lamp lens glow (mask 3)", Float) = 0
+        _WindowGlow ("Window glow (mask 4)", Float) = 0
     }
     SubShader
     {
@@ -49,7 +56,11 @@ Shader "MountainPlanner/LiftStructure"
             // New properties go after the existing ones (BB7): _AccentColor between _LiveryColor and _SnowLoad made the
             // bundled D3D12 runtime (Agility SDK 1.618) crash in Unity's device teardown on quit after a lifts benchmark.
             float4 _AccentColor;
+            float _LampGlow;     // task 4.50 slice 3, after _AccentColor (BB7)
+            float _WindowGlow;
         CBUFFER_END
+        float _BuildingNight;    // globals (task 4.50 slice 3): the night's weight and the failing light, each over exp2(exposure)
+        float _BuildingDim;
         TEXTURE2D(_PaletteMap);   // sampled with the core library's sampler_PointClamp: flat swatches, no bleeding
         TEXTURE2D(_DetailMap); SAMPLER(sampler_DetailMap);
 
@@ -116,6 +127,7 @@ Shader "MountainPlanner/LiftStructure"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
             #include "Weather.hlsl"
+            #include "LampLight.hlsl"
 
             struct Attributes
             {
@@ -160,6 +172,23 @@ Shader "MountainPlanner/LiftStructure"
                 o.ao = v.color.r;
                 o.fogFactor = ComputeFogFactor(p.positionCS.z);
                 return o;
+            }
+
+            // Task 4.50 slice 3 round 2 (owner 2026-11-26: flat, identical window cards don't look natural): how brightly a
+            // lit window shows here, about 0.55-1.25. A slow wander through the world (1.7 m), so no two windows match and
+            // none is one flat card; and the room seen through the glass: its bright ceiling from below or level, its
+            // darker floor from above.
+            float WindowHash(float3 c) { return frac(sin(dot(c, float3(127.1, 311.7, 74.7))) * 43758.5453); }
+            half WindowLook(float3 positionWS, half3 viewDirWS)
+            {
+                float3 q = positionWS / 1.7, c = floor(q), f = q - c;
+                f = f * f * (3.0 - 2.0 * f);
+                float n = lerp(lerp(lerp(WindowHash(c), WindowHash(c + float3(1, 0, 0)), f.x),
+                                    lerp(WindowHash(c + float3(0, 1, 0)), WindowHash(c + float3(1, 1, 0)), f.x), f.y),
+                               lerp(lerp(WindowHash(c + float3(0, 0, 1)), WindowHash(c + float3(1, 0, 1)), f.x),
+                                    lerp(WindowHash(c + float3(0, 1, 1)), WindowHash(c + float3(1, 1, 1)), f.x), f.y), f.z);
+                half room = lerp(1.0h, 0.7h, saturate(viewDirWS.y * 1.6h));
+                return (half)lerp(0.75, 1.25, n) * room;
             }
 
             half4 Frag(Varyings i) : SV_Target
@@ -217,6 +246,15 @@ Shader "MountainPlanner/LiftStructure"
                 #endif
 
                 half4 color = UniversalFragmentPBR(input, surface);
+                // Task 4.50 slice 3 part 2: the building lamps' light (LampLight.hlsl), diffuse only (metal takes a little)
+                color.rgb += albedo * lerp(1.0h, 0.35h, metallic) * surface.occlusion * (half3)LampLight(i.positionWS, input.normalWS);
+                // Task 4.50 slice 3: a building's lenses (4000 K) and windows (3000 K, a soft warm white) at night.
+                half lens = step(2.5h, (half)i.data.y) * (1.0h - step(3.5h, (half)i.data.y));
+                half pane = step(3.5h, (half)i.data.y);
+                color.rgb += lens * (half)(_LampGlow * _BuildingNight) * half3(1.0h, 0.64h, 0.37h);
+                UNITY_BRANCH
+                if (pane * _WindowGlow * _BuildingDim > 0.001)
+                    color.rgb += pane * (half)(_WindowGlow * _BuildingDim) * WindowLook(i.positionWS, input.viewDirectionWS) * half3(1.0h, 0.60h, 0.31h);
                 color.rgb = MixFog(color.rgb, input.fogCoord);
                 color.rgb = WeatherFogKeep(color.rgb, i.positionWS, 0.25h);   // task 4.06: the weather, silhouette kept
                 #if defined(_LIFT_GLASS)

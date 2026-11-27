@@ -592,6 +592,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7093787345917880973}
   - component: {fileID: 8742705259541313111}
+  - component: {fileID: 8988949124276285018}
   m_Layer: 0
   m_Name: bldg_pumphouse
   m_TagString: Untagged
@@ -661,6 +662,87 @@ LODGroup:
     renderers:
     - renderer: {fileID: 2368870741648695095}
   m_Enabled: 1
+--- !u!114 &8988949124276285018
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6368684496555181197}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 444dcb0844ad38e428201a611a78ec0e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Buildings.BuildingLights
+  Lamps:
+  - Name: light_door_yard
+    Spot: 1
+    Position: {x: 6.546, y: 2.1164, z: 1}
+    Aim: {x: 0, y: -1, z: 0}
+    Kelvin: 4000
+    Lumens: 1500
+    RangeMetres: 6
+    ConeDegrees: 120
+    Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.55200005
+  - Name: light_door_water
+    Spot: 1
+    Position: {x: -6.546, y: 2.1164, z: 6}
+    Aim: {x: 0, y: -1, z: 0}
+    Kelvin: 4000
+    Lumens: 1500
+    RangeMetres: 6
+    ConeDegrees: 120
+    Schedule: dusk
+    Facing: {x: -1, y: 0, z: -0}
+    WallMetres: 0.5219998
+  - Name: light_sconce_yard
+    Spot: 0
+    Position: {x: 6.201, y: 1.98, z: 0.093}
+    Aim: {x: 0, y: -1, z: 0}
+    Kelvin: 4000
+    Lumens: 800
+    RangeMetres: 5
+    ConeDegrees: 360
+    Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.10500003
+  - Name: light_sconce_water
+    Spot: 0
+    Position: {x: -6.201, y: 1.98, z: 6.907}
+    Aim: {x: 0, y: -1, z: 0}
+    Kelvin: 4000
+    Lumens: 800
+    RangeMetres: 5
+    ConeDegrees: 360
+    Schedule: dusk
+    Facing: {x: -1, y: 0, z: -0}
+    WallMetres: 0.10500001
+  - Name: light_door_main
+    Spot: 1
+    Position: {x: 6.231, y: 4.412, z: 4.5}
+    Aim: {x: 0.3303816, y: -0.9438474, z: 0}
+    Kelvin: 4000
+    Lumens: 3000
+    RangeMetres: 9
+    ConeDegrees: 110
+    Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.25499964
+  - Name: light_pad
+    Spot: 1
+    Position: {x: 10.296, y: 4.426, z: -7.4}
+    Aim: {x: -0.44319788, y: -0.7474964, z: 0.49479765}
+    Kelvin: 4000
+    Lumens: 6000
+    RangeMetres: 12
+    ConeDegrees: 110
+    Schedule: dusk
+    Facing: {x: 0, y: 0, z: 0}
+    WallMetres: 0
+  GlowKelvin: 3000
+  GlowSchedule: running
 --- !u!1 &6693307048722025019
 GameObject:
   m_ObjectHideFlags: 0

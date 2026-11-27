@@ -377,6 +377,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3662286937278980124}
   - component: {fileID: 528135369271019536}
+  - component: {fileID: 8148998053190001915}
   m_Layer: 0
   m_Name: bldg_hut_mini
   m_TagString: Untagged
@@ -443,6 +444,43 @@ LODGroup:
     renderers:
     - renderer: {fileID: 5931646008293148444}
   m_Enabled: 1
+--- !u!114 &8148998053190001915
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4720778998432802174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 444dcb0844ad38e428201a611a78ec0e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Buildings.BuildingLights
+  Lamps:
+  - Name: light_down_1
+    Spot: 1
+    Position: {x: 1.444, y: 2.544, z: 0}
+    Aim: {x: 0, y: -1, z: 0}
+    Kelvin: 4000
+    Lumens: 800
+    RangeMetres: 6
+    ConeDegrees: 110
+    Schedule: lift_open
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.25399992
+  - Name: light_sconce
+    Spot: 0
+    Position: {x: -0.731, y: 2.15, z: -1.324}
+    Aim: {x: 0, y: -1, z: 0}
+    Kelvin: 4000
+    Lumens: 800
+    RangeMetres: 5
+    ConeDegrees: 360
+    Schedule: dusk
+    Facing: {x: 0, y: 0, z: -1}
+    WallMetres: 0.10500001
+  GlowKelvin: 3000
+  GlowSchedule: lift_open
 --- !u!1 &5414246801117090744
 GameObject:
   m_ObjectHideFlags: 0

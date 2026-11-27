@@ -380,6 +380,7 @@ namespace MountainPlanner.App
             Debug.Log($"[MountainViewer] camera {cam}, ground below {_resort.Surface.HeightAt(cam.x, cam.z):F0} m, target {(Camera != null ? Camera.Target : Vector3.zero)}, " +
                       $"active terrains {Terrain.activeTerrains.Length}, material {(TerrainMaterial != null ? TerrainMaterial.shader.name : "none")}, " +
                       $"time {(Lighting != null ? Lighting.Clock.Now.ToString() : "-")}, sun {(Lighting != null ? Lighting.CurrentLight.SunElevation : 0):F1}°");
+            Debug.Log(BuildingLightsReport());
             LogSnowTypesOnScreen();   // -snowtypes: where each stripe is on this picture
             ScreenCapture.CaptureScreenshot(path);
             yield return null;
@@ -681,6 +682,7 @@ namespace MountainPlanner.App
             StopSimulation();
             _skiers?.Dispose();
             _groomerDots?.Dispose(); _groomerDots = null;
+            DisposeBuildingLights();
             _skiers = null;
             _figures?.Dispose();
             _figures = null;
@@ -708,6 +710,7 @@ namespace MountainPlanner.App
             TickRide();     // a ride's seat moves the camera, from this frame's rope time (task 4.11 PR B)
             TimedTickSkiers();   // every dot placed and drawn at the rope clock's tick (task 4.13)
             TickGroomers();      // the groomers' dots, from the night's plan (task 4.25, GO-13)
+            TickBuildingLights();   // the buildings' lamps and windows at night, and their halos (task 4.50 slice 3)
             DrawChairs();   // after the camera has moved, for its LODs
             LogHeightReads();
             if (_contourLabels == null || _resort == null) return;

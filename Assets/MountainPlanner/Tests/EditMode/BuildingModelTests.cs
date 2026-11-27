@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using MountainPlanner.Presentation.Buildings;
 using MountainPlanner.World.Lifts;
@@ -79,6 +80,70 @@ namespace MountainPlanner.Tests
                 Assert.That(prefab.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials)
                     .All(m => m != null && m.name.StartsWith("Building")), id);
             }
+        }
+
+        [Test]
+        public void EveryLightSocketHasItsRecord()
+        {
+            // Task 4.50 slice 3: BuildingImport stores each light's record on its prefab, one per light_* socket, at its lens.
+            var set = Resources.Load<LiftModelSet>(DevBuildingPlacement.SetName);
+            Assert.That(set, Is.Not.Null);
+            int lit = 0;
+            foreach (var (id, _) in Expected)
+            {
+                var prefab = set.Find(id);
+                var sockets = prefab.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith($"{id}_socket_light_")).ToList();
+                var lights = prefab.GetComponent<World.Buildings.BuildingLights>();
+                if (sockets.Count == 0) { Assert.That(lights == null || lights.Lamps.Length == 0, id + ": no lights"); continue; }
+                lit++;
+                Assert.That(lights, Is.Not.Null, id);
+                Assert.That(lights.Lamps.Select(l => $"{id}_socket_{l.Name}"), Is.EquivalentTo(sockets.Select(t => t.name)), id);
+                foreach (var l in lights.Lamps)
+                {
+                    var t = sockets.First(s => s.name == $"{id}_socket_{l.Name}");
+                    Assert.That((prefab.transform.InverseTransformPoint(t.position) - l.Position).magnitude, Is.LessThan(0.001f), $"{id} {l.Name}");
+                    Assert.That(l.Schedule, Is.Not.Empty);
+                    Assert.That(l.Aim.magnitude, Is.EqualTo(1).Within(1e-3));
+                }
+                Assert.That(lights.GlowKelvin, Is.GreaterThan(0), id + ": its windows glow");
+            }
+            Assert.That(lit, Is.EqualTo(5), "the pump house, the garage and the three huts");
+            // The owner's hut rule: the door sconce burns all night, the downlights only while the lift runs.
+            var mini = set.Find("bldg_hut_mini").GetComponent<World.Buildings.BuildingLights>();
+            Assert.That(mini.Lamps.First(l => l.Name == "light_sconce").Schedule, Is.EqualTo("dusk"));
+            Assert.That(mini.Lamps.First(l => l.Name == "light_down_1").Schedule, Is.EqualTo("lift_open"));
+        }
+
+        [Test]
+        public void EveryWallLampKnowsItsWall()
+        {
+            // Slice 3 part 2: the import finds the wall behind each lamp (its light stays on that side). A wall lamp faces
+            // out from its building, horizontally; the yard poles stand free and light all round.
+            var set = Resources.Load<LiftModelSet>(DevBuildingPlacement.SetName);
+            var free = new List<string>();
+            foreach (var (id, _) in Expected)
+            {
+                var prefab = set.Find(id);
+                var lights = prefab.GetComponent<World.Buildings.BuildingLights>();
+                if (lights == null) continue;
+                var door = prefab.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == $"{id}_socket_door");
+                foreach (var l in lights.Lamps)
+                {
+                    if (l.Facing == Vector3.zero) { free.Add($"{id} {l.Name}"); continue; }
+                    Assert.That(l.Facing.magnitude, Is.EqualTo(1).Within(1e-3), $"{id} {l.Name}");
+                    Assert.That(l.Facing.y, Is.EqualTo(0).Within(1e-3), $"{id} {l.Name}");
+                    Assert.That(l.WallMetres, Is.InRange(0.02f, 1.2f), $"{id} {l.Name}: the wall just behind it");
+                    // a hut's door sconce is on its door's wall: the door sits on the wall's plane, WallMetres behind the lens
+                    if (l.Name == "light_sconce" && door != null)
+                        Assert.That(Vector3.Dot(prefab.transform.InverseTransformPoint(door.position) - l.Position, l.Facing),
+                                    Is.EqualTo(-l.WallMetres).Within(0.1f), $"{id} {l.Name} is on the door wall");
+                }
+            }
+            Assert.That(free, Is.EquivalentTo(new[] { "bldg_pumphouse light_pad", "bldg_garage light_fuel" }));
+            // the mini hut's door sconce is on its door wall (local -z), its downlight on the glass side (+x)
+            var mini = set.Find("bldg_hut_mini").GetComponent<World.Buildings.BuildingLights>();
+            Assert.That(Vector3.Dot(mini.Lamps.First(l => l.Name == "light_sconce").Facing, Vector3.back), Is.GreaterThan(0.99f));
+            Assert.That(Vector3.Dot(mini.Lamps.First(l => l.Name == "light_down_1").Facing, Vector3.right), Is.GreaterThan(0.99f));
         }
 
         [Test]

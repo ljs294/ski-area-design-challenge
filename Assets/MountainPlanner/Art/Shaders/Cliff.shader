@@ -48,6 +48,7 @@ Shader "MountainPlanner/Cliff"
             #include "Haze.hlsl"
             #include "FarShadow.hlsl"
             #include "InfoLayers.hlsl"
+            #include "LampLight.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; float3 normalWS : TEXCOORD1; float weight : TEXCOORD2; };
@@ -115,6 +116,7 @@ Shader "MountainPlanner/Cliff"
                 float3 h = normalize(sun.direction + view);
                 float spec = pow(saturate(dot(normal, h)), exp2(10 * smooth + 1)) * smooth * 0.5;
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation + SampleSH(normal) * TerrainSkyVisibility(p)) + sun.color * spec * sun.shadowAttenuation;
+                lit += albedo * LampLight(p, normal);   // task 4.50 slice 3 part 2: the building lamps at night (skipped by day)
                 return half4(ApplyHaze(ApplyContours(lit, p.y), p), 1);
             }
             ENDHLSL

@@ -76,6 +76,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3803027303292204025}
   - component: {fileID: 5344634336097842343}
+  - component: {fileID: 2471949448057168772}
   m_Layer: 0
   m_Name: bldg_garage
   m_TagString: Untagged
@@ -161,6 +162,87 @@ LODGroup:
     - renderer: {fileID: 767053333333408690}
     - renderer: {fileID: 6498174361471784216}
   m_Enabled: 1
+--- !u!114 &2471949448057168772
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 424044178053684768}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 444dcb0844ad38e428201a611a78ec0e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Buildings.BuildingLights
+  Lamps:
+  - Name: light_door_office
+    Spot: 1
+    Position: {x: 6.546, y: 2.1164, z: 6.4}
+    Aim: {x: 0, y: -1, z: 0}
+    Kelvin: 4000
+    Lumens: 1500
+    RangeMetres: 6
+    ConeDegrees: 120
+    Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.55200005
+  - Name: light_door_man
+    Spot: 1
+    Position: {x: 3.6, y: 2.1164, z: 9.594}
+    Aim: {x: 0, y: -1, z: 0}
+    Kelvin: 4000
+    Lumens: 1500
+    RangeMetres: 6
+    ConeDegrees: 120
+    Schedule: dusk
+    Facing: {x: 0, y: 0, z: 1}
+    WallMetres: 0.552001
+  - Name: light_sconce_man
+    Spot: 0
+    Position: {x: 2.693, y: 1.98, z: 9.249}
+    Aim: {x: 0, y: -1, z: 0}
+    Kelvin: 4000
+    Lumens: 800
+    RangeMetres: 5
+    ConeDegrees: 360
+    Schedule: dusk
+    Facing: {x: 0, y: 0, z: 1}
+    WallMetres: 0.10499954
+  - Name: light_door_1
+    Spot: 1
+    Position: {x: 6.231, y: 5.022, z: -5.486}
+    Aim: {x: 0.3303816, y: -0.9438474, z: 0}
+    Kelvin: 4000
+    Lumens: 3000
+    RangeMetres: 10
+    ConeDegrees: 110
+    Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.2549992
+  - Name: light_door_2
+    Spot: 1
+    Position: {x: 6.231, y: 5.022, z: 1.829}
+    Aim: {x: 0.3303816, y: -0.9438474, z: 0}
+    Kelvin: 4000
+    Lumens: 3000
+    RangeMetres: 10
+    ConeDegrees: 110
+    Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.25499916
+  - Name: light_fuel
+    Spot: 1
+    Position: {x: -3.1, y: 5.326, z: 14.306}
+    Aim: {x: -0.044902112, y: -0.9931467, z: 0.107905075}
+    Kelvin: 4000
+    Lumens: 6000
+    RangeMetres: 14
+    ConeDegrees: 120
+    Schedule: dusk
+    Facing: {x: 0, y: 0, z: 0}
+    WallMetres: 0
+  GlowKelvin: 3000
+  GlowSchedule: night_shift
 --- !u!1 &918895494939790661
 GameObject:
   m_ObjectHideFlags: 0

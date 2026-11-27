@@ -20,6 +20,12 @@ namespace MountainPlanner.Presentation.Lifts
         static readonly int LiveryId = Shader.PropertyToID("_LiveryColor");
         static readonly int AccentId = Shader.PropertyToID("_AccentColor");
         static readonly int GlassId = Shader.PropertyToID("_Glass");
+        static readonly int LampGlowId = Shader.PropertyToID("_LampGlow");
+        static readonly int WindowGlowId = Shader.PropertyToID("_WindowGlow");
+
+        /// <summary>Task 4.50 slice 3: a lit building's lens (mask 3) and window (mask 4) glow at full night, in display
+        /// units (the shader takes the post exposure back out): the lenses burn white-hot, the windows a warm amber.</summary>
+        public const float LampGlow = 4f, WindowGlow = 0.55f;
 
         readonly Material _structure;
         readonly Material _glass;
@@ -119,26 +125,51 @@ namespace MountainPlanner.Presentation.Lifts
         }
 
         readonly Dictionary<Material, Material> _plain = new Dictionary<Material, Material>();
+        readonly Dictionary<Material, Material> _plainDark = new Dictionary<Material, Material>();
+        readonly Dictionary<Material, Material> _plainSource = new Dictionary<Material, Material>();
 
         /// <summary>
         /// Task 4.50 slice 2: points every renderer of a placed building (a terminal's hut, ramp, gate or pedestal: their own
         /// white-livery materials) at one cached runtime copy per material, so <see cref="SetSnowLoad"/> lays the snow on them
-        /// as on the lifts and the imported materials stay untouched.
+        /// as on the lifts and the imported materials stay untouched. Slice 3: two copies per material, <paramref name="lit"/>
+        /// (its lenses and windows glow at night) or dark; calling it again on the same building swaps between them, so a
+        /// hut goes dark as its lift closes without a property block (the SRP batcher keeps it).
         /// </summary>
-        public void ApplyPlain(GameObject instance)
+        public void ApplyPlain(GameObject instance, bool lit = true)
         {
             foreach (var r in instance.GetComponentsInChildren<Renderer>(true))
             {
                 var shared = r.sharedMaterials;
+                bool changed = false;
                 for (int i = 0; i < shared.Length; i++)
                 {
                     var m = shared[i];
-                    if (m == null || _made.Contains(m)) continue;
-                    if (!_plain.TryGetValue(m, out var copy)) _plain.Add(m, copy = Copy(m));
+                    if (m == null) continue;
+                    if (!_plainSource.TryGetValue(m, out var source))
+                    {
+                        if (_made.Contains(m)) continue;   // a lift's copy, not a building's
+                        source = m;
+                    }
+                    var copy = PlainFor(source, lit);
+                    if (copy == m) continue;
                     shared[i] = copy;
+                    changed = true;
                 }
-                r.sharedMaterials = shared;
+                if (changed) r.sharedMaterials = shared;
             }
+        }
+
+        Material PlainFor(Material source, bool lit)
+        {
+            var map = lit ? _plain : _plainDark;
+            if (map.TryGetValue(source, out var copy)) return copy;
+            copy = Copy(source);
+            if (lit) copy.name = source.name + " (runtime, lit)";
+            if (copy.HasProperty(LampGlowId)) copy.SetFloat(LampGlowId, lit ? LampGlow : 0f);
+            if (copy.HasProperty(WindowGlowId)) copy.SetFloat(WindowGlowId, lit ? WindowGlow : 0f);
+            map.Add(source, copy);
+            _plainSource.Add(copy, source);
+            return copy;
         }
 
         public void SetSnowLoad(float load)
@@ -161,6 +192,8 @@ namespace MountainPlanner.Presentation.Lifts
             _glasses.Clear();
             _chairs.Clear();
             _plain.Clear();
+            _plainDark.Clear();
+            _plainSource.Clear();
             _made.Clear();
         }
     }

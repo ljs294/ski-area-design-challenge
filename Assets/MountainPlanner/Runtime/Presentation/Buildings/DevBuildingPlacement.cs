@@ -15,8 +15,9 @@ namespace MountainPlanner.Presentation.Buildings
     /// at x, z metres in the resort's frame (as -view), turned yaw degrees about the vertical (0: the building's u along
     /// +z, its yard side +v toward +x). Each stands with its floor at the highest ground under it (the earth, sampled on a
     /// grid over its footprint), so it never sinks into a slope; where the ground falls further than its concrete skirt,
-    /// the log says so (no grading yet). The roofs take the site's snow load like the lifts and trees. No lights or night
-    /// glow yet.
+    /// the log says so (no grading yet). The roofs take the site's snow load like the lifts and trees. Slice 3: their lamps
+    /// and windows glow at night (BuildingGlow), in use all night until the simulation runs them (a pump house's pumps,
+    /// the garage's night shift).
     /// </summary>
     public sealed class DevBuildingPlacement : MonoBehaviour
     {
@@ -27,6 +28,7 @@ namespace MountainPlanner.Presentation.Buildings
         public const float SkirtMetres = 1.2f;
         const int Grid = 6;
         static readonly int SnowLoadId = Shader.PropertyToID("_SnowLoad");
+        static readonly int LampGlowId = Shader.PropertyToID("_LampGlow"), WindowGlowId = Shader.PropertyToID("_WindowGlow");
 
         public struct Request
         {
@@ -133,6 +135,8 @@ namespace MountainPlanner.Presentation.Buildings
                     if (!copies.TryGetValue(shared[i], out var copy))
                     {
                         copy = new Material(shared[i]);
+                        if (copy.HasProperty(LampGlowId)) copy.SetFloat(LampGlowId, Lifts.LiftMaterials.LampGlow);
+                        if (copy.HasProperty(WindowGlowId)) copy.SetFloat(WindowGlowId, Lifts.LiftMaterials.WindowGlow);
                         copies.Add(shared[i], copy);
                         _materials.Add(copy);
                     }
@@ -140,6 +144,8 @@ namespace MountainPlanner.Presentation.Buildings
                 }
                 rend.sharedMaterials = shared;
             }
+            var lights = go.GetComponent<World.Buildings.BuildingLights>();
+            if (lights != null) go.AddComponent<BuildingGlowState>().Init(lights, true);
         }
 
         void Update()

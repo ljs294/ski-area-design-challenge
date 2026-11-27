@@ -450,6 +450,12 @@ echo        or more, now with no earth pad) the timber unload ramp: builds them 
 echo        game (close the editor first), then three pictures on the style tile (a Sessellift and a Monta top drive
 echo        raised 8 ft, the Monta's on its wide ramp, by day; the Sessellift's in snow; waits for a free GPU slot)
 echo        and opens the game there. Every lift's card shows its Huts and Unload ramp lines.
+echo     163 The buildings' lights at night: from dusk the lamps light the snow, ground and walls round them
+echo        and their lenses bloom softly (a small dot from afar); a hut's windows and downlights while its lift
+echo        runs (after closing only the door sconce). Rebuilds the game (close the editor first), then eight
+echo        pictures on the style tile and the test mountain (winter dusk and night, a closed lift at night,
+echo        summer night, from afar, the garage at night close and from 220 m, and by day: no glow; waits for
+echo        a free GPU slot) and opens the game at winter dusk: drag photo mode's Sun slider through it.
 echo   4.29 trail grass PR A: grass grows on a trail, a skied winter kills it, mowing keeps it short (.NET only)
 echo     155 The grass and save tests, then two label years on the test mountain from bare ground (a few
 echo        minutes): two natural twins, the first mown every autumn; each one's grass every October 1 and April,
@@ -696,6 +702,7 @@ if /i "%CHOICE%"=="158" goto pumphouse450
 if /i "%CHOICE%"=="159" goto pumphouse450photos
 if /i "%CHOICE%"=="160" goto buildings450game
 if /i "%CHOICE%"=="162" goto liftextras450
+if /i "%CHOICE%"=="163" goto lights450
 if /i "%CHOICE%"=="142" goto crashnotice
 if /i "%CHOICE%"=="143" goto typing
 if /i "%CHOICE%"=="140" goto trailcards
@@ -3199,6 +3206,30 @@ findstr /c:"[StyleTile] extra" "%LX450OUT%\1-sessellift-drive.log"
 start "" "%LX450OUT%"
 echo Opening the game on the style tile, the Sessellift top drive raised 8 ft...
 start "" "%GAME%" -notitle %LX450LIFT% -extratype sessellift-fgq4 -season summer -view -505,-625,60,222,30
+goto done
+:lights450
+call :buildplayer
+if not exist "%GAME%" goto done
+set "LT450OUT=%~dp0test-results\p4-50\lights"
+if not exist "%LT450OUT%" mkdir "%LT450OUT%"
+set "JH2=%LOCALAPPDATA%\SkiAreaDesignChallenge-p308\jh2km"
+if not exist "%JH2%\manifest.json" robocopy "%~dp0TestData\jackson-hole-2km" "%JH2%" /e /njh /njs /nfl /ndl >nul
+rem 162's raised Sessellift on the style tile, by its bottom hut (the top's sits under the drive); -hutslit keeps every hut in use (the lifts close before dark).
+set "LT450LIFT=-styletile -extralift -150,-900,450 -extradrive top -extratopraise 8 -extratype sessellift-fgq4"
+set "LT450RUN=%RENDER% "%GAME%" -notitle -nohud -quality high %SCREEN%"
+echo Taking eight pictures (about a minute each; waits for a free GPU slot)...
+%LT450RUN% %LT450LIFT% -snowseed -day 40 -time 18:00 -hutslit -view -148,-894,14,82,8 -screenshot "%LT450OUT%\1-winter-dusk.png" -logFile "%LT450OUT%\1-winter-dusk.log" <nul
+%LT450RUN% %LT450LIFT% -snowseed -day 40 -time 21:30 -hutslit -view -148,-894,14,82,8 -screenshot "%LT450OUT%\2-winter-night.png" -logFile "%LT450OUT%\2-winter-night.log" <nul
+%LT450RUN% %LT450LIFT% -snowseed -day 40 -time 21:30 -view -148,-894,14,82,8 -screenshot "%LT450OUT%\3-winter-night-closed.png" -logFile "%LT450OUT%\3-winter-night-closed.log" <nul
+%LT450RUN% %LT450LIFT% -season summer -time 22:00 -hutslit -view -148,-894,14,82,8 -screenshot "%LT450OUT%\4-summer-night.png" -logFile "%LT450OUT%\4-summer-night.log" <nul
+%LT450RUN% %LT450LIFT% -snowseed -day 40 -time 21:30 -hutslit -view 100,-700,800,12,30 -screenshot "%LT450OUT%\5-wide-night.png" -logFile "%LT450OUT%\5-wide-night.log" <nul
+%LT450RUN% -package "%JH2%" -snowseed -day 40 -time 21:30 -buildings "garage@-590,-330,0;pumphouse@780,390,0" -view -590,-322,30,215,10 -screenshot "%LT450OUT%\6-garage-night.png" -logFile "%LT450OUT%\6-garage-night.log" <nul
+%LT450RUN% %LT450LIFT% -season summer -view -505,-625,32,222,45 -screenshot "%LT450OUT%\7-day.png" -logFile "%LT450OUT%\7-day.log" <nul
+%LT450RUN% -package "%JH2%" -snowseed -day 40 -time 21:30 -buildings "garage@-590,-330,0;pumphouse@780,390,0" -view -590,-322,220,215,12 -screenshot "%LT450OUT%\8-garage-far.png" -logFile "%LT450OUT%\8-garage-far.log" <nul
+findstr /c:"[Lights]" "%LT450OUT%\2-winter-night.log" "%LT450OUT%\3-winter-night-closed.log" "%LT450OUT%\7-day.log"
+start "" "%LT450OUT%"
+echo Opening the game on the style tile at winter dusk, every hut in use...
+start "" "%GAME%" -notitle %LT450LIFT% -snowseed -day 40 -time 17:30 -hutslit -view -148,-894,30,82,12
 goto done
 :buildgame
 call :buildplayer

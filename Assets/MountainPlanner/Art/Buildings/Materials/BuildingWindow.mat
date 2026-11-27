@@ -40,9 +40,11 @@ Material:
     - _DstBlend: 0
     - _Glass: 0
     - _GlassAlpha: 0.75
+    - _LampGlow: 0
     - _SnowLoad: 1
     - _SnowSmoothness: 0.3
     - _SrcBlend: 1
+    - _WindowGlow: 0
     - _ZWrite: 1
     m_Colors:
     - _AccentColor: {r: 1, g: 1, b: 1, a: 1}
