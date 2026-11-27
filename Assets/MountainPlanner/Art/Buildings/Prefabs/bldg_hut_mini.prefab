@@ -466,6 +466,8 @@ MonoBehaviour:
     RangeMetres: 6
     ConeDegrees: 110
     Schedule: lift_open
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.25399992
   - Name: light_sconce
     Spot: 0
     Position: {x: -0.731, y: 2.15, z: -1.324}
@@ -475,6 +477,8 @@ MonoBehaviour:
     RangeMetres: 5
     ConeDegrees: 360
     Schedule: dusk
+    Facing: {x: 0, y: 0, z: -1}
+    WallMetres: 0.10500001
   GlowKelvin: 3000
   GlowSchedule: lift_open
 --- !u!1 &5414246801117090744

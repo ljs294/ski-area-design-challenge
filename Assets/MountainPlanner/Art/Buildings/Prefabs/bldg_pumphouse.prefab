@@ -684,6 +684,8 @@ MonoBehaviour:
     RangeMetres: 6
     ConeDegrees: 120
     Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.55200005
   - Name: light_door_water
     Spot: 1
     Position: {x: -6.546, y: 2.1164, z: 6}
@@ -693,6 +695,8 @@ MonoBehaviour:
     RangeMetres: 6
     ConeDegrees: 120
     Schedule: dusk
+    Facing: {x: -1, y: 0, z: -0}
+    WallMetres: 0.5219998
   - Name: light_sconce_yard
     Spot: 0
     Position: {x: 6.201, y: 1.98, z: 0.093}
@@ -702,6 +706,8 @@ MonoBehaviour:
     RangeMetres: 5
     ConeDegrees: 360
     Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.10500003
   - Name: light_sconce_water
     Spot: 0
     Position: {x: -6.201, y: 1.98, z: 6.907}
@@ -711,6 +717,8 @@ MonoBehaviour:
     RangeMetres: 5
     ConeDegrees: 360
     Schedule: dusk
+    Facing: {x: -1, y: 0, z: -0}
+    WallMetres: 0.10500001
   - Name: light_door_main
     Spot: 1
     Position: {x: 6.231, y: 4.412, z: 4.5}
@@ -720,6 +728,8 @@ MonoBehaviour:
     RangeMetres: 9
     ConeDegrees: 110
     Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.25499964
   - Name: light_pad
     Spot: 1
     Position: {x: 10.296, y: 4.426, z: -7.4}
@@ -729,6 +739,8 @@ MonoBehaviour:
     RangeMetres: 12
     ConeDegrees: 110
     Schedule: dusk
+    Facing: {x: 0, y: 0, z: 0}
+    WallMetres: 0
   GlowKelvin: 3000
   GlowSchedule: running
 --- !u!1 &6693307048722025019

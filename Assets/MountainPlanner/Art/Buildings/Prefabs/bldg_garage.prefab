@@ -184,6 +184,8 @@ MonoBehaviour:
     RangeMetres: 6
     ConeDegrees: 120
     Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.55200005
   - Name: light_door_man
     Spot: 1
     Position: {x: 3.6, y: 2.1164, z: 9.594}
@@ -193,6 +195,8 @@ MonoBehaviour:
     RangeMetres: 6
     ConeDegrees: 120
     Schedule: dusk
+    Facing: {x: 0, y: 0, z: 1}
+    WallMetres: 0.552001
   - Name: light_sconce_man
     Spot: 0
     Position: {x: 2.693, y: 1.98, z: 9.249}
@@ -202,6 +206,8 @@ MonoBehaviour:
     RangeMetres: 5
     ConeDegrees: 360
     Schedule: dusk
+    Facing: {x: 0, y: 0, z: 1}
+    WallMetres: 0.10499954
   - Name: light_door_1
     Spot: 1
     Position: {x: 6.231, y: 5.022, z: -5.486}
@@ -211,6 +217,8 @@ MonoBehaviour:
     RangeMetres: 10
     ConeDegrees: 110
     Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.2549992
   - Name: light_door_2
     Spot: 1
     Position: {x: 6.231, y: 5.022, z: 1.829}
@@ -220,6 +228,8 @@ MonoBehaviour:
     RangeMetres: 10
     ConeDegrees: 110
     Schedule: dusk
+    Facing: {x: 1, y: 0, z: 0}
+    WallMetres: 0.25499916
   - Name: light_fuel
     Spot: 1
     Position: {x: -3.1, y: 5.326, z: 14.306}
@@ -229,6 +239,8 @@ MonoBehaviour:
     RangeMetres: 14
     ConeDegrees: 120
     Schedule: dusk
+    Facing: {x: 0, y: 0, z: 0}
+    WallMetres: 0
   GlowKelvin: 3000
   GlowSchedule: night_shift
 --- !u!1 &918895494939790661

@@ -4,6 +4,7 @@
 // Task 4.06: crowns take the weather's cheaper path (one curtain tap, no snow-line fringe): they are most of the screen's pixels.
 #define WX_COARSE_SHADOW 1
 #include "FarShadow.hlsl"
+#include "LampLight.hlsl"
 // Foliage: wrapped diffuse (needles pass light, so crowns never go black), ambient from the sky, both
 // darkened by the crown's own occlusion, plus a glow when the sun is behind the tree.
 half3 TreeLight(half3 albedo, float3 n, half ao, float3 positionWS, half translucency)
@@ -16,6 +17,7 @@ half3 TreeLight(half3 albedo, float3 n, half ao, float3 positionWS, half translu
     half3 ambient = SampleSH(n) * ao;
     half back = pow(saturate(dot(-v, sun.direction)), 5) * translucency;
     half3 glow = sun.color * back * sun.shadowAttenuation * ao * 0.9;
-    return albedo * (direct + ambient) + albedo * glow;
+    half3 lamps = (half3)LampLight(positionWS, n) * ao;   // task 4.50 slice 3 part 2: the building lamps at night (skipped by day)
+    return albedo * (direct + ambient) + albedo * glow + albedo * lamps;
 }
 #endif

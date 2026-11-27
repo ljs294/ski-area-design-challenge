@@ -6,8 +6,9 @@ using UnityEngine.Rendering;
 namespace MountainPlanner.Tests
 {
     /// <summary>
-    /// Task 4.50 slice 3: a lamp's halo draws at its size on screen. Rendering into a texture flips the projection's y, which
-    /// once pinned every halo to its minimum size (then 3 px: 4 pixels lit here instead of ~270), invisible in the game.
+    /// Task 4.50 slice 3: a lamp's glare draws at its size on screen. Rendering into a texture flips the projection's y, which
+    /// once pinned every one to its minimum size. Round 2 (owner 2026-11-26): a glare is about its lens's size and shows
+    /// only where the lens does: from in front of a shaded lamp's aim, and all round a cage sconce.
     /// </summary>
     public sealed class LampHaloTests
     {
@@ -27,11 +28,11 @@ namespace MountainPlanner.Tests
                 cam.backgroundColor = Color.black;
                 cam.fieldOfView = 60;
                 var layer = new LampHaloLayer(shader);
-                // 10 m away, 1.2 m across: 27 px at this height, clamped to 26 px (~270 pixels over 0.05)
-                int Lit(float level)
+                // 3 m away, 0.35 m across: 26 px at this height, clamped to 14 px (~70 pixels over 0.05)
+                int Lit(float level, Vector3 aim, bool allRound = false, float z = 3)
                 {
                     layer.Begin();
-                    layer.Add(new Vector3(0, 0, 10), level);
+                    layer.Add(new Vector3(0, 0, z), level, aim, allRound, Color.white);
                     layer.Draw(cam);
                     cam.Render();
                     var prev = RenderTexture.active;
@@ -44,8 +45,13 @@ namespace MountainPlanner.Tests
                     Object.DestroyImmediate(tex);
                     return n;
                 }
-                Assert.That(Lit(1), Is.InRange(150, 500), "a disc about 26 px across (its core and glow over 0.05)");
-                Assert.That(Lit(0), Is.EqualTo(0), "an unlit lamp: no halo");
+                int facing = Lit(1, Vector3.back);
+                Assert.That(facing, Is.InRange(30, 160), "a disc 14 px across (its core and glow over 0.05)");
+                Assert.That(Lit(0, Vector3.back), Is.EqualTo(0), "an unlit lamp: no glare");
+                Assert.That(Lit(1, Vector3.forward), Is.EqualTo(0), "a shaded lamp seen from behind its aim: none");
+                Assert.That(Lit(1, Vector3.down), Is.LessThan(facing), "seen side on: fading");
+                Assert.That(Lit(1, Vector3.forward, true), Is.EqualTo(facing), "a cage sconce shines all round");
+                Assert.That(Lit(1, Vector3.back, false, 200), Is.InRange(2, 16), "from afar: a point 4 px across");
                 layer.Dispose();
             }
             finally

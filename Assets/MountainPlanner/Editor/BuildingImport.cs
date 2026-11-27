@@ -300,10 +300,110 @@ namespace MountainPlanner.Editor
                     Schedule = (string)r["schedule"],
                 });
             }
+            if (lamps.Count > 0)
+            {
+                var tris = Lod0Triangles(id, go);
+                for (int i = 0; i < lamps.Count; i++)
+                {
+                    var l = lamps[i];
+                    l.Facing = WallFacing(tris, l.Position, out l.WallMetres);
+                    lamps[i] = l;
+                    Debug.Log($"[BuildingImport] {id} {l.Name}: wall " + (l.Facing == Vector3.zero ? "none (free-standing)" : $"facing {l.Facing:F2}, {l.WallMetres:F2} m behind"));
+                }
+            }
             var lights = go.AddComponent<BuildingLights>();
             lights.Lamps = lamps.ToArray();
             lights.GlowKelvin = glow != null ? (int)glow["kelvin"] : 0;
             lights.GlowSchedule = glow != null ? (string)glow["schedule"] : null;
+        }
+
+        /// <summary>Wall search: how far out from a lamp a wall may be (a canopy's downlight sits ~0.6 m out).</summary>
+        public const float WallReach = 1.2f;
+        const int WallRays = 32;
+
+        /// <summary>The building's LOD0 triangles in its own frame (three corners each).</summary>
+        static List<Vector3> Lod0Triangles(string id, GameObject go)
+        {
+            var tris = new List<Vector3>();
+            var verts = new List<Vector3>();
+            var root = go.transform;
+            foreach (var mf in go.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (!mf.name.EndsWith("_LOD0") || mf.sharedMesh == null) continue;
+                var mesh = mf.sharedMesh;
+                verts.Clear();
+                mesh.GetVertices(verts);
+                if (verts.Count == 0) throw new System.InvalidOperationException($"{id}: {mf.name} has no readable vertices");
+                var t = mf.transform;
+                for (int s = 0; s < mesh.subMeshCount; s++)
+                {
+                    var idx = mesh.GetTriangles(s);
+                    for (int k = 0; k < idx.Length; k++) tris.Add(root.InverseTransformPoint(t.TransformPoint(verts[idx[k]])));
+                }
+            }
+            return tris;
+        }
+
+        /// <summary>
+        /// Which wall a lamp is on: horizontal rays all round from just below the lamp (clear of its own fixture), at
+        /// two heights. A wall is the nearest surface within <see cref="WallReach"/> that the rays either side of it
+        /// (±20°) also meet, at both heights, facing the same way, so a pole or a post isn't taken for a wall. Returns
+        /// the wall's outward horizontal facing and how far behind the lamp it is, or zero (free-standing).
+        /// </summary>
+        public static Vector3 WallFacing(List<Vector3> tris, Vector3 lamp, out float metres)
+        {
+            metres = 0;
+            Vector3 best = Vector3.zero;
+            float bestDist = float.MaxValue;
+            for (int r = 0; r < WallRays; r++)
+            {
+                float a = r * Mathf.PI * 2f / WallRays;
+                var dir = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
+                if (!Cast(tris, lamp + Vector3.down * 0.4f, dir, out float d, out var n) || d >= bestDist) continue;
+                bool wall = true;
+                foreach (float drop in new[] { 0.4f, 0.8f })
+                    foreach (float turn in new[] { -20f, 0f, 20f })
+                    {
+                        var dd = Quaternion.AngleAxis(turn, Vector3.up) * dir;
+                        if (!Cast(tris, lamp + Vector3.down * drop, dd, out _, out var nn) || Vector3.Dot(nn, n) < 0.9f) wall = false;
+                    }
+                if (!wall) continue;
+                bestDist = d;
+                best = n;
+                metres = d * -Vector3.Dot(n, dir);   // straight back to the wall's plane
+            }
+            return best;
+        }
+
+        /// <summary>The nearest triangle a ray meets within <see cref="WallReach"/>: its distance, and its horizontal normal turned to face the ray's start.</summary>
+        static bool Cast(List<Vector3> tris, Vector3 from, Vector3 dir, out float dist, out Vector3 normal)
+        {
+            dist = WallReach; normal = Vector3.zero;
+            bool hit = false;
+            for (int i = 0; i + 2 < tris.Count; i += 3)
+            {
+                Vector3 a = tris[i], e1 = tris[i + 1] - a, e2 = tris[i + 2] - a;
+                var p = Vector3.Cross(dir, e2);
+                float det = Vector3.Dot(e1, p);
+                if (Mathf.Abs(det) < 1e-9f) continue;
+                float inv = 1f / det;
+                var s = from - a;
+                float u = Vector3.Dot(s, p) * inv;
+                if (u < 0 || u > 1) continue;
+                var q = Vector3.Cross(s, e1);
+                float v = Vector3.Dot(dir, q) * inv;
+                if (v < 0 || u + v > 1) continue;
+                float t = Vector3.Dot(e2, q) * inv;
+                if (t <= 0.005f || t >= dist) continue;
+                var n = Vector3.Cross(e1, e2).normalized;
+                if (Mathf.Abs(n.y) > 0.3f) continue;   // a floor, a soffit or a roof, not a wall
+                n.y = 0;
+                n.Normalize();
+                if (Vector3.Dot(n, dir) > 0) n = -n;
+                if (-Vector3.Dot(n, dir) < 0.5f) continue;   // grazing: a wall the ray runs along
+                dist = t; normal = n; hit = true;
+            }
+            return hit;
         }
     }
 }

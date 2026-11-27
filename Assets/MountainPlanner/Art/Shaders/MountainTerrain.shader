@@ -241,6 +241,7 @@ Shader "MountainPlanner/Terrain"
             #include "FarShadow.hlsl"
             #include "InfoLayers.hlsl"
             #include "SnowLighting.hlsl"
+            #include "LampLight.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings
@@ -989,6 +990,7 @@ Shader "MountainPlanner/Terrain"
                     lit += sun.color * (SnowSparkle(i.positionWS, normal, h, eyeDist, snowLook.density, snowLook.grain) * snowLook.sparkle * snowShare * sun.shadowAttenuation);
                     #endif
                 }
+                lit += albedo * LampLight(i.positionWS, normal);   // task 4.50 slice 3 part 2: the building lamps' pools at night, on ground and snow alike (skipped by day)
                 // The earth's lines, on the ground and on the snow shell alike (owner, 2026-11-17: the real ground's contours show
                 // through the snow). earthY is the earth's height under the pixel, so a line is where the bare earth's is.
                 lit = ApplyContours(lit, i.earthY, ContourElevation(i.uv, i.earthY));
