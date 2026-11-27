@@ -75,7 +75,24 @@
     "detail": {"doors": [[-1.8, 6.1, 3.0], [-4.0, 12.0, 1.0], 30],
                "shop": [[9.1, 2.5, 2.0], [5.0, 4.5, 0.5], 30],
                "fuel": [[13.0, -3.3, 1.3], [4.5, 8.5, 5.0], 30],
-               "light": ["light:light_sconce_man", [2.2, 0.9, -0.8], 40]}
+               "light": ["light:light_sconce_man", [2.2, 0.9, -0.8], 40]},
+    "_photos": "Gate 2 (owner 2026-11-27): level gravel round the garage, its yard aprons and the fuel pad, a figure by door 1 for scale; [shot, target, azimuth (0 from +u, the shop and fuel end; 90 from the yard), elevation, distance, lens, mode]",
+    "photoFigure": [-1.5, 8.0, 0.0],
+    "figureIn": ["hero", "doors", "yard"],
+    "pad": {"ground": 0.0, "gravel": [-16.0, 22.0, -10.0, 18.0]},
+    "photos": [
+      ["hero", [1.0, 1.0, 3.5], 55, 8, 30, 35, "day"],
+      ["yard", [0.0, 6.1, 3.0], 90, 6, 30, 35, "day"],
+      ["back", [0.0, -1.0, 3.2], 235, 10, 34, 35, "day"],
+      ["fuel", [13.5, -2.0, 1.6], 15, 10, 18, 35, "day"],
+      ["high", [2.0, 0.0, 3.0], 40, 38, 42, 35, "day"],
+      ["doors", [-1.8, 6.1, 2.6], 100, 4, 18, 35, "day"],
+      ["office", [8.0, 6.1, 1.8], 70, 6, 9, 40, "day"],
+      ["door_light", {"mean": ["light_door_man", "light_sconce_man"], "plus": [0.25, 0.0, -0.15]}, 345, -12, 3.6, 40, "day"],
+      ["dusk", [1.0, 1.0, 3.5], 62, 7, 30, 35, "dusk"],
+      ["dusk_fuel", [12.0, 0.0, 2.0], 30, 8, 24, 30, "dusk"],
+      ["snow", [0.5, 1.0, 3.2], 125, 18, 38, 35, "snow"]
+    ]
   },
   "lights": {
     "wallPack": {"kind": "spot", "kelvin": 4000, "lumens": 3000, "rangeM": 10, "coneDeg": 110, "schedule": "dusk"},

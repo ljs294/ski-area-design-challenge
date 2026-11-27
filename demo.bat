@@ -3022,7 +3022,6 @@ goto done
 :pumphouse450photos
 call :building450pick
 if not defined B450 goto done
-if "%B450%"=="garages" (echo   The garage's Gate 2 pictures come after Gate 1 is approved. & goto done)
 set "B450SHOT=bldg_%B450ID%_photo_dusk.png"
 if "%B450%"=="unloadramp" set "B450SHOT=ramp_photo_quad_2m_hero.png"
 set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
